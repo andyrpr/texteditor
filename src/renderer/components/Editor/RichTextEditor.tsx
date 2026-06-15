@@ -10,29 +10,19 @@ import { EditorToolbar } from './EditorToolbar'
 import { useAppStore } from '@/store/appStore'
 import { useAutosave, useKeyboardSave } from '@/hooks/useAutosave'
 import { countWords } from '@/lib/utils'
-import type { TreeNode, ChapterMeta } from '@shared/types'
+import { isSimpleChapter } from '@/lib/treeUtils'
+import type { TreeNode } from '@shared/types'
+
 import {
   DEFAULT_CHARACTER_META,
   DEFAULT_LOCATION_META,
   DEFAULT_LORE_META,
-  DEFAULT_CHAPTER_META,
   parseMetadata
 } from '@shared/types'
 import type { CharacterMeta, LocationMeta, LoreMeta } from '@shared/types'
 
 interface RichTextEditorProps {
   node: TreeNode | null
-}
-
-function isSimpleChapter(node: TreeNode): boolean {
-  const meta = parseMetadata<ChapterMeta>(node.metadata, DEFAULT_CHAPTER_META)
-  return meta.structure === 'simple'
-}
-
-function isChapterFolder(node: TreeNode): boolean {
-  if (node.type !== 'chapter') return false
-  const meta = parseMetadata<ChapterMeta>(node.metadata, DEFAULT_CHAPTER_META)
-  return meta.structure === 'scenes'
 }
 
 function buildEntityNames(nodes: TreeNode[]): Map<string, { id: string; type: string; name: string }> {
@@ -149,16 +139,8 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
 
   if (!node) {
     return (
-      <div className="flex flex-1 items-center justify-center text-muted-foreground">
+      <div className="no-drag flex flex-1 items-center justify-center text-muted-foreground">
         <p className="text-sm">Select a chapter or scene to start writing</p>
-      </div>
-    )
-  }
-
-  if (node && isChapterFolder(node)) {
-    return (
-      <div className="flex flex-1 items-center justify-center text-muted-foreground">
-        <p className="text-sm">Select a scene in this chapter to start writing</p>
       </div>
     )
   }
@@ -174,7 +156,7 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
   }
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
+    <div className="no-drag flex flex-1 flex-col overflow-hidden">
       <EditorToolbar editor={editor} wordCount={wordCount} />
       <div className="flex-1 overflow-y-auto px-8 py-6">
         <div className="mx-auto max-w-3xl">

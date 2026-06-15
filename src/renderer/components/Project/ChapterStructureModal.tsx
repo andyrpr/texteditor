@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { FileText, Files } from 'lucide-react'
 import {
   Dialog,
@@ -22,18 +22,6 @@ export function ChapterStructureModal({
   onSelect
 }: ChapterStructureModalProps): React.JSX.Element {
   const [remember, setRemember] = useState(false)
-
-  useEffect(() => {
-    if (!open) {
-      setRemember(false)
-      return
-    }
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onOpenChange(false)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open, onOpenChange])
 
   const handleSelect = async (structure: ChapterStructure): Promise<void> => {
     if (remember) {
@@ -61,8 +49,14 @@ export function ChapterStructureModal({
   ]
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+    <Dialog
+      open={open}
+      onOpenChange={(value) => {
+        if (!value) setRemember(false)
+        onOpenChange(value)
+      }}
+    >
+      <DialogContent className="no-drag sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Chapter Structure</DialogTitle>
           <DialogDescription>Choose how this chapter is organized before creating it.</DialogDescription>
@@ -76,7 +70,7 @@ export function ChapterStructureModal({
                 type="button"
                 onClick={() => void handleSelect(opt.id)}
                 className={cn(
-                  'flex gap-4 rounded-lg border border-border p-4 text-left transition-colors hover:border-primary hover:bg-accent/50'
+                  'no-drag flex gap-4 rounded-lg border border-border p-4 text-left transition-colors hover:border-primary hover:bg-accent/50'
                 )}
               >
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-muted">

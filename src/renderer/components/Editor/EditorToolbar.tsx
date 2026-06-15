@@ -81,7 +81,7 @@ export function EditorToolbar({ editor, wordCount }: EditorToolbarProps): React.
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="flex items-center gap-0.5 border-b border-border px-3 py-1.5">
+      <div className="no-drag flex items-center gap-0.5 border-b border-border px-3 py-1.5">
         <StyleDropdown editor={editor} />
 
         <Separator orientation="vertical" className="mx-1 h-6" />

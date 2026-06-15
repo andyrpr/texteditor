@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useAppStore } from '@/store/appStore'
 import { Sidebar } from '@/components/Sidebar/Sidebar'
-import { RichTextEditor } from '@/components/Editor/RichTextEditor'
+import { EditorPane } from '@/components/Editor/EditorPane'
 import { EntityPanel } from '@/components/Wiki/EntityPanel'
-import { EditorTitleBar } from '@/components/Editor/EditorTitleBar'
 import { StatusBar } from '@/components/UI/StatusBar'
 import { RecentProjectsScreen } from '@/components/Project/RecentProjectsScreen'
 import { QuitWarningModal } from '@/components/Project/QuitWarningModal'
@@ -37,7 +36,6 @@ export function AppLayout(): React.JSX.Element {
 
   const [quitWarningPaths, setQuitWarningPaths] = useState<string[]>([])
   const [secondaryHydrated, setSecondaryHydrated] = useState(!isSecondary)
-  const selectedNode = nodes.find((n) => n.id === selectedNodeId) ?? null
 
   useSyncFromMain()
   useThemeSync()
@@ -158,9 +156,8 @@ export function AppLayout(): React.JSX.Element {
         ) : (
           <Sidebar />
         )}
-        <main className="flex flex-1 flex-col overflow-hidden bg-background">
-          <EditorTitleBar />
-          <RichTextEditor node={selectedNode} />
+        <main className="drag-region flex flex-1 flex-col overflow-hidden bg-background">
+          <EditorPane />
         </main>
         {entityDetached ? (
           <div

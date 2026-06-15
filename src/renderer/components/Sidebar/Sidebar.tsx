@@ -36,10 +36,9 @@ import { ChapterStructureModal } from '@/components/Project/ChapterStructureModa
 import { useAppStore, getChapters, getScenes, getNodesByType } from '@/store/appStore'
 import { useResizeHandle, usePersistLayout } from '@/hooks/useResize'
 import { cn } from '@/lib/utils'
-import type { ChapterStructure, ChapterMeta, NodeType, TreeNode } from '@shared/types'
+import { isChapterFolder } from '@/lib/treeUtils'
+import type { ChapterStructure, NodeType, TreeNode } from '@shared/types'
 import {
-  DEFAULT_CHAPTER_META,
-  parseMetadata,
   SIDEBAR_MAX_WIDTH,
   SIDEBAR_MIN_WIDTH
 } from '@shared/types'
@@ -50,16 +49,6 @@ const SECTION_MAP = {
   locations: { id: 'locations', label: 'Locations', icon: MapPin, nodeType: 'location' as NodeType },
   lore: { id: 'lore', label: 'Lore', icon: Scroll, nodeType: 'lore' as NodeType },
   notes: { id: 'notes', label: 'Notes', icon: StickyNote, nodeType: 'note' as NodeType }
-}
-
-function isSimpleChapter(node: TreeNode): boolean {
-  const meta = parseMetadata<ChapterMeta>(node.metadata, DEFAULT_CHAPTER_META)
-  return meta.structure === 'simple'
-}
-
-function chapterHasScenes(node: TreeNode): boolean {
-  const meta = parseMetadata<ChapterMeta>(node.metadata, DEFAULT_CHAPTER_META)
-  return meta.structure === 'scenes'
 }
 
 function SortableSection({
@@ -229,7 +218,9 @@ function SectionHeader({
   icon: Icon,
   isExpanded,
   iconOnly,
+  isContainerSelected,
   onToggle,
+  onSelectContainer,
   onAdd,
   addOnHover = false
 }: {
@@ -237,31 +228,53 @@ function SectionHeader({
   icon: React.ComponentType<{ className?: string }>
   isExpanded: boolean
   iconOnly: boolean
+  isContainerSelected?: boolean
   onToggle: () => void
+  onSelectContainer?: () => void
   onAdd?: () => void
   addOnHover?: boolean
 }): React.JSX.Element {
   const content = (
-    <div className="flex items-center gap-1 px-2 py-1.5">
+    <div
+      className={cn(
+        'flex items-center gap-1 px-2 py-1.5 rounded-md mx-1',
+        isContainerSelected && 'bg-accent text-accent-foreground'
+      )}
+    >
+      {!iconOnly && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggle()
+          }}
+          className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
+          aria-label={isExpanded ? 'Collapse section' : 'Expand section'}
+        >
+          {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        </button>
+      )}
       <button
-        onClick={onToggle}
+        type="button"
+        onClick={onSelectContainer}
         className={cn(
-          'flex items-center gap-1 flex-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground',
+          'flex min-w-0 flex-1 items-center gap-1 text-xs font-semibold uppercase tracking-wider text-left',
+          isContainerSelected ? 'text-accent-foreground' : 'text-muted-foreground hover:text-foreground',
           iconOnly && 'justify-center'
         )}
       >
-        {!iconOnly && (isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />)}
         <Icon className="h-3.5 w-3.5 shrink-0" />
-        {!iconOnly && label}
+        {!iconOnly && <span className="truncate">{label}</span>}
       </button>
       {onAdd && !iconOnly && (
         <button
+          type="button"
           onClick={(e) => {
             e.stopPropagation()
             onAdd()
           }}
           className={cn(
-            'rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground',
+            'shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground',
             addOnHover && 'opacity-0 transition-opacity group-hover/section:opacity-100'
           )}
         >
@@ -290,10 +303,13 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
   const {
     nodes,
     selectedNodeId,
+    selectedContainerId,
     expandedSections,
     sectionOrder,
     sidebarWidth,
+    projectMeta,
     setSelectedNodeId,
+    selectContainer,
     toggleSection,
     setNodes,
     removeNode,
@@ -458,6 +474,7 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
   )
 
   return (
+    <>
     <TooltipProvider delayDuration={200}>
       <aside
         className={cn(
@@ -484,6 +501,16 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
         )}
 
         <div className="flex-1 overflow-y-auto py-2">
+          {!iconOnly && !detached && projectMeta && (
+            <div className="mb-1 px-2">
+              <p className="truncate text-sm font-semibold leading-tight">{projectMeta.title}</p>
+              {projectMeta.author && (
+                <p className="truncate text-xs text-muted-foreground leading-tight mt-0.5">
+                  {projectMeta.author}
+                </p>
+              )}
+            </div>
+          )}
           {/* Manuscript — fixed first */}
           <div>
             <SectionHeader
@@ -491,14 +518,23 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
               icon={BookOpen}
               isExpanded={expandedSections.has('manuscript')}
               iconOnly={iconOnly}
+              isContainerSelected={selectedContainerId === 'manuscript'}
               onToggle={() => toggleSection('manuscript')}
+              onSelectContainer={() => {
+                if (!expandedSections.has('manuscript')) toggleSection('manuscript')
+                selectContainer('manuscript')
+              }}
               onAdd={handleAddChapterClick}
             />
             {expandedSections.has('manuscript') && !iconOnly && (
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleNodeDragEnd}>
+              <DndContext
+                sensors={showChapterModal ? [] : sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleNodeDragEnd}
+              >
                 {chapters.map((chapter) => {
                   const scenes = getScenes(nodes, chapter.id)
-                  const showScenes = chapterHasScenes(chapter)
+                  const showScenes = isChapterFolder(chapter)
                   const sortIds = showScenes ? [chapter.id, ...scenes.map((s) => s.id)] : [chapter.id]
 
                   return (
@@ -562,7 +598,11 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
           </div>
 
           {/* Reorderable wiki sections */}
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleSectionDragEnd}>
+          <DndContext
+            sensors={showChapterModal ? [] : sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleSectionDragEnd}
+          >
             <SortableContext items={sectionOrder} strategy={verticalListSortingStrategy}>
               {orderedSections.slice(1).map((section) => {
                 const isExpanded = expandedSections.has(section.id)
@@ -576,7 +616,12 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
                       icon={Icon}
                       isExpanded={isExpanded}
                       iconOnly={iconOnly}
+                      isContainerSelected={selectedContainerId === section.id}
                       onToggle={() => toggleSection(section.id)}
+                      onSelectContainer={() => {
+                        if (!isExpanded) toggleSection(section.id)
+                        selectContainer(section.id)
+                      }}
                       onAdd={
                         section.nodeType && sectionNodes.length === 0
                           ? () => void handleAddEntity(section.nodeType!)
@@ -633,14 +678,15 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
           />
         )}
       </aside>
+    </TooltipProvider>
 
+    {showChapterModal && (
       <ChapterStructureModal
         open={showChapterModal}
         onOpenChange={setShowChapterModal}
         onSelect={(structure) => void handleChapterStructure(structure)}
       />
-    </TooltipProvider>
+    )}
+    </>
   )
 }
-
-export { isSimpleChapter }

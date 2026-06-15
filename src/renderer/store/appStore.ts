@@ -13,6 +13,7 @@ interface AppState {
 
   nodes: TreeNode[]
   selectedNodeId: string | null
+  selectedContainerId: string | null
   expandedSections: Set<string>
   sectionOrder: string[]
 
@@ -40,6 +41,7 @@ interface AppState {
   updateNodeInStore: (id: string, updates: Partial<TreeNode>) => void
   removeNode: (id: string) => void
   setSelectedNodeId: (id: string | null) => void
+  selectContainer: (id: string | null) => void
   toggleSection: (section: string) => void
   setSectionOrder: (order: string[]) => void
 
@@ -65,6 +67,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   nodes: [],
   selectedNodeId: null,
+  selectedContainerId: null,
   expandedSections: new Set(['manuscript', 'characters', 'locations', 'lore', 'notes']),
   sectionOrder: [...DEFAULT_SECTION_ORDER],
 
@@ -97,6 +100,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       isProjectOpen: false,
       nodes: [],
       selectedNodeId: null,
+      selectedContainerId: null,
       selectedEntityId: null,
       selectedEntityType: null,
       isDirty: false,
@@ -120,7 +124,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       nodes: s.nodes.filter((n) => n.id !== id && n.parentId !== id),
       selectedNodeId: s.selectedNodeId === id ? null : s.selectedNodeId
     })),
-  setSelectedNodeId: (id) => set({ selectedNodeId: id }),
+  setSelectedNodeId: (id) => set({ selectedNodeId: id, selectedContainerId: null }),
+  selectContainer: (id) =>
+    set({ selectedContainerId: id, selectedNodeId: null, selectedEntityId: null, selectedEntityType: null }),
   toggleSection: (section) => {
     const expanded = new Set(get().expandedSections)
     if (expanded.has(section)) expanded.delete(section)
