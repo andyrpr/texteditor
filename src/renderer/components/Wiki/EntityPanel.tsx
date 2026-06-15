@@ -5,7 +5,6 @@ import { Button } from '@/components/UI/button'
 import { Input } from '@/components/UI/input'
 import { Textarea } from '@/components/UI/textarea'
 import { ScrollArea } from '@/components/UI/scroll-area'
-import { Separator } from '@/components/UI/separator'
 import {
   DEFAULT_CHARACTER_META,
   DEFAULT_LOCATION_META,

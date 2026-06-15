@@ -1,6 +1,5 @@
 import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron'
 import { join } from 'path'
-import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import {
   createDatabase,
   openDatabase,
@@ -54,7 +53,7 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+  if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
@@ -235,10 +234,9 @@ function registerIpcHandlers(): void {
 }
 
 app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.texteditor.app')
-  app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window)
-  })
+  if (process.platform === 'win32') {
+    app.setAppUserModelId('com.texteditor.app')
+  }
 
   registerIpcHandlers()
   buildMenu()
