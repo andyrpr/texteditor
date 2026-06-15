@@ -5,21 +5,34 @@ import Underline from '@tiptap/extension-underline'
 import Placeholder from '@tiptap/extension-placeholder'
 import CharacterCount from '@tiptap/extension-character-count'
 import { EntityMention } from './EntityMention'
+import { BlockStyle } from './BlockStyle'
 import { EditorToolbar } from './EditorToolbar'
 import { useAppStore } from '@/store/appStore'
 import { useAutosave, useKeyboardSave } from '@/hooks/useAutosave'
 import { countWords } from '@/lib/utils'
-import type { TreeNode } from '@shared/types'
+import type { TreeNode, ChapterMeta } from '@shared/types'
 import {
   DEFAULT_CHARACTER_META,
   DEFAULT_LOCATION_META,
   DEFAULT_LORE_META,
+  DEFAULT_CHAPTER_META,
   parseMetadata
 } from '@shared/types'
 import type { CharacterMeta, LocationMeta, LoreMeta } from '@shared/types'
 
 interface RichTextEditorProps {
   node: TreeNode | null
+}
+
+function isSimpleChapter(node: TreeNode): boolean {
+  const meta = parseMetadata<ChapterMeta>(node.metadata, DEFAULT_CHAPTER_META)
+  return meta.structure === 'simple'
+}
+
+function isChapterFolder(node: TreeNode): boolean {
+  if (node.type !== 'chapter') return false
+  const meta = parseMetadata<ChapterMeta>(node.metadata, DEFAULT_CHAPTER_META)
+  return meta.structure === 'scenes'
 }
 
 function buildEntityNames(nodes: TreeNode[]): Map<string, { id: string; type: string; name: string }> {
@@ -52,14 +65,17 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
   } = useAppStore()
 
   const entityMap = useMemo(() => buildEntityNames(nodes), [nodes])
-  const isEditable = node && (node.type === 'chapter' || node.type === 'scene')
+  const isEditable =
+    node &&
+    (node.type === 'scene' || (node.type === 'chapter' && isSimpleChapter(node)))
 
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        heading: { levels: [1, 2, 3] }
+        heading: { levels: [1, 2, 3, 4] }
       }),
       Underline,
+      BlockStyle,
       EntityMention,
       Placeholder.configure({
         placeholder: 'Start writing...'
@@ -70,7 +86,16 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
     editable: !!isEditable,
     editorProps: {
       attributes: {
-        class: 'prose-editor focus:outline-none min-h-full'
+        class: 'prose-editor focus:outline-none min-h-full',
+        role: 'textbox',
+        'aria-autocomplete': 'none',
+        autocomplete: 'off',
+        autocorrect: 'on',
+        autocapitalize: 'sentences',
+        spellcheck: 'true',
+        'data-form-type': 'other',
+        'data-lpignore': 'true',
+        'data-1p-ignore': 'true'
       },
       handleClickOn: (_view, _pos, nodeEl) => {
         if (nodeEl.type.name === 'text') {
@@ -111,7 +136,7 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
     if (!node) return
     try {
       await window.electronAPI.tree.update(node.id, { content: editor?.getHTML() ?? content })
-      const result = await window.electronAPI.project.save()
+      const result = await window.electronAPI.tomes.saveProject()
       if (result.success) setLastSaved(result.lastSaved)
     } catch (err) {
       console.error('Save failed:', err)
@@ -130,15 +155,17 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
     )
   }
 
+  if (node && isChapterFolder(node)) {
+    return (
+      <div className="flex flex-1 items-center justify-center text-muted-foreground">
+        <p className="text-sm">Select a scene in this chapter to start writing</p>
+      </div>
+    )
+  }
+
   if (!isEditable) {
     return (
       <div className="flex flex-1 flex-col overflow-hidden">
-        <div className="border-b border-border px-6 py-4">
-          <h2 className="text-lg font-medium">{node.title}</h2>
-          <p className="text-xs text-muted-foreground mt-1">
-            {node.type.charAt(0).toUpperCase() + node.type.slice(1)} — edit details in the right panel
-          </p>
-        </div>
         <div className="flex flex-1 items-center justify-center text-muted-foreground">
           <p className="text-sm">Entity details are shown in the right panel</p>
         </div>
@@ -151,7 +178,6 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
       <EditorToolbar editor={editor} wordCount={wordCount} />
       <div className="flex-1 overflow-y-auto px-8 py-6">
         <div className="mx-auto max-w-3xl">
-          <h1 className="mb-6 font-serif text-3xl font-semibold text-foreground">{node.title}</h1>
           <EditorContent editor={editor} className="font-serif text-lg leading-relaxed" />
         </div>
       </div>

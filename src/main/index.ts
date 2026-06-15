@@ -1,9 +1,9 @@
-import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, shell, dialog } from 'electron'
 import { join } from 'path'
 import {
-  createDatabase,
-  openDatabase,
-  closeDatabase,
+  createProject,
+  openProject,
+  closeProject,
   getProjectMeta,
   updateProjectMeta,
   getAllNodes,
@@ -14,18 +14,94 @@ import {
   reorderNodes,
   getEntityNodes,
   getProjectPath,
+  getProjectRootPath,
   isOpen,
-  touchProject
-} from './database'
+  saveProject,
+  getRecentProjectsWithStatus,
+  getUiState,
+  updateUiState,
+  createChapter,
+  getSyncState
+} from './tomes/projectStore'
+import { validateTomesFile } from './tomes/validate'
 import {
-  showOpenProjectDialog,
-  showSaveProjectDialog,
+  showOpenTomesDialog,
+  showChooseFolderDialog,
   showSelectImageDialog
 } from './fileSystem'
-import { createBackup, listBackups } from './backup'
-import type { ExportOptions, NodeType, SaveResult } from '@shared/types'
+import { checkBackupLocations, listLocalBackups } from './tomes/backup'
+import {
+  getConfig,
+  removeFromRecent,
+  setBackupLocations,
+  updatePreferences,
+  updateRecentPrimaryPath,
+  updateWindowLayout,
+  getWindowLayout
+} from './config'
+import {
+  setMainWindow,
+  detachPanel,
+  reattachPanel,
+  openDocumentWindow,
+  broadcast,
+  saveSecondaryWindowState,
+  getMainWindow,
+  getPanelOwnerWindowId
+} from './windowManager'
+import type { CreateProjectInput, ExportOptions, NodeType } from '@shared/types'
 
 let mainWindow: BrowserWindow | null = null
+let pendingOpenPath: string | null = null
+let isQuitting = false
+
+const gotLock = app.requestSingleInstanceLock()
+
+if (!gotLock) {
+  app.quit()
+} else {
+  app.on('second-instance', (_event, argv) => {
+    const tomesPath = findTomesPathInArgv(argv)
+    if (tomesPath && mainWindow) {
+      void openProjectFromPath(tomesPath)
+    }
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.focus()
+    }
+  })
+}
+
+function findTomesPathInArgv(argv: string[]): string | null {
+  for (const arg of argv) {
+    if (arg.endsWith('.tomes') && !arg.startsWith('-')) {
+      return arg
+    }
+  }
+  return null
+}
+
+function broadcastSync(): void {
+  broadcast('sync:state', getSyncState())
+}
+
+async function openProjectFromPath(tomesPath: string): Promise<void> {
+  const validation = await validateTomesFile(tomesPath)
+  if (!validation.valid) {
+    dialog.showErrorBox('Invalid Project', validation.error ?? 'Could not open project file')
+    return
+  }
+
+  try {
+    const result = await openProject(tomesPath)
+    mainWindow?.webContents.send('tomes:projectOpened', result)
+  } catch (err) {
+    dialog.showErrorBox(
+      'Open Failed',
+      err instanceof Error ? err.message : 'Could not open project'
+    )
+  }
+}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -46,7 +122,14 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show()
+    if (pendingOpenPath) {
+      const path = pendingOpenPath
+      pendingOpenPath = null
+      void openProjectFromPath(path)
+    }
   })
+
+  if (mainWindow) setMainWindow(mainWindow)
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url)
@@ -135,56 +218,144 @@ function buildMenu(): void {
 }
 
 function registerIpcHandlers(): void {
-  ipcMain.handle('project:create', async (_, { path, title, author }) => {
-    const meta = createDatabase(path, title, author)
-    const backup = createBackup(path)
-    return { path, meta, backupPath: backup?.path }
+  ipcMain.handle('tomes:createProject', async (_, input: CreateProjectInput) => {
+    return createProject(input)
   })
 
-  ipcMain.handle('project:open', async (_, { path }) => {
-    openDatabase(path)
-    const meta = getProjectMeta()
-    return { path, meta }
+  ipcMain.handle('tomes:openProject', async (_, { path }) => {
+    return openProject(path)
   })
 
-  ipcMain.handle('project:close', async () => {
-    closeDatabase()
+  ipcMain.handle('tomes:saveProject', async () => {
+    return saveProject()
+  })
+
+  ipcMain.handle('tomes:getRecentProjects', async () => {
+    return getRecentProjectsWithStatus()
+  })
+
+  ipcMain.handle('tomes:removeFromRecent', async (_, { id }) => {
+    await removeFromRecent(id)
     return { success: true }
   })
 
-  ipcMain.handle('project:getInfo', async () => {
+  ipcMain.handle('tomes:updateBackupLocations', async (_, { projectId, paths }) => {
+    await setBackupLocations(projectId, paths)
+    return { success: true }
+  })
+
+  ipcMain.handle('tomes:checkBackupLocations', async (_, { paths }) => {
+    return checkBackupLocations(paths)
+  })
+
+  ipcMain.handle('tomes:getConfig', async () => {
+    return getConfig()
+  })
+
+  ipcMain.handle('tomes:updatePreferences', async (_, updates) => {
+    const prefs = await updatePreferences(updates)
+    if (updates.theme) {
+      broadcast('theme:changed', { theme: prefs.theme })
+    }
+    return prefs
+  })
+
+  ipcMain.handle('tomes:updateRecentPath', async (_, { projectId, primaryPath }) => {
+    await updateRecentPrimaryPath(projectId, primaryPath)
+    return { success: true }
+  })
+
+  ipcMain.handle('tomes:showInFolder', async (_, { path }) => {
+    shell.showItemInFolder(path)
+    return { success: true }
+  })
+
+  ipcMain.handle('tomes:closeProject', async () => {
+    closeProject()
+    return { success: true }
+  })
+
+  ipcMain.handle('tomes:createChapter', async (_, { structure }) => {
+    const node = await createChapter(structure)
+    broadcastSync()
+    return node
+  })
+
+  ipcMain.handle('tomes:updateUiState', async (_, uiState) => {
+    const result = await updateUiState(uiState)
+    broadcastSync()
+    return result
+  })
+
+  ipcMain.handle('tomes:getSyncState', async () => {
+    return getSyncState()
+  })
+
+  ipcMain.handle('windows:detach', async (event, { panel }) => {
+    const ownerWindow = BrowserWindow.fromWebContents(event.sender)
+    if (!ownerWindow) return { success: false }
+
+    const config = await getConfig()
+    detachPanel(panel, ownerWindow, config.preferences.theme)
+
+    const mainWin = getMainWindow()
+    if (ownerWindow.id === mainWin?.id) {
+      const layout = await getWindowLayout()
+      await updateWindowLayout({
+        sidebarDetached: panel === 'sidebar' ? true : layout.sidebarDetached,
+        entityDetached: panel === 'entity' ? true : layout.entityDetached
+      })
+    }
+    return { success: true }
+  })
+
+  ipcMain.handle('windows:reattach', async (event, { panel }) => {
+    const sourceWindow = BrowserWindow.fromWebContents(event.sender)
+    if (!sourceWindow) return { success: false }
+
+    const ownerWindowId = getPanelOwnerWindowId(sourceWindow, panel)
+    reattachPanel(panel, sourceWindow)
+
+    const mainWin = getMainWindow()
+    if (ownerWindowId !== undefined && ownerWindowId === mainWin?.id) {
+      const layout = await getWindowLayout()
+      await updateWindowLayout({
+        sidebarDetached: panel === 'sidebar' ? false : layout.sidebarDetached,
+        entityDetached: panel === 'entity' ? false : layout.entityDetached
+      })
+    }
+    return { success: true }
+  })
+
+  ipcMain.handle('windows:openDocument', async (_, { nodeId, title }) => {
+    const config = await getConfig()
+    openDocumentWindow(nodeId, title, config.preferences.theme)
+    await updateWindowLayout({ secondaryWindows: saveSecondaryWindowState() })
+    return { success: true }
+  })
+
+  ipcMain.handle('windows:getLayout', async () => {
+    return getWindowLayout()
+  })
+
+  ipcMain.handle('windows:updateLayout', async (_, updates) => {
+    return updateWindowLayout(updates)
+  })
+
+  ipcMain.handle('tomes:getProjectInfo', async () => {
     if (!isOpen()) return null
-    return {
-      path: getProjectPath(),
-      meta: getProjectMeta()
-    }
+    return { path: getProjectPath(), meta: getProjectMeta() }
   })
 
-  ipcMain.handle('project:save', async (): Promise<SaveResult> => {
-    const path = getProjectPath()
-    if (!path) return { success: false, lastSaved: '' }
-
-    const lastSaved = touchProject()
-    const backup = createBackup(path)
-    return {
-      success: true,
-      lastSaved,
-      backupPath: backup?.path
-    }
-  })
-
-  ipcMain.handle('project:updateMeta', async (_, updates) => {
-    return updateProjectMeta(updates)
-  })
-
-  ipcMain.handle('dialog:openProject', async () => {
+  ipcMain.handle('dialog:openTomes', async () => {
     if (!mainWindow) return null
-    return showOpenProjectDialog(mainWindow)
+    return showOpenTomesDialog(mainWindow)
   })
 
-  ipcMain.handle('dialog:saveProjectAs', async (_, defaultName?: string) => {
-    if (!mainWindow) return null
-    return showSaveProjectDialog(mainWindow, defaultName)
+  ipcMain.handle('dialog:chooseFolder', async (_, title?: string) => {
+    const win = BrowserWindow.getFocusedWindow() ?? mainWindow
+    if (!win) return null
+    return showChooseFolderDialog(win, title)
   })
 
   ipcMain.handle('dialog:selectImage', async () => {
@@ -201,16 +372,21 @@ function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('tree:update', async (_, { id, ...updates }) => {
-    return updateNode(id, updates)
+    const node = await updateNode(id, updates)
+    broadcastSync()
+    return node
   })
 
   ipcMain.handle('tree:delete', async (_, { id }) => {
-    deleteNode(id)
+    await deleteNode(id)
+    broadcastSync()
     return { success: true }
   })
 
   ipcMain.handle('tree:reorder', async (_, { items }) => {
-    return reorderNodes(items)
+    const nodes = await reorderNodes(items)
+    broadcastSync()
+    return nodes
   })
 
   ipcMain.handle('entity:getAll', async () => {
@@ -222,32 +398,76 @@ function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('backup:list', async () => {
-    const path = getProjectPath()
-    if (!path) return []
-    return listBackups(path)
+    const root = getProjectRootPath()
+    if (!root) return []
+    return listLocalBackups(root)
   })
 
-  ipcMain.handle('export:document', async (_, options: ExportOptions) => {
-    // Export implementation placeholder — will be expanded
+  ipcMain.handle('tomes:forceQuit', async () => {
+    isQuitting = true
+    closeProject()
+    app.quit()
+    return { success: true }
+  })
+
+  ipcMain.handle('export:document', async (_, _options: ExportOptions) => {
     return { success: false, message: 'Export not yet implemented' }
   })
 }
 
-app.whenReady().then(() => {
-  if (process.platform === 'win32') {
-    app.setAppUserModelId('com.texteditor.app')
+app.on('open-file', (event, path) => {
+  event.preventDefault()
+  if (mainWindow?.webContents.isLoading()) {
+    pendingOpenPath = path
+  } else if (mainWindow) {
+    void openProjectFromPath(path)
+  } else {
+    pendingOpenPath = path
+  }
+})
+
+app.on('before-quit', async (event) => {
+  if (isQuitting || !isOpen()) return
+
+  event.preventDefault()
+  isQuitting = true
+
+  const result = await saveProject()
+  mainWindow?.webContents.send('tomes:beforeQuit', {
+    unreachableBackupPaths: result.unreachableBackupPaths
+  })
+
+  if (result.unreachableBackupPaths.length > 0) {
+    isQuitting = false
+    return
   }
 
-  registerIpcHandlers()
-  buildMenu()
-  createWindow()
+  closeProject()
+  app.quit()
+})
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+if (gotLock) {
+  app.whenReady().then(() => {
+    if (process.platform === 'win32') {
+      app.setAppUserModelId('com.priama.app')
+    }
+
+    const coldStartPath = findTomesPathInArgv(process.argv)
+    if (coldStartPath) {
+      pendingOpenPath = coldStartPath
+    }
+
+    registerIpcHandlers()
+    buildMenu()
+    createWindow()
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    })
   })
-})
 
-app.on('window-all-closed', () => {
-  closeDatabase()
-  if (process.platform !== 'darwin') app.quit()
-})
+  app.on('window-all-closed', () => {
+    if (!isQuitting) closeProject()
+    if (process.platform !== 'darwin') app.quit()
+  })
+}

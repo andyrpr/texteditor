@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { X } from 'lucide-react'
+import { X, PanelRightOpen } from 'lucide-react'
 import { useAppStore, getSelectedNode } from '@/store/appStore'
 import { Button } from '@/components/UI/button'
 import { Input } from '@/components/UI/input'
@@ -178,17 +178,23 @@ function LorePanel({
   )
 }
 
-export function EntityPanel(): React.JSX.Element | null {
+interface EntityPanelProps {
+  detached?: boolean
+}
+
+export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.Element | null {
   const {
     nodes,
     selectedNodeId,
     selectedEntityId,
     selectedEntityType,
     rightPanelOpen,
+    rightPanelWidth,
     setRightPanelOpen,
     setSelectedEntity,
     updateNodeInStore,
-    setDirty
+    setDirty,
+    setEntityDetached
   } = useAppStore()
 
   const entityId = selectedEntityId ?? selectedNodeId
@@ -209,32 +215,60 @@ export function EntityPanel(): React.JSX.Element | null {
     setDirty(true)
   }
 
-  if (!rightPanelOpen || !node) return null
+  const handleDetach = (): void => {
+    void window.electronAPI.windows.detach('entity').then(() => setEntityDetached(true))
+  }
 
-  const isEntity = ['character', 'location', 'lore', 'note'].includes(node.type)
-  if (!isEntity && !selectedEntityId) return null
+  if (!detached && (!rightPanelOpen || !node)) return null
+
+  const isEntity = node && ['character', 'location', 'lore', 'note'].includes(node.type)
+  if (!detached && !isEntity && !selectedEntityId) return null
+  if (detached && !node) {
+    return (
+      <div className="flex flex-1 items-center justify-center text-muted-foreground">
+        <p className="text-sm">Select an entity to view details</p>
+      </div>
+    )
+  }
+  if (!node) return null
 
   const panelType = selectedEntityType ?? node.type
 
   return (
-    <aside className="flex h-full w-[320px] shrink-0 flex-col border-l border-border bg-card">
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
-        <div>
-          <h2 className="text-sm font-semibold capitalize">{panelType}</h2>
-          <p className="text-xs text-muted-foreground">{node.title}</p>
+    <aside
+      className="relative flex h-full shrink-0 flex-col border-l border-border bg-card"
+      style={{ width: detached ? '100%' : rightPanelWidth }}
+    >
+      {!detached && (
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <div>
+            <h2 className="text-sm font-semibold capitalize">{panelType}</h2>
+            <p className="text-xs text-muted-foreground">{node.title}</p>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              title="Detach panel"
+              onClick={handleDetach}
+            >
+              <PanelRightOpen className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => {
+                setRightPanelOpen(false)
+                setSelectedEntity(null, null)
+              }}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7"
-          onClick={() => {
-            setRightPanelOpen(false)
-            setSelectedEntity(null, null)
-          }}
-        >
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
+      )}
 
       <ScrollArea className="flex-1">
         <div className="p-4">

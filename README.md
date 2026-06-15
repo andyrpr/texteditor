@@ -1,23 +1,25 @@
-# TextEditor
+# Priama
 
-A local-first desktop writing application for authors. Built with Electron, React, TypeScript, TipTap, and SQLite.
+A local-first desktop writing application for authors. Built with Electron, React, TypeScript, TipTap, and a file-based `.tomes` project format.
 
 ## Features
 
-- **Book Projects** — Each project is a portable SQLite `.db` file you can save anywhere
+- **Book Projects** — Each project is a portable folder with a `project.tomes` entry file
 - **Manuscript** — Chapters and scenes with drag-and-drop reordering
 - **Wiki** — Characters, locations, and lore entries with rich metadata
 - **Rich Text Editor** — TipTap with entity mentions, autosave, and export
+- **Zip Backups** — Automatic backups on save to local and configured destinations
 - **100% Offline** — No accounts, no cloud, no telemetry
 
-## Tech Stack
+## Project Format
 
-- Electron + React + TypeScript
-- TipTap (rich text)
-- SQLite via better-sqlite3
-- Tailwind CSS + shadcn/ui
-- dnd-kit (drag and drop)
-- Zustand (state management)
+```
+MyBook/
+├── project.tomes       # Project index and metadata
+├── manuscript/         # Chapters and scenes (.txd files)
+├── wiki/               # Characters, locations, lore, notes
+└── backups/            # Local zip backups
+```
 
 ## Development
 
@@ -29,9 +31,8 @@ npm run dev
 ## Build
 
 ```bash
-npm run dist        # Mac + Windows
-npm run dist:mac    # macOS only
-npm run dist:win    # Windows only
+npm run dist:mac
+npm run dist:win
 ```
 
 ## License

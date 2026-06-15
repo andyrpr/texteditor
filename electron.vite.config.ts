@@ -9,12 +9,7 @@ export default defineConfig({
         '@shared': resolve('src/shared')
       }
     },
-    plugins: [externalizeDepsPlugin({ exclude: ['better-sqlite3'] })],
-    build: {
-      rollupOptions: {
-        external: ['better-sqlite3']
-      }
-    }
+    plugins: [externalizeDepsPlugin()]
   },
   preload: {
     plugins: [externalizeDepsPlugin()]

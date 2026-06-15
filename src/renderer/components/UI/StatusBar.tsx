@@ -1,28 +1,30 @@
+import { formatDistanceToNow } from 'date-fns'
 import { Moon, Sun, Download, Save } from 'lucide-react'
 import { useAppStore } from '@/store/appStore'
 import { Button } from '@/components/UI/button'
-import { formatRelativeTime } from '@/lib/utils'
+import { useProject } from '@/hooks/useProject'
 
 export function StatusBar(): React.JSX.Element {
-  const { lastSaved, isDirty, theme, toggleTheme, projectMeta } = useAppStore()
+  const { lastSaved, isDirty, theme, toggleTheme, projectMeta, backupWarningCount } = useAppStore()
+  const { saveProject } = useProject()
 
-  const handleSave = async () => {
-    const result = await window.electronAPI.project.save()
-    if (result.success) {
-      useAppStore.getState().setLastSaved(result.lastSaved)
-    }
-  }
+  const savedLabel = isDirty
+    ? 'Unsaved changes'
+    : lastSaved
+      ? `Last saved: ${formatDistanceToNow(new Date(lastSaved), { addSuffix: true })}`
+      : 'Ready'
+
+  const backupLabel =
+    backupWarningCount > 0
+      ? `Backup warning: ${backupWarningCount} location${backupWarningCount === 1 ? '' : 's'} unavailable`
+      : 'All backups synced'
 
   return (
     <footer className="flex h-7 shrink-0 items-center justify-between border-t border-border bg-muted/30 px-4 text-xs text-muted-foreground">
       <div className="flex items-center gap-3">
-        {isDirty ? (
-          <span>Unsaved changes</span>
-        ) : lastSaved ? (
-          <span>Saved {formatRelativeTime(lastSaved)}</span>
-        ) : (
-          <span>Ready</span>
-        )}
+        <span>{savedLabel}</span>
+        <span className="text-border">|</span>
+        <span className={backupWarningCount > 0 ? 'text-amber-500' : ''}>{backupLabel}</span>
         {projectMeta && (
           <>
             <span className="text-border">|</span>
@@ -31,7 +33,7 @@ export function StatusBar(): React.JSX.Element {
         )}
       </div>
       <div className="flex items-center gap-1">
-        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleSave} title="Save">
+        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={saveProject} title="Save">
           <Save className="h-3 w-3" />
         </Button>
         <Button variant="ghost" size="icon" className="h-6 w-6" title="Export">

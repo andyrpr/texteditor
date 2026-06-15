@@ -1,35 +1,39 @@
 import { create } from 'zustand'
 import type { EntityType, ProjectMeta, TreeNode } from '@shared/types'
+import { DEFAULT_SECTION_ORDER, SIDEBAR_MAX_WIDTH } from '@shared/types'
 
 interface AppState {
-  // Project
   projectPath: string | null
+  projectId: string | null
   projectMeta: ProjectMeta | null
   isProjectOpen: boolean
   lastSaved: string | null
   isDirty: boolean
+  backupWarningCount: number
 
-  // Tree
   nodes: TreeNode[]
   selectedNodeId: string | null
   expandedSections: Set<string>
+  sectionOrder: string[]
 
-  // Entity panel
   selectedEntityId: string | null
   selectedEntityType: EntityType | null
 
-  // UI
   theme: 'light' | 'dark'
   sidebarWidth: number
   rightPanelWidth: number
   rightPanelOpen: boolean
+  sidebarDetached: boolean
+  entityDetached: boolean
 
-  // Actions
-  setProject: (path: string, meta: ProjectMeta) => void
+  showNewProjectModal: boolean
+
+  setProject: (path: string, meta: ProjectMeta, nodes?: TreeNode[]) => void
   closeProject: () => void
   setProjectMeta: (meta: ProjectMeta) => void
   setLastSaved: (timestamp: string) => void
   setDirty: (dirty: boolean) => void
+  setBackupWarningCount: (count: number) => void
 
   setNodes: (nodes: TreeNode[]) => void
   addNode: (node: TreeNode) => void
@@ -37,38 +41,58 @@ interface AppState {
   removeNode: (id: string) => void
   setSelectedNodeId: (id: string | null) => void
   toggleSection: (section: string) => void
+  setSectionOrder: (order: string[]) => void
 
   setSelectedEntity: (id: string | null, type: EntityType | null) => void
-  setTheme: (theme: 'light' | 'dark') => void
+  setTheme: (theme: 'light' | 'dark', options?: { persist?: boolean }) => void
   toggleTheme: () => void
   setRightPanelOpen: (open: boolean) => void
+  setShowNewProjectModal: (show: boolean) => void
+  setSidebarWidth: (width: number) => void
+  setRightPanelWidth: (width: number) => void
+  setSidebarDetached: (detached: boolean) => void
+  setEntityDetached: (detached: boolean) => void
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
   projectPath: null,
+  projectId: null,
   projectMeta: null,
   isProjectOpen: false,
   lastSaved: null,
   isDirty: false,
+  backupWarningCount: 0,
 
   nodes: [],
   selectedNodeId: null,
   expandedSections: new Set(['manuscript', 'characters', 'locations', 'lore', 'notes']),
+  sectionOrder: [...DEFAULT_SECTION_ORDER],
 
   selectedEntityId: null,
   selectedEntityType: null,
 
   theme: 'dark',
-  sidebarWidth: 260,
+  sidebarWidth: SIDEBAR_MAX_WIDTH,
   rightPanelWidth: 320,
   rightPanelOpen: true,
+  sidebarDetached: false,
+  entityDetached: false,
+  showNewProjectModal: false,
 
-  setProject: (path, meta) =>
-    set({ projectPath: path, projectMeta: meta, isProjectOpen: true, isDirty: false }),
+  setProject: (path, meta, nodes) =>
+    set({
+      projectPath: path,
+      projectId: meta.id,
+      projectMeta: meta,
+      isProjectOpen: true,
+      isDirty: false,
+      ...(nodes ? { nodes } : {})
+    }),
 
   closeProject: () =>
     set({
       projectPath: null,
+      projectId: null,
       projectMeta: null,
       isProjectOpen: false,
       nodes: [],
@@ -76,12 +100,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       selectedEntityId: null,
       selectedEntityType: null,
       isDirty: false,
-      lastSaved: null
+      lastSaved: null,
+      backupWarningCount: 0
     }),
 
   setProjectMeta: (meta) => set({ projectMeta: meta }),
   setLastSaved: (timestamp) => set({ lastSaved: timestamp, isDirty: false }),
   setDirty: (dirty) => set({ isDirty: dirty }),
+  setBackupWarningCount: (count) => set({ backupWarningCount: count }),
 
   setNodes: (nodes) => set({ nodes }),
   addNode: (node) => set((s) => ({ nodes: [...s.nodes, node] })),
@@ -102,18 +128,28 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ expandedSections: expanded })
   },
 
+  setSectionOrder: (order) => set({ sectionOrder: order }),
+
   setSelectedEntity: (id, type) =>
     set({ selectedEntityId: id, selectedEntityType: type, rightPanelOpen: id !== null }),
 
-  setTheme: (theme) => {
+  setTheme: (theme, options) => {
     document.documentElement.classList.toggle('dark', theme === 'dark')
     set({ theme })
+    if (options?.persist !== false) {
+      void window.electronAPI.tomes.updatePreferences({ theme })
+    }
   },
   toggleTheme: () => {
     const next = get().theme === 'dark' ? 'light' : 'dark'
     get().setTheme(next)
   },
-  setRightPanelOpen: (open) => set({ rightPanelOpen: open })
+  setRightPanelOpen: (open) => set({ rightPanelOpen: open }),
+  setShowNewProjectModal: (show) => set({ showNewProjectModal: show }),
+  setSidebarWidth: (width) => set({ sidebarWidth: width }),
+  setRightPanelWidth: (width) => set({ rightPanelWidth: width }),
+  setSidebarDetached: (detached) => set({ sidebarDetached: detached }),
+  setEntityDetached: (detached) => set({ entityDetached: detached })
 }))
 
 export function getSelectedNode(state: AppState): TreeNode | null {

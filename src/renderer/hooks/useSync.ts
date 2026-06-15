@@ -1,0 +1,31 @@
+import { useEffect } from 'react'
+import { useAppStore } from '@/store/appStore'
+
+export function useSyncFromMain(): void {
+  useEffect(() => {
+    const unsub = window.electronAPI.on('sync:state', (data: unknown) => {
+      const state = data as {
+        path: string | null
+        meta: import('@shared/types').ProjectMeta | null
+        nodes: import('@shared/types').TreeNode[]
+        uiState: import('@shared/types').ProjectUiState
+      }
+      if (state.meta && state.path) {
+        useAppStore.getState().setProject(state.path, state.meta, state.nodes)
+        useAppStore.getState().setSectionOrder(state.uiState.sectionOrder)
+      } else {
+        useAppStore.getState().setNodes(state.nodes)
+      }
+    })
+    return unsub
+  }, [])
+}
+
+export async function hydrateFromMain(): Promise<void> {
+  const state = await window.electronAPI.tomes.getSyncState()
+  if (state.meta && state.path) {
+    useAppStore.getState().setProject(state.path, state.meta, state.nodes)
+    useAppStore.getState().setSectionOrder(state.uiState.sectionOrder)
+    useAppStore.getState().setLastSaved(state.meta.updatedAt)
+  }
+}

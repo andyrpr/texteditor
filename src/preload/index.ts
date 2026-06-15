@@ -1,24 +1,57 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
+  BackupLocationStatus,
+  ChapterStructure,
+  CreateProjectInput,
   ExportOptions,
   NodeType,
-  ProjectInfo,
+  PriamaConfig,
+  PriamaPreferences,
+  ProjectMeta,
+  ProjectUiState,
+  RecentProjectWithStatus,
   SaveResult,
-  TreeNode
+  TreeNode,
+  WindowLayoutState
 } from '@shared/types'
 
+export interface SyncState {
+  path: string | null
+  meta: ProjectMeta | null
+  nodes: TreeNode[]
+  uiState: ProjectUiState
+}
+
 export interface ElectronAPI {
-  project: {
-    create: (path: string, title: string, author: string) => Promise<{ path: string; meta: ProjectInfo['meta'] }>
-    open: (path: string) => Promise<{ path: string; meta: ProjectInfo['meta'] }>
-    close: () => Promise<{ success: boolean }>
-    getInfo: () => Promise<ProjectInfo | null>
-    save: () => Promise<SaveResult>
-    updateMeta: (updates: { title?: string; author?: string }) => Promise<ProjectInfo['meta']>
+  tomes: {
+    createProject: (input: CreateProjectInput) => Promise<{ path: string; meta: ProjectMeta; projectRoot: string }>
+    openProject: (path: string) => Promise<{ path: string; meta: ProjectMeta; nodes: TreeNode[]; uiState: ProjectUiState }>
+    saveProject: () => Promise<SaveResult>
+    closeProject: () => Promise<{ success: boolean }>
+    getProjectInfo: () => Promise<{ path: string; meta: ProjectMeta } | null>
+    getRecentProjects: () => Promise<RecentProjectWithStatus[]>
+    removeFromRecent: (id: string) => Promise<{ success: boolean }>
+    updateBackupLocations: (projectId: string, paths: string[]) => Promise<{ success: boolean }>
+    checkBackupLocations: (paths: string[]) => Promise<BackupLocationStatus[]>
+    getConfig: () => Promise<PriamaConfig>
+    updatePreferences: (updates: Partial<PriamaPreferences>) => Promise<PriamaPreferences>
+    updateRecentPath: (projectId: string, primaryPath: string) => Promise<{ success: boolean }>
+    showInFolder: (path: string) => Promise<{ success: boolean }>
+    forceQuit: () => Promise<{ success: boolean }>
+    createChapter: (structure: ChapterStructure) => Promise<TreeNode>
+    updateUiState: (uiState: ProjectUiState) => Promise<ProjectUiState>
+    getSyncState: () => Promise<SyncState>
+  }
+  windows: {
+    detach: (panel: 'sidebar' | 'entity') => Promise<{ success: boolean }>
+    reattach: (panel: 'sidebar' | 'entity') => Promise<{ success: boolean }>
+    openDocument: (nodeId: string, title: string) => Promise<{ success: boolean }>
+    getLayout: () => Promise<WindowLayoutState>
+    updateLayout: (updates: Partial<WindowLayoutState>) => Promise<WindowLayoutState>
   }
   dialog: {
-    openProject: () => Promise<string | null>
-    saveProjectAs: (defaultName?: string) => Promise<string | null>
+    openTomes: () => Promise<string | null>
+    chooseFolder: (title?: string) => Promise<string | null>
     selectImage: () => Promise<string | null>
   }
   tree: {
@@ -42,17 +75,37 @@ export interface ElectronAPI {
 }
 
 const api: ElectronAPI = {
-  project: {
-    create: (path, title, author) => ipcRenderer.invoke('project:create', { path, title, author }),
-    open: (path) => ipcRenderer.invoke('project:open', { path }),
-    close: () => ipcRenderer.invoke('project:close'),
-    getInfo: () => ipcRenderer.invoke('project:getInfo'),
-    save: () => ipcRenderer.invoke('project:save'),
-    updateMeta: (updates) => ipcRenderer.invoke('project:updateMeta', updates)
+  tomes: {
+    createProject: (input) => ipcRenderer.invoke('tomes:createProject', input),
+    openProject: (path) => ipcRenderer.invoke('tomes:openProject', { path }),
+    saveProject: () => ipcRenderer.invoke('tomes:saveProject'),
+    closeProject: () => ipcRenderer.invoke('tomes:closeProject'),
+    getProjectInfo: () => ipcRenderer.invoke('tomes:getProjectInfo'),
+    getRecentProjects: () => ipcRenderer.invoke('tomes:getRecentProjects'),
+    removeFromRecent: (id) => ipcRenderer.invoke('tomes:removeFromRecent', { id }),
+    updateBackupLocations: (projectId, paths) =>
+      ipcRenderer.invoke('tomes:updateBackupLocations', { projectId, paths }),
+    checkBackupLocations: (paths) => ipcRenderer.invoke('tomes:checkBackupLocations', { paths }),
+    getConfig: () => ipcRenderer.invoke('tomes:getConfig'),
+    updatePreferences: (updates) => ipcRenderer.invoke('tomes:updatePreferences', updates),
+    updateRecentPath: (projectId, primaryPath) =>
+      ipcRenderer.invoke('tomes:updateRecentPath', { projectId, primaryPath }),
+    showInFolder: (path) => ipcRenderer.invoke('tomes:showInFolder', { path }),
+    forceQuit: () => ipcRenderer.invoke('tomes:forceQuit'),
+    createChapter: (structure) => ipcRenderer.invoke('tomes:createChapter', { structure }),
+    updateUiState: (uiState) => ipcRenderer.invoke('tomes:updateUiState', uiState),
+    getSyncState: () => ipcRenderer.invoke('tomes:getSyncState')
+  },
+  windows: {
+    detach: (panel) => ipcRenderer.invoke('windows:detach', { panel }),
+    reattach: (panel) => ipcRenderer.invoke('windows:reattach', { panel }),
+    openDocument: (nodeId, title) => ipcRenderer.invoke('windows:openDocument', { nodeId, title }),
+    getLayout: () => ipcRenderer.invoke('windows:getLayout'),
+    updateLayout: (updates) => ipcRenderer.invoke('windows:updateLayout', updates)
   },
   dialog: {
-    openProject: () => ipcRenderer.invoke('dialog:openProject'),
-    saveProjectAs: (defaultName) => ipcRenderer.invoke('dialog:saveProjectAs', defaultName),
+    openTomes: () => ipcRenderer.invoke('dialog:openTomes'),
+    chooseFolder: (title) => ipcRenderer.invoke('dialog:chooseFolder', title),
     selectImage: () => ipcRenderer.invoke('dialog:selectImage')
   },
   tree: {
@@ -80,9 +133,3 @@ const api: ElectronAPI = {
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)
-
-declare global {
-  interface Window {
-    electronAPI: ElectronAPI
-  }
-}
