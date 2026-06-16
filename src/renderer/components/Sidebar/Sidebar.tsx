@@ -36,7 +36,7 @@ import { Button } from '@/components/UI/button'
 import { ChapterStructureModal } from '@/components/Project/ChapterStructureModal'
 import { useAppStore, getChapters, getScenes, getNodesByType } from '@/store/appStore'
 import { useResizeHandle, usePersistLayout } from '@/hooks/useResize'
-import { publishNavigationSync } from '@/lib/navigationSync'
+import { publishNavigationSyncAsync } from '@/lib/navigationSync'
 import { cn } from '@/lib/utils'
 import { isChapterFolder, isWikiEntityType } from '@/lib/treeUtils'
 import type { ChapterStructure, NodeType, TreeNode } from '@shared/types'
@@ -53,13 +53,25 @@ const SECTION_MAP = {
   notes: { id: 'notes', label: 'Notes', icon: StickyNote, nodeType: 'note' as NodeType }
 }
 
+/** macOS traffic-light inset — keep content out of the window control area */
+const SIDEBAR_TITLEBAR_INSET = 78
+
+/** Width at or below which the sidebar shows section icons only */
+const SIDEBAR_ICON_ONLY_THRESHOLD = SIDEBAR_MIN_WIDTH + 16
+
 function SortableSection({
   id,
-  children
+  children,
+  iconOnly
 }: {
   id: string
   children: React.ReactNode
+  iconOnly: boolean
 }): React.JSX.Element {
+  if (iconOnly) {
+    return <div>{children}</div>
+  }
+
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
   return (
     <div
@@ -153,7 +165,6 @@ function SortableTreeItem({
   node,
   depth = 0,
   isSelected,
-  iconOnly,
   onSelect,
   onRename,
   onDelete,
@@ -165,7 +176,6 @@ function SortableTreeItem({
   node: TreeNode
   depth?: number
   isSelected: boolean
-  iconOnly: boolean
   onSelect: () => void
   onRename: () => void
   onDelete: () => void
@@ -181,7 +191,7 @@ function SortableTreeItem({
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    paddingLeft: iconOnly ? '4px' : `${depth * 12 + 8}px`
+    paddingLeft: `${depth * 12 + 8}px`
   }
 
   return (
@@ -190,7 +200,7 @@ function SortableTreeItem({
         ref={setNodeRef}
         style={style}
         className={cn(
-          'group flex items-center gap-1 rounded-md py-1 pr-2 text-sm cursor-pointer select-none',
+          'group flex min-w-0 items-center gap-1 rounded-md py-1 pr-2 text-sm cursor-pointer select-none',
           isSelected ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50',
           isDragging && 'opacity-50',
           className
@@ -201,17 +211,15 @@ function SortableTreeItem({
           onDoubleClick()
         }}
       >
-        {!iconOnly && (
-          <button
-            className="opacity-0 group-hover:opacity-100 p-0.5 cursor-grab touch-none"
-            {...attributes}
-            {...listeners}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <GripVertical className="h-3 w-3 text-muted-foreground" />
-          </button>
-        )}
-        <span className={cn('truncate flex-1', iconOnly && 'sr-only')}>{node.title}</span>
+        <button
+          className="shrink-0 opacity-0 group-hover:opacity-100 p-0.5 cursor-grab touch-none"
+          {...attributes}
+          {...listeners}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical className="h-3 w-3 text-muted-foreground" />
+        </button>
+        <span className="min-w-0 flex-1 truncate">{node.title}</span>
         {trailingAction}
       </div>
     </TreeContextMenu>
@@ -239,39 +247,59 @@ function SectionHeader({
   onAdd?: () => void
   addOnHover?: boolean
 }): React.JSX.Element {
-  const content = (
+  if (iconOnly) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={onSelectContainer}
+            className={cn(
+              'mx-auto mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md',
+              isContainerSelected
+                ? 'bg-accent text-accent-foreground'
+                : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+            )}
+            aria-label={label}
+          >
+            <Icon className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="right">{label}</TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  return (
     <div
       className={cn(
-        'flex items-center gap-1 px-2 py-1.5 rounded-md mx-1',
+        'mx-1 flex min-w-0 items-center gap-1 rounded-md px-2 py-1.5',
         isContainerSelected && 'bg-accent text-accent-foreground'
       )}
     >
-      {!iconOnly && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation()
-            onToggle()
-          }}
-          className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
-          aria-label={isExpanded ? 'Collapse section' : 'Expand section'}
-        >
-          {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          onToggle()
+        }}
+        className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
+        aria-label={isExpanded ? 'Collapse section' : 'Expand section'}
+      >
+        {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+      </button>
       <button
         type="button"
         onClick={onSelectContainer}
         className={cn(
-          'flex min-w-0 flex-1 items-center gap-1 text-xs font-semibold uppercase tracking-wider text-left',
-          isContainerSelected ? 'text-accent-foreground' : 'text-muted-foreground hover:text-foreground',
-          iconOnly && 'justify-center'
+          'flex min-w-0 flex-1 items-center gap-1 text-left text-xs font-semibold uppercase tracking-wider',
+          isContainerSelected ? 'text-accent-foreground' : 'text-muted-foreground hover:text-foreground'
         )}
       >
         <Icon className="h-3.5 w-3.5 shrink-0" />
-        {!iconOnly && <span className="truncate">{label}</span>}
+        <span className="truncate">{label}</span>
       </button>
-      {onAdd && !iconOnly && (
+      {onAdd && (
         <button
           type="button"
           onClick={(e) => {
@@ -288,16 +316,6 @@ function SectionHeader({
       )}
     </div>
   )
-
-  if (iconOnly) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>{content}</TooltipTrigger>
-        <TooltipContent side="right">{label}</TooltipContent>
-      </Tooltip>
-    )
-  }
-  return content
 }
 
 interface SidebarProps {
@@ -332,7 +350,8 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
   const [renameValue, setRenameValue] = useState('')
   const [showChapterModal, setShowChapterModal] = useState(false)
 
-  const iconOnly = sidebarWidth <= SIDEBAR_MIN_WIDTH + 16
+  const iconOnly = !detached && sidebarWidth <= SIDEBAR_ICON_ONLY_THRESHOLD
+  const showSidebarDetach = sidebarWidth >= SIDEBAR_MAX_WIDTH * 0.5
   const width = detached ? '100%' : sidebarWidth
 
   const { handleProps } = useResizeHandle(
@@ -431,8 +450,9 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
   const openInNewWindow = (node: TreeNode): void => {
     if (node.type === 'note') {
       setSelectedEntity(node.id, node.type)
-      publishNavigationSync()
-      void window.electronAPI.windows.detach('entity').then(() => setEntityDetached(true))
+      void publishNavigationSyncAsync()
+        .then(() => window.electronAPI.windows.detach('entity'))
+        .then(() => setEntityDetached(true))
       return
     }
     void window.electronAPI.windows.openDocument(node.id, node.title)
@@ -470,10 +490,9 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
   }
 
   const handleDetach = (): void => {
-    void window.electronAPI.windows.detach('sidebar').then(() => {
-      setSidebarDetached(true)
-      publishNavigationSync()
-    })
+    void publishNavigationSyncAsync()
+      .then(() => window.electronAPI.windows.detach('sidebar'))
+      .then(() => setSidebarDetached(true))
   }
 
   const chapters = getChapters(nodes)
@@ -496,35 +515,40 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
     <>
     <TooltipProvider delayDuration={200}>
       <aside
-        className={cn(
-          'relative flex h-full shrink-0 flex-col border-r border-sidebar-border bg-sidebar transition-[width] duration-150',
-          iconOnly && 'sidebar-icon-only'
-        )}
+        className="relative flex h-full shrink-0 flex-col overflow-hidden bg-sidebar transition-[width] duration-150"
         style={{ width }}
       >
         {!detached && (
           <div
-            className="flex h-9 items-center justify-end border-b border-sidebar-border px-2 drag-region"
-            style={{ paddingLeft: '78px' }}
+            className="drag-region flex h-9 shrink-0 items-center justify-end border-b border-sidebar-border px-2"
+            style={{ paddingLeft: SIDEBAR_TITLEBAR_INSET }}
           >
-            <Button
-              variant="ghost"
-              size="icon"
-              className="no-drag h-7 w-7"
-              title="Detach sidebar"
-              onClick={handleDetach}
-            >
-              <PanelLeftOpen className="h-4 w-4" />
-            </Button>
+            {showSidebarDetach && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="no-drag h-7 w-7"
+                title="Detach sidebar"
+                onClick={handleDetach}
+              >
+                <PanelLeftOpen className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto py-2">
-          {!iconOnly && !detached && projectMeta && (
-            <div className="mb-1 px-2">
+        <div
+          className={cn(
+            'relative flex min-h-0 flex-1 flex-col',
+            !detached && 'border-r border-sidebar-border'
+          )}
+        >
+        <div className={cn('flex-1 overflow-x-hidden overflow-y-auto', iconOnly ? 'py-1' : 'py-2')}>
+          {!detached && !iconOnly && projectMeta && (
+            <div className="mb-1 min-w-0 px-2">
               <p className="truncate text-sm font-semibold leading-tight">{projectMeta.title}</p>
               {projectMeta.author && (
-                <p className="truncate text-xs text-muted-foreground leading-tight mt-0.5">
+                <p className="mt-0.5 truncate text-xs leading-tight text-muted-foreground">
                   {projectMeta.author}
                 </p>
               )}
@@ -567,7 +591,6 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
                           <SortableTreeItem
                             node={chapter}
                             isSelected={selectedNodeId === chapter.id}
-                            iconOnly={iconOnly}
                             onSelect={() => setSelectedNodeId(chapter.id)}
                             onRename={() => startRename(chapter)}
                             onDelete={() => handleDelete(chapter.id)}
@@ -593,7 +616,6 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
                                   node={scene}
                                   depth={1}
                                   isSelected={selectedNodeId === scene.id}
-                                  iconOnly={iconOnly}
                                   onSelect={() => setSelectedNodeId(scene.id)}
                                   onRename={() => startRename(scene)}
                                   onDelete={() => handleDelete(scene.id)}
@@ -636,7 +658,7 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
                 const sectionNodes = section.nodeType ? getNodesByType(nodes, section.nodeType) : []
 
                 return (
-                  <SortableSection key={section.id} id={section.id}>
+                  <SortableSection key={section.id} id={section.id} iconOnly={iconOnly}>
                     <SectionHeader
                       label={section.label}
                       icon={Icon}
@@ -675,7 +697,7 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
                           >
                             <div
                               className={cn(
-                                'group/row mx-2 flex cursor-pointer items-center rounded-md py-1 pl-2 text-sm',
+                                'group/row mx-2 flex min-w-0 cursor-pointer items-center rounded-md py-1 pl-2 text-sm',
                                 selectedEntityId === node.id
                                   ? 'bg-accent text-accent-foreground'
                                   : 'hover:bg-accent/50',
@@ -688,7 +710,7 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
                               }}
                               onDoubleClick={() => startRename(node)}
                             >
-                              <span className="truncate flex-1">{node.title}</span>
+                              <span className="min-w-0 flex-1 truncate">{node.title}</span>
                               {nodeIndex === sectionNodes.length - 1 && section.nodeType && (
                                 <HoverAddButton
                                   className="mr-1 group-hover/section:opacity-100"
@@ -713,6 +735,7 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
             style={{ right: 0 }}
           />
         )}
+        </div>
       </aside>
     </TooltipProvider>
 

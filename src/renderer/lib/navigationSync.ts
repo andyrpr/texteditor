@@ -59,3 +59,11 @@ export function publishNavigationSync(): void {
   const snapshot = getNavigationSnapshot()
   void window.electronAPI.navigation.update(snapshot)
 }
+
+export async function publishNavigationSyncAsync(): Promise<void> {
+  if (suppressNavigationPublish) return
+  if (typeof window === 'undefined' || !window.electronAPI?.navigation) return
+
+  const snapshot = getNavigationSnapshot()
+  await window.electronAPI.navigation.update(snapshot)
+}

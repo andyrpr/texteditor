@@ -21,30 +21,42 @@ function navigationChanged(
   return false
 }
 
-export function useNavigationSync(): void {
+export async function hydrateNavigationFromMain(): Promise<void> {
+  const nav = await window.electronAPI.navigation.get()
+  applyNavigationSync(nav)
+}
+
+export function useNavigationSync(options?: { skipInitialFetch?: boolean }): void {
   useEffect(() => {
-    void window.electronAPI.navigation.get().then((nav) => {
-      applyNavigationSync(nav)
-    })
+    if (!options?.skipInitialFetch) {
+      void hydrateNavigationFromMain()
+    }
 
     const unsub = window.electronAPI.on('sync:navigation', (data: unknown) => {
       applyNavigationSync(data as NavigationSyncState)
     })
 
     return unsub
-  }, [])
+  }, [options?.skipInitialFetch])
 }
 
-export function useNavigationSyncPublisher(enabled: boolean): void {
+export function useNavigationSyncPublisher(
+  enabled: boolean,
+  options?: { publishOnMount?: boolean }
+): void {
+  const publishOnMount = options?.publishOnMount ?? true
+
   useEffect(() => {
     if (!enabled) return
 
-    publishNavigationSync()
+    if (publishOnMount) {
+      publishNavigationSync()
+    }
 
     return useAppStore.subscribe((state, prev) => {
       if (navigationChanged(state, prev)) {
         publishNavigationSync()
       }
     })
-  }, [enabled])
+  }, [enabled, publishOnMount])
 }

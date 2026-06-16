@@ -8,7 +8,7 @@ import { ScrollArea } from '@/components/UI/scroll-area'
 import { CharacterPanel } from '@/components/Wiki/CharacterPanel'
 import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
 import { NotePanel } from '@/components/Wiki/NotePanel'
-import { publishNavigationSync } from '@/lib/navigationSync'
+import { publishNavigationSyncAsync } from '@/lib/navigationSync'
 import { useResizeHandle, usePersistLayout } from '@/hooks/useResize'
 import { cn } from '@/lib/utils'
 import {
@@ -205,10 +205,11 @@ export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.E
   }
 
   const handleDetach = (): void => {
-    void window.electronAPI.windows.detach('entity').then(() => {
-      setEntityDetached(true)
-      publishNavigationSync()
-    })
+    void publishNavigationSyncAsync()
+      .then(() => window.electronAPI.windows.detach('entity'))
+      .then(() => {
+        setEntityDetached(true)
+      })
   }
 
   if (!detached && (!rightPanelOpen || !selectedEntityId || !node)) return null

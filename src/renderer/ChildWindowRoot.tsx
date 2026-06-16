@@ -1,10 +1,14 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from '@/lib/hashParams'
 import { Sidebar } from '@/components/Sidebar/Sidebar'
 import { EntityPanel } from '@/components/Wiki/EntityPanel'
 import { Button } from '@/components/UI/button'
 import { useSyncFromMain, hydrateFromMain } from '@/hooks/useSync'
-import { useNavigationSync, useNavigationSyncPublisher } from '@/hooks/useNavigationSync'
+import {
+  hydrateNavigationFromMain,
+  useNavigationSync,
+  useNavigationSyncPublisher
+} from '@/hooks/useNavigationSync'
 import { useThemeSync } from '@/hooks/useThemeSync'
 import { PanelRightOpen } from 'lucide-react'
 
@@ -16,20 +20,31 @@ const PANEL_LABELS: Record<string, string> = {
 export function ChildWindowRoot(): React.JSX.Element {
   const params = useSearchParams()
   const child = params.get('child')
+  const [hydrated, setHydrated] = useState(false)
 
   useSyncFromMain()
   useThemeSync()
-  useNavigationSync()
-  useNavigationSyncPublisher(true)
+  useNavigationSync({ skipInitialFetch: true })
+  useNavigationSyncPublisher(hydrated, { publishOnMount: false })
 
   useEffect(() => {
-    void hydrateFromMain()
+    void Promise.all([hydrateFromMain(), hydrateNavigationFromMain()]).then(() => {
+      setHydrated(true)
+    })
   }, [])
 
   const handleReattach = (): void => {
     if (child === 'sidebar' || child === 'entity') {
       void window.electronAPI.windows.reattach(child)
     }
+  }
+
+  if (!hydrated) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background text-muted-foreground">
+        <p className="text-sm">Loading…</p>
+      </div>
+    )
   }
 
   if (child === 'sidebar') {

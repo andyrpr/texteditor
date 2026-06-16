@@ -124,10 +124,7 @@
   @apply text-sm text-muted-foreground;
 }
 
-/* Icon-only sidebar */
-aside.sidebar-icon-only .truncate {
-  @apply sr-only;
-}
+/* Icon-only sidebar — removed; sidebar keeps layout and truncates at narrow widths */
 
 .prose-editor ul {
   @apply mb-4 list-disc pl-6;

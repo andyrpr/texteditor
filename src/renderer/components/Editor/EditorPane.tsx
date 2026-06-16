@@ -51,12 +51,6 @@ export function EditorPane(): React.JSX.Element {
     setNodes
   } = useAppStore()
 
-  const selectWikiEntity = (node: TreeNode): void => {
-    if (isWikiEntityType(node.type)) {
-      setSelectedEntity(node.id, node.type)
-    }
-  }
-
   const selectedNode = nodes.find((n) => n.id === selectedNodeId) ?? null
 
   const persistReorder = async (reordered: TreeNode[], parentId: string | null): Promise<void> => {
@@ -65,17 +59,30 @@ export function EditorPane(): React.JSX.Element {
     setNodes(updated)
   }
 
+  const selectManuscriptChapter = (node: TreeNode): void => {
+    if (node.type === 'chapter') {
+      setSelectedNodeId(node.id)
+    }
+  }
+
+  const selectWikiEntity = (node: TreeNode): void => {
+    if (isWikiEntityType(node.type)) {
+      setSelectedEntity(node.id, node.type)
+    }
+  }
+
   if (selectedContainerId && isContainerSectionId(selectedContainerId)) {
     const meta = SECTION_CONTAINER_META[selectedContainerId]
     const items = getNodesByType(nodes, meta.nodeType)
+    const isManuscript = selectedContainerId === 'manuscript'
 
     return (
       <ContainerView
         title={meta.title}
         items={items}
         emptyMessage={meta.emptyMessage}
-        selectedNodeId={selectedEntityId}
-        onSelect={selectWikiEntity}
+        selectedNodeId={isManuscript ? selectedNodeId : selectedEntityId}
+        onSelect={isManuscript ? selectManuscriptChapter : selectWikiEntity}
         onReorder={(reordered) => void persistReorder(reordered, null)}
       />
     )

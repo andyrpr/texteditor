@@ -1,6 +1,8 @@
 import { BrowserWindow, screen } from 'electron'
 import { join } from 'path'
 import type { WindowBounds, WindowLayoutState } from '@shared/types'
+import { getNavigationState } from './navigationState'
+import { getSyncState } from './tomes/projectStore'
 
 export type PanelType = 'sidebar' | 'entity'
 export type ChildWindowKind = PanelType | 'workspace' | 'imageViewer'
@@ -65,6 +67,14 @@ export function broadcast(channel: string, payload: unknown): void {
   }
 }
 
+function pushPanelStateToChild(win: BrowserWindow): void {
+  win.webContents.once('did-finish-load', () => {
+    if (win.isDestroyed()) return
+    win.webContents.send('sync:navigation', getNavigationState())
+    win.webContents.send('sync:state', getSyncState())
+  })
+}
+
 export function detachPanel(
   panel: PanelType,
   ownerWindow: BrowserWindow,
@@ -120,6 +130,7 @@ export function detachPanel(
   })
 
   loadUrl(win, `child=${panel}`)
+  pushPanelStateToChild(win)
   return win
 }
 
