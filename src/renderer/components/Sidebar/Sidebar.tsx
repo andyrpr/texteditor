@@ -324,7 +324,8 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
     updateNodeInStore,
     setSectionOrder,
     setSidebarWidth,
-    setSidebarDetached
+    setSidebarDetached,
+    setEntityDetached
   } = useAppStore()
 
   const [renamingId, setRenamingId] = useState<string | null>(null)
@@ -428,6 +429,12 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
   }
 
   const openInNewWindow = (node: TreeNode): void => {
+    if (node.type === 'note') {
+      setSelectedEntity(node.id, node.type)
+      publishNavigationSync()
+      void window.electronAPI.windows.detach('entity').then(() => setEntityDetached(true))
+      return
+    }
     void window.electronAPI.windows.openDocument(node.id, node.title)
   }
 

@@ -353,14 +353,19 @@ export const DEFAULT_NOTE_META: NoteMeta = {
   tags: []
 }
 
+export function normalizeNoteMeta(raw: Partial<NoteMeta> & Record<string, unknown>): NoteMeta {
+  const tags = Array.isArray(raw.tags) ? raw.tags.filter((t): t is string => typeof t === 'string') : []
+  return { tags }
+}
+
 export const DEFAULT_CHAPTER_META: ChapterMeta = {
   structure: 'scenes'
 }
 
 export const SIDEBAR_MAX_WIDTH = 280
 export const SIDEBAR_MIN_WIDTH = 56
-export const RIGHT_PANEL_MAX_WIDTH = 360
-export const RIGHT_PANEL_MIN_WIDTH = 280
+export const RIGHT_PANEL_MIN_WIDTH = 320
+export const RIGHT_PANEL_MAX_WIDTH = 640
 
 export const DEFAULT_SECTION_ORDER = ['characters', 'locations', 'lore', 'notes']
 

@@ -32,11 +32,13 @@ export function useContentPersistence(enabled: boolean): {
   saveProject: () => Promise<void>
 } {
   const selectedNodeId = useAppStore((s) => s.selectedNodeId)
+  const selectedEntityId = useAppStore((s) => s.selectedEntityId)
   const projectId = useAppStore((s) => s.projectId)
   const setLastSaved = useAppStore((s) => s.setLastSaved)
   const setBackupWarningCount = useAppStore((s) => s.setBackupWarningCount)
   const addToast = useToastStore((s) => s.addToast)
   const prevNodeIdRef = useRef<string | null>(null)
+  const prevEntityIdRef = useRef<string | null>(null)
 
   const saveProject = useCallback(async () => {
     try {
@@ -61,6 +63,17 @@ export function useContentPersistence(enabled: boolean): {
       void flushNode(prev)
     }
   }, [enabled, selectedNodeId])
+
+  useEffect(() => {
+    if (!enabled) return
+
+    const prev = prevEntityIdRef.current
+    prevEntityIdRef.current = selectedEntityId
+
+    if (prev && prev !== selectedEntityId) {
+      void flushNode(prev)
+    }
+  }, [enabled, selectedEntityId])
 
   useEffect(() => {
     if (!enabled) return

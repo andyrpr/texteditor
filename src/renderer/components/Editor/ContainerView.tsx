@@ -16,8 +16,8 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { GripVertical } from 'lucide-react'
-import { cn, countWords } from '@/lib/utils'
-import { stripHtmlPreview } from '@/lib/treeUtils'
+import { cn } from '@/lib/utils'
+import { countNodeWords, stripNodeContentPreview } from '@/lib/treeUtils'
 import type { TreeNode } from '@shared/types'
 
 interface ContainerViewProps {
@@ -48,8 +48,8 @@ function SortableCard({
     transition
   }
 
-  const words = countWords(node.content)
-  const preview = stripHtmlPreview(node.content)
+  const words = countNodeWords(node)
+  const preview = stripNodeContentPreview(node)
 
   return (
     <div

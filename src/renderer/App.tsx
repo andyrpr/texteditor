@@ -14,7 +14,7 @@ import { useSyncFromMain, hydrateFromMain } from '@/hooks/useSync'
 import { useThemeSync } from '@/hooks/useThemeSync'
 import { isWorkspaceWindow } from '@/lib/hashParams'
 import { useSearchParams } from '@/lib/hashParams'
-import { SIDEBAR_MAX_WIDTH } from '@shared/types'
+import { SIDEBAR_MAX_WIDTH, RIGHT_PANEL_MIN_WIDTH, RIGHT_PANEL_MAX_WIDTH } from '@shared/types'
 
 export function AppLayout(): React.JSX.Element {
   const {
@@ -56,7 +56,12 @@ export function AppLayout(): React.JSX.Element {
       const layout = config.windowLayout
       if (layout) {
         setSidebarWidth(layout.sidebarWidth ?? SIDEBAR_MAX_WIDTH)
-        setRightPanelWidth(layout.rightPanelWidth ?? 320)
+        setRightPanelWidth(
+          Math.min(
+            RIGHT_PANEL_MAX_WIDTH,
+            Math.max(RIGHT_PANEL_MIN_WIDTH, layout.rightPanelWidth ?? RIGHT_PANEL_MIN_WIDTH)
+          )
+        )
         setSidebarDetached(layout.sidebarDetached ?? false)
         setEntityDetached(layout.entityDetached ?? false)
       }

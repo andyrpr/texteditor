@@ -29,3 +29,27 @@ export function stripHtmlPreview(html: string, maxLen = 100): string {
   if (!text) return 'Empty'
   return text.length > maxLen ? `${text.slice(0, maxLen)}…` : text
 }
+
+export function stripPlainTextPreview(text: string, maxLen = 100): string {
+  const normalized = text.replace(/\s+/g, ' ').trim()
+  if (!normalized) return 'Empty'
+  return normalized.length > maxLen ? `${normalized.slice(0, maxLen)}…` : normalized
+}
+
+export function stripNodeContentPreview(node: TreeNode, maxLen = 100): string {
+  if (node.type === 'note') {
+    return stripPlainTextPreview(node.content, maxLen)
+  }
+  return stripHtmlPreview(node.content, maxLen)
+}
+
+export function countNodeWords(node: TreeNode): number {
+  if (node.type === 'note') {
+    const text = node.content.trim()
+    if (!text) return 0
+    return text.split(/\s+/).filter(Boolean).length
+  }
+  const text = node.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+  if (!text) return 0
+  return text.split(/\s+/).filter(Boolean).length
+}

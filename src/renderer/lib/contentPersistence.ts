@@ -23,6 +23,14 @@ export function registerActiveEditor(
   getActiveEditorContent = getter
 }
 
+let getActiveNoteContent: (() => { nodeId: string; content: string } | null) | null = null
+
+export function registerActiveNoteContent(
+  getter: (() => { nodeId: string; content: string } | null) | null
+): void {
+  getActiveNoteContent = getter
+}
+
 export function resetPersistenceState(): void {
   for (const timer of debounceTimers.values()) clearTimeout(timer)
   debounceTimers.clear()
@@ -35,6 +43,10 @@ function captureActiveEditorContent(): void {
   const active = getActiveEditorContent?.()
   if (active) {
     dirtyNodes.set(active.nodeId, { content: active.content })
+  }
+  const note = getActiveNoteContent?.()
+  if (note) {
+    dirtyNodes.set(note.nodeId, { content: note.content })
   }
 }
 

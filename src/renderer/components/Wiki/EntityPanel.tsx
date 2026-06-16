@@ -3,20 +3,28 @@ import { X, PanelRightOpen } from 'lucide-react'
 import { useAppStore } from '@/store/appStore'
 import { Button } from '@/components/UI/button'
 import { Input } from '@/components/UI/input'
-import { Textarea } from '@/components/UI/textarea'
+import { AutoGrowTextarea } from '@/components/UI/auto-grow-textarea'
 import { ScrollArea } from '@/components/UI/scroll-area'
 import { CharacterPanel } from '@/components/Wiki/CharacterPanel'
+import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
+import { NotePanel } from '@/components/Wiki/NotePanel'
 import { publishNavigationSync } from '@/lib/navigationSync'
+import { useResizeHandle, usePersistLayout } from '@/hooks/useResize'
+import { cn } from '@/lib/utils'
 import {
   DEFAULT_CHARACTER_META,
   DEFAULT_LOCATION_META,
   DEFAULT_LORE_META,
+  DEFAULT_NOTE_META,
   normalizeCharacterMeta,
   normalizeLocationMeta,
+  normalizeNoteMeta,
   parseMetadata,
-  serializeMetadata
+  serializeMetadata,
+  RIGHT_PANEL_MIN_WIDTH,
+  RIGHT_PANEL_MAX_WIDTH
 } from '@shared/types'
-import type { CharacterMeta, LocationMeta, LoreMeta } from '@shared/types'
+import type { CharacterMeta, LocationMeta, LoreMeta, NoteMeta } from '@shared/types'
 
 function Field({
   label,
@@ -81,10 +89,10 @@ function LocationPanel({
         <Input value={meta.type} onChange={(e) => setMeta({ ...meta, type: e.target.value })} onBlur={save} placeholder="city, forest, dungeon..." />
       </Field>
       <Field label="Description">
-        <Textarea value={meta.description} onChange={(e) => setMeta({ ...meta, description: e.target.value })} onBlur={save} rows={4} />
+        <AutoGrowTextarea measureKey={nodeId} value={meta.description} onChange={(e) => setMeta({ ...meta, description: e.target.value })} onBlur={save} rows={4} />
       </Field>
       <Field label="Notes">
-        <Textarea value={meta.notes} onChange={(e) => setMeta({ ...meta, notes: e.target.value })} onBlur={save} rows={3} />
+        <AutoGrowTextarea measureKey={nodeId} value={meta.notes} onChange={(e) => setMeta({ ...meta, notes: e.target.value })} onBlur={save} rows={3} />
       </Field>
     </div>
   )
@@ -122,10 +130,10 @@ function LorePanel({
         <Input value={meta.category} onChange={(e) => setMeta({ ...meta, category: e.target.value })} onBlur={save} placeholder="magic, religion, history..." />
       </Field>
       <Field label="Description">
-        <Textarea value={meta.description} onChange={(e) => setMeta({ ...meta, description: e.target.value })} onBlur={save} rows={4} />
+        <AutoGrowTextarea measureKey={nodeId} value={meta.description} onChange={(e) => setMeta({ ...meta, description: e.target.value })} onBlur={save} rows={4} />
       </Field>
       <Field label="Notes">
-        <Textarea value={meta.notes} onChange={(e) => setMeta({ ...meta, notes: e.target.value })} onBlur={save} rows={3} />
+        <AutoGrowTextarea measureKey={nodeId} value={meta.notes} onChange={(e) => setMeta({ ...meta, notes: e.target.value })} onBlur={save} rows={3} />
       </Field>
     </div>
   )
@@ -143,6 +151,7 @@ export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.E
     rightPanelOpen,
     rightPanelWidth,
     setRightPanelOpen,
+    setRightPanelWidth,
     setSelectedEntity,
     updateNodeInStore,
     setDirty,
@@ -150,6 +159,35 @@ export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.E
   } = useAppStore()
 
   const node = selectedEntityId ? nodes.find((n) => n.id === selectedEntityId) : null
+
+  const { handleProps } = useResizeHandle(
+    rightPanelWidth,
+    setRightPanelWidth,
+    RIGHT_PANEL_MIN_WIDTH,
+    RIGHT_PANEL_MAX_WIDTH,
+    'right'
+  )
+  usePersistLayout(rightPanelWidth, 'rightPanelWidth')
+
+  const handleNoteUpdate = async (updates: {
+    metadata?: NoteMeta
+    title?: string
+    content?: string
+  }) => {
+    if (!node) return
+    const payload: { metadata?: string; title?: string; content?: string } = {}
+    if (updates.metadata) payload.metadata = serializeMetadata(updates.metadata)
+    if (updates.title) payload.title = updates.title
+    if (updates.content !== undefined) payload.content = updates.content
+
+    const updated = await window.electronAPI.tree.update(node.id, payload)
+    const storeUpdates: { metadata?: string; title?: string; content?: string } = {}
+    if (updates.metadata) storeUpdates.metadata = updated.metadata
+    if (updates.title) storeUpdates.title = updated.title
+    if (updates.content !== undefined) storeUpdates.content = updated.content
+    updateNodeInStore(node.id, storeUpdates)
+    setDirty(true)
+  }
 
   const handleUpdate = async (
     metadata: CharacterMeta | LocationMeta | LoreMeta,
@@ -190,6 +228,13 @@ export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.E
       className="relative flex h-full shrink-0 flex-col border-l border-border bg-card"
       style={{ width: detached ? '100%' : rightPanelWidth }}
     >
+      {!detached && (
+        <div
+          {...handleProps}
+          className={cn(handleProps.className, 'left-0')}
+          style={{ left: 0 }}
+        />
+      )}
       {!detached && (
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <div>
@@ -252,19 +297,15 @@ export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.E
             />
           )}
           {panelType === 'note' && (
-            <Field label="Content">
-              <Textarea
-                defaultValue={node.content}
-                rows={8}
-                onBlur={async (e) => {
-                  const updated = await window.electronAPI.tree.update(node.id, {
-                    content: e.target.value
-                  })
-                  updateNodeInStore(node.id, { content: updated.content })
-                  setDirty(true)
-                }}
-              />
-            </Field>
+            <NotePanel
+              nodeId={node.id}
+              title={node.title}
+              content={node.content}
+              metadata={normalizeNoteMeta(
+                parseMetadata<NoteMeta>(node.metadata, DEFAULT_NOTE_META)
+              )}
+              onUpdate={handleNoteUpdate}
+            />
           )}
         </div>
       </ScrollArea>

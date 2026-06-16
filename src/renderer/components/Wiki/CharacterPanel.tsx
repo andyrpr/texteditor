@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import { Input } from '@/components/UI/input'
-import { Textarea } from '@/components/UI/textarea'
+import { AutoGrowTextarea } from '@/components/UI/auto-grow-textarea'
 import { Button } from '@/components/UI/button'
 import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
 import { useAppStore, getNodesByType } from '@/store/appStore'
@@ -212,7 +212,8 @@ export function CharacterPanel({
         </Field>
       </div>
       <Field label="Physical Description">
-        <Textarea
+        <AutoGrowTextarea
+          measureKey={nodeId}
           value={meta.physicalDescription}
           onChange={(e) => setMeta({ ...meta, physicalDescription: e.target.value })}
           onBlur={save}
@@ -220,7 +221,8 @@ export function CharacterPanel({
         />
       </Field>
       <Field label="Personality">
-        <Textarea
+        <AutoGrowTextarea
+          measureKey={nodeId}
           value={meta.personality}
           onChange={(e) => setMeta({ ...meta, personality: e.target.value })}
           onBlur={save}
@@ -228,7 +230,8 @@ export function CharacterPanel({
         />
       </Field>
       <Field label="Background">
-        <Textarea
+        <AutoGrowTextarea
+          measureKey={nodeId}
           value={meta.background}
           onChange={(e) => setMeta({ ...meta, background: e.target.value })}
           onBlur={save}
@@ -236,10 +239,22 @@ export function CharacterPanel({
         />
       </Field>
       <Field label="Role in Story">
-        <Input value={meta.role} onChange={(e) => setMeta({ ...meta, role: e.target.value })} onBlur={save} />
+        <AutoGrowTextarea
+          measureKey={nodeId}
+          value={meta.role}
+          onChange={(e) => setMeta({ ...meta, role: e.target.value })}
+          onBlur={save}
+          rows={3}
+        />
       </Field>
       <Field label="Notes">
-        <Textarea value={meta.notes} onChange={(e) => setMeta({ ...meta, notes: e.target.value })} onBlur={save} rows={3} />
+        <AutoGrowTextarea
+          measureKey={nodeId}
+          value={meta.notes}
+          onChange={(e) => setMeta({ ...meta, notes: e.target.value })}
+          onBlur={save}
+          rows={3}
+        />
       </Field>
 
       <div className="space-y-2">
@@ -292,7 +307,8 @@ export function CharacterPanel({
       </div>
 
       <Field label="Starts as">
-        <Textarea
+        <AutoGrowTextarea
+          measureKey={nodeId}
           value={meta.startsAs}
           onChange={(e) => setMeta({ ...meta, startsAs: e.target.value })}
           onBlur={save}
@@ -300,7 +316,8 @@ export function CharacterPanel({
         />
       </Field>
       <Field label="Ends as">
-        <Textarea
+        <AutoGrowTextarea
+          measureKey={nodeId}
           value={meta.endsAs}
           onChange={(e) => setMeta({ ...meta, endsAs: e.target.value })}
           onBlur={save}
