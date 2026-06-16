@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { EntityType, ProjectMeta, TreeNode } from '@shared/types'
+import type { ProjectMeta, TreeNode, WikiEntityType } from '@shared/types'
 import { DEFAULT_SECTION_ORDER, SIDEBAR_MAX_WIDTH } from '@shared/types'
 
 interface AppState {
@@ -18,7 +18,7 @@ interface AppState {
   sectionOrder: string[]
 
   selectedEntityId: string | null
-  selectedEntityType: EntityType | null
+  selectedEntityType: WikiEntityType | null
 
   theme: 'light' | 'dark'
   sidebarWidth: number
@@ -45,7 +45,7 @@ interface AppState {
   toggleSection: (section: string) => void
   setSectionOrder: (order: string[]) => void
 
-  setSelectedEntity: (id: string | null, type: EntityType | null) => void
+  setSelectedEntity: (id: string | null, type: WikiEntityType | null) => void
   setTheme: (theme: 'light' | 'dark', options?: { persist?: boolean }) => void
   toggleTheme: () => void
   setRightPanelOpen: (open: boolean) => void
@@ -122,11 +122,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   removeNode: (id) =>
     set((s) => ({
       nodes: s.nodes.filter((n) => n.id !== id && n.parentId !== id),
-      selectedNodeId: s.selectedNodeId === id ? null : s.selectedNodeId
+      selectedNodeId: s.selectedNodeId === id ? null : s.selectedNodeId,
+      ...(s.selectedEntityId === id
+        ? { selectedEntityId: null, selectedEntityType: null, rightPanelOpen: false }
+        : {})
     })),
   setSelectedNodeId: (id) => set({ selectedNodeId: id, selectedContainerId: null }),
-  selectContainer: (id) =>
-    set({ selectedContainerId: id, selectedNodeId: null, selectedEntityId: null, selectedEntityType: null }),
+  selectContainer: (id) => set({ selectedContainerId: id, selectedNodeId: null }),
   toggleSection: (section) => {
     const expanded = new Set(get().expandedSections)
     if (expanded.has(section)) expanded.delete(section)

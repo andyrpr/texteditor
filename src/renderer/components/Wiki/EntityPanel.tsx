@@ -1,14 +1,18 @@
 import { useEffect, useState, useCallback } from 'react'
 import { X, PanelRightOpen } from 'lucide-react'
-import { useAppStore, getSelectedNode } from '@/store/appStore'
+import { useAppStore } from '@/store/appStore'
 import { Button } from '@/components/UI/button'
 import { Input } from '@/components/UI/input'
 import { Textarea } from '@/components/UI/textarea'
 import { ScrollArea } from '@/components/UI/scroll-area'
+import { CharacterPanel } from '@/components/Wiki/CharacterPanel'
+import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
 import {
   DEFAULT_CHARACTER_META,
   DEFAULT_LOCATION_META,
   DEFAULT_LORE_META,
+  normalizeCharacterMeta,
+  normalizeLocationMeta,
   parseMetadata,
   serializeMetadata
 } from '@shared/types'
@@ -25,73 +29,6 @@ function Field({
     <div className="space-y-1.5">
       <label className="text-xs font-medium text-muted-foreground">{label}</label>
       {children}
-    </div>
-  )
-}
-
-function CharacterPanel({
-  nodeId,
-  title,
-  metadata,
-  onUpdate
-}: {
-  nodeId: string
-  title: string
-  metadata: CharacterMeta
-  onUpdate: (meta: CharacterMeta, title?: string) => void
-}): React.JSX.Element {
-  const [meta, setMeta] = useState(metadata)
-  const [name, setName] = useState(title)
-
-  useEffect(() => {
-    setMeta(metadata)
-    setName(title)
-  }, [nodeId, metadata, title])
-
-  const save = useCallback(() => {
-    onUpdate(meta, name !== title ? name : undefined)
-  }, [meta, name, title, onUpdate])
-
-  return (
-    <div className="space-y-4">
-      <Field label="Name">
-        <Input value={name} onChange={(e) => setName(e.target.value)} onBlur={save} />
-      </Field>
-      <Field label="Aliases (comma-separated)">
-        <Input
-          value={meta.aliases.join(', ')}
-          onChange={(e) =>
-            setMeta({ ...meta, aliases: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })
-          }
-          onBlur={save}
-        />
-      </Field>
-      <div className="grid grid-cols-3 gap-2">
-        <Field label="Age">
-          <Input value={meta.age} onChange={(e) => setMeta({ ...meta, age: e.target.value })} onBlur={save} />
-        </Field>
-        <Field label="Race">
-          <Input value={meta.race} onChange={(e) => setMeta({ ...meta, race: e.target.value })} onBlur={save} />
-        </Field>
-        <Field label="Gender">
-          <Input value={meta.gender} onChange={(e) => setMeta({ ...meta, gender: e.target.value })} onBlur={save} />
-        </Field>
-      </div>
-      <Field label="Physical Description">
-        <Textarea value={meta.physicalDescription} onChange={(e) => setMeta({ ...meta, physicalDescription: e.target.value })} onBlur={save} rows={3} />
-      </Field>
-      <Field label="Personality">
-        <Textarea value={meta.personality} onChange={(e) => setMeta({ ...meta, personality: e.target.value })} onBlur={save} rows={3} />
-      </Field>
-      <Field label="Background">
-        <Textarea value={meta.background} onChange={(e) => setMeta({ ...meta, background: e.target.value })} onBlur={save} rows={3} />
-      </Field>
-      <Field label="Role in Story">
-        <Input value={meta.role} onChange={(e) => setMeta({ ...meta, role: e.target.value })} onBlur={save} />
-      </Field>
-      <Field label="Notes">
-        <Textarea value={meta.notes} onChange={(e) => setMeta({ ...meta, notes: e.target.value })} onBlur={save} rows={3} />
-      </Field>
     </div>
   )
 }
@@ -119,8 +56,24 @@ function LocationPanel({
     onUpdate(meta, name !== title ? name : undefined)
   }, [meta, name, title, onUpdate])
 
+  const saveMeta = useCallback(
+    (next: LocationMeta) => {
+      setMeta(next)
+      onUpdate(next, name !== title ? name : undefined)
+    },
+    [name, title, onUpdate]
+  )
+
   return (
     <div className="space-y-4">
+      <EntityImageBanner
+        nodeId={nodeId}
+        title={name}
+        imagePath={meta.imagePath}
+        entityType="location"
+        onImageChange={(imagePath) => saveMeta({ ...meta, imagePath })}
+      />
+
       <Field label="Name">
         <Input value={name} onChange={(e) => setName(e.target.value)} onBlur={save} />
       </Field>
@@ -185,7 +138,6 @@ interface EntityPanelProps {
 export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.Element | null {
   const {
     nodes,
-    selectedNodeId,
     selectedEntityId,
     selectedEntityType,
     rightPanelOpen,
@@ -197,8 +149,7 @@ export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.E
     setEntityDetached
   } = useAppStore()
 
-  const entityId = selectedEntityId ?? selectedNodeId
-  const node = entityId ? nodes.find((n) => n.id === entityId) : null
+  const node = selectedEntityId ? nodes.find((n) => n.id === selectedEntityId) : null
 
   const handleUpdate = async (
     metadata: CharacterMeta | LocationMeta | LoreMeta,
@@ -219,10 +170,7 @@ export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.E
     void window.electronAPI.windows.detach('entity').then(() => setEntityDetached(true))
   }
 
-  if (!detached && (!rightPanelOpen || !node)) return null
-
-  const isEntity = node && ['character', 'location', 'lore', 'note'].includes(node.type)
-  if (!detached && !isEntity && !selectedEntityId) return null
+  if (!detached && (!rightPanelOpen || !selectedEntityId || !node)) return null
   if (detached && !node) {
     return (
       <div className="flex flex-1 items-center justify-center text-muted-foreground">
@@ -276,7 +224,9 @@ export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.E
             <CharacterPanel
               nodeId={node.id}
               title={node.title}
-              metadata={parseMetadata(node.metadata, DEFAULT_CHARACTER_META)}
+              metadata={normalizeCharacterMeta(
+                parseMetadata<CharacterMeta>(node.metadata, DEFAULT_CHARACTER_META)
+              )}
               onUpdate={handleUpdate}
             />
           )}
@@ -284,7 +234,9 @@ export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.E
             <LocationPanel
               nodeId={node.id}
               title={node.title}
-              metadata={parseMetadata(node.metadata, DEFAULT_LOCATION_META)}
+              metadata={normalizeLocationMeta(
+                parseMetadata<LocationMeta>(node.metadata, DEFAULT_LOCATION_META)
+              )}
               onUpdate={handleUpdate}
             />
           )}

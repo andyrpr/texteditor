@@ -1,5 +1,7 @@
 export type EntityType = 'character' | 'location' | 'lore'
 
+export type WikiEntityType = EntityType | 'note'
+
 export type NodeType = 'chapter' | 'scene' | 'character' | 'location' | 'lore' | 'note'
 
 export type Genre =
@@ -32,6 +34,32 @@ export interface TreeNode {
   updatedAt: string
 }
 
+export type CharacterRelationshipType =
+  | 'Family'
+  | 'Friend'
+  | 'Enemy'
+  | 'Rival'
+  | 'Mentor'
+  | 'Romantic'
+  | 'Ally'
+  | 'Unknown'
+
+export const CHARACTER_RELATIONSHIP_TYPES: CharacterRelationshipType[] = [
+  'Family',
+  'Friend',
+  'Enemy',
+  'Rival',
+  'Mentor',
+  'Romantic',
+  'Ally',
+  'Unknown'
+]
+
+export interface CharacterRelationship {
+  characterId: string
+  type: CharacterRelationshipType
+}
+
 export interface CharacterMeta {
   aliases: string[]
   age: string
@@ -41,7 +69,9 @@ export interface CharacterMeta {
   personality: string
   background: string
   role: string
-  relationships: { characterId: string; description: string }[]
+  relationships: CharacterRelationship[]
+  startsAs: string
+  endsAs: string
   notes: string
   imagePath: string | null
 }
@@ -245,8 +275,36 @@ export const DEFAULT_CHARACTER_META: CharacterMeta = {
   background: '',
   role: '',
   relationships: [],
+  startsAs: '',
+  endsAs: '',
   notes: '',
   imagePath: null
+}
+
+export function normalizeCharacterMeta(raw: Partial<CharacterMeta> & Record<string, unknown>): CharacterMeta {
+  const relationships: CharacterRelationship[] = Array.isArray(raw.relationships)
+    ? raw.relationships.map((entry) => {
+        const rel = entry as Partial<CharacterRelationship> & { description?: string }
+        const type =
+          rel.type && CHARACTER_RELATIONSHIP_TYPES.includes(rel.type as CharacterRelationshipType)
+            ? (rel.type as CharacterRelationshipType)
+            : 'Unknown'
+        return {
+          characterId: typeof rel.characterId === 'string' ? rel.characterId : '',
+          type
+        }
+      })
+    : []
+
+  return {
+    ...DEFAULT_CHARACTER_META,
+    ...raw,
+    aliases: Array.isArray(raw.aliases) ? raw.aliases.map(String) : DEFAULT_CHARACTER_META.aliases,
+    relationships,
+    startsAs: typeof raw.startsAs === 'string' ? raw.startsAs : DEFAULT_CHARACTER_META.startsAs,
+    endsAs: typeof raw.endsAs === 'string' ? raw.endsAs : DEFAULT_CHARACTER_META.endsAs,
+    imagePath: typeof raw.imagePath === 'string' ? raw.imagePath : raw.imagePath === null ? null : DEFAULT_CHARACTER_META.imagePath
+  }
 }
 
 export const DEFAULT_LOCATION_META: LocationMeta = {
@@ -256,6 +314,21 @@ export const DEFAULT_LOCATION_META: LocationMeta = {
   notableCharacters: [],
   notes: '',
   imagePath: null
+}
+
+export function normalizeLocationMeta(raw: Partial<LocationMeta> & Record<string, unknown>): LocationMeta {
+  const parsed = { ...DEFAULT_LOCATION_META, ...raw }
+  return {
+    ...parsed,
+    connectedLocations: Array.isArray(parsed.connectedLocations) ? parsed.connectedLocations : [],
+    notableCharacters: Array.isArray(parsed.notableCharacters) ? parsed.notableCharacters : [],
+    imagePath:
+      typeof raw.imagePath === 'string'
+        ? raw.imagePath
+        : raw.imagePath === null
+          ? null
+          : DEFAULT_LOCATION_META.imagePath
+  }
 }
 
 export const DEFAULT_LORE_META: LoreMeta = {

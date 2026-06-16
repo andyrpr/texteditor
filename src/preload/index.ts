@@ -46,6 +46,7 @@ export interface ElectronAPI {
     detach: (panel: 'sidebar' | 'entity') => Promise<{ success: boolean }>
     reattach: (panel: 'sidebar' | 'entity') => Promise<{ success: boolean }>
     openDocument: (nodeId: string, title: string) => Promise<{ success: boolean }>
+    openImageViewer: (imagePath: string, title: string) => Promise<{ success: boolean }>
     getLayout: () => Promise<WindowLayoutState>
     updateLayout: (updates: Partial<WindowLayoutState>) => Promise<WindowLayoutState>
   }
@@ -64,12 +65,21 @@ export interface ElectronAPI {
   entity: {
     getAll: () => Promise<TreeNode[]>
     getById: (id: string) => Promise<TreeNode | null>
+    importCharacterImage: (nodeId: string, sourcePath: string) => Promise<{ relativePath: string }>
+    importEntityImage: (
+      nodeId: string,
+      sourcePath: string,
+      entityType: 'character' | 'location'
+    ) => Promise<{ relativePath: string }>
   }
   backup: {
     list: () => Promise<{ path: string; createdAt: string }[]>
   }
   export: {
     document: (options: ExportOptions) => Promise<{ success: boolean; message?: string; path?: string }>
+  }
+  app: {
+    notifyFlushComplete: () => Promise<{ success: boolean }>
   }
   on: (channel: string, callback: (...args: unknown[]) => void) => () => void
 }
@@ -100,6 +110,8 @@ const api: ElectronAPI = {
     detach: (panel) => ipcRenderer.invoke('windows:detach', { panel }),
     reattach: (panel) => ipcRenderer.invoke('windows:reattach', { panel }),
     openDocument: (nodeId, title) => ipcRenderer.invoke('windows:openDocument', { nodeId, title }),
+    openImageViewer: (imagePath, title) =>
+      ipcRenderer.invoke('windows:openImageViewer', { imagePath, title }),
     getLayout: () => ipcRenderer.invoke('windows:getLayout'),
     updateLayout: (updates) => ipcRenderer.invoke('windows:updateLayout', updates)
   },
@@ -117,13 +129,20 @@ const api: ElectronAPI = {
   },
   entity: {
     getAll: () => ipcRenderer.invoke('entity:getAll'),
-    getById: (id) => ipcRenderer.invoke('entity:getById', { id })
+    getById: (id) => ipcRenderer.invoke('entity:getById', { id }),
+    importCharacterImage: (nodeId, sourcePath) =>
+      ipcRenderer.invoke('entity:importCharacterImage', { nodeId, sourcePath }),
+    importEntityImage: (nodeId, sourcePath, entityType) =>
+      ipcRenderer.invoke('entity:importEntityImage', { nodeId, sourcePath, entityType })
   },
   backup: {
     list: () => ipcRenderer.invoke('backup:list')
   },
   export: {
     document: (options) => ipcRenderer.invoke('export:document', options)
+  },
+  app: {
+    notifyFlushComplete: () => ipcRenderer.invoke('app:flushComplete')
   },
   on: (channel, callback) => {
     const subscription = (_event: Electron.IpcRendererEvent, ...args: unknown[]) => callback(...args)

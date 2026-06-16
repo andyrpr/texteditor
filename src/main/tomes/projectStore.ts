@@ -1,4 +1,4 @@
-import { join } from 'path'
+import { join, extname, relative } from 'path'
 import fse from 'fs-extra'
 import { v4 as uuidv4 } from 'uuid'
 import type {
@@ -30,7 +30,9 @@ import {
   sanitizeFolderName,
   getBackupsDir,
   getManuscriptDir,
-  getWikiDir
+  getWikiDir,
+  getCharacterImagesDir,
+  getLocationImagesDir
 } from './paths'
 import { validateTomesFile } from './validate'
 import {
@@ -232,6 +234,7 @@ export async function createProject(input: CreateProjectInput): Promise<{
 
   await fse.ensureDir(getManuscriptDir(root))
   await fse.ensureDir(join(getWikiDir(root), 'characters'))
+  await fse.ensureDir(getCharacterImagesDir(root))
   await fse.ensureDir(join(getWikiDir(root), 'locations'))
   await fse.ensureDir(join(getWikiDir(root), 'lore'))
   await fse.ensureDir(join(getWikiDir(root), 'notes'))
@@ -611,4 +614,29 @@ export function getSyncState(): {
     nodes: getAllNodes(),
     uiState: getUiState()
   }
+}
+
+export async function importEntityImage(
+  nodeId: string,
+  sourcePath: string,
+  entityType: 'character' | 'location'
+): Promise<string> {
+  if (!projectRoot) throw new Error('No project open')
+
+  const ext = extname(sourcePath).toLowerCase() || '.png'
+  const imagesDir =
+    entityType === 'character'
+      ? getCharacterImagesDir(projectRoot)
+      : getLocationImagesDir(projectRoot)
+  await fse.ensureDir(imagesDir)
+
+  const filename = `${nodeId}${ext}`
+  const destPath = join(imagesDir, filename)
+  await fse.copy(sourcePath, destPath, { overwrite: true })
+
+  return relative(projectRoot, destPath).split('\\').join('/')
+}
+
+export async function importCharacterImage(nodeId: string, sourcePath: string): Promise<string> {
+  return importEntityImage(nodeId, sourcePath, 'character')
 }

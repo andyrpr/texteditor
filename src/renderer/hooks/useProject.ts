@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { useAppStore } from '@/store/appStore'
 import { useToastStore } from '@/components/UI/toast'
+import { flushAllDirty, flushAndSaveProject } from '@/lib/contentPersistence'
 import type { CreateProjectInput } from '@shared/types'
 
 export function useProject(): {
@@ -65,6 +66,7 @@ export function useProject(): {
 
   const openProjectAtPath = useCallback(
     async (path: string) => {
+      await flushAllDirty()
       const result = await window.electronAPI.tomes.openProject(path)
       setProject(result.path, result.meta, result.nodes)
       if (result.uiState?.sectionOrder) {
@@ -79,6 +81,7 @@ export function useProject(): {
 
   const createProjectFromInput = useCallback(
     async (input: CreateProjectInput) => {
+      await flushAllDirty()
       const result = await window.electronAPI.tomes.createProject(input)
       const openResult = await window.electronAPI.tomes.openProject(result.path)
       setProject(openResult.path, openResult.meta, openResult.nodes)
@@ -98,11 +101,12 @@ export function useProject(): {
   }, [openProjectAtPath])
 
   const saveProject = useCallback(async () => {
-    const result = await window.electronAPI.tomes.saveProject()
+    const result = await flushAndSaveProject()
     applySaveResult(result)
   }, [applySaveResult])
 
   const closeProject = useCallback(async () => {
+    await flushAllDirty()
     await window.electronAPI.tomes.closeProject()
     closeProjectStore()
   }, [closeProjectStore])

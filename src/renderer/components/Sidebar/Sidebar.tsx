@@ -21,6 +21,7 @@ import {
   useSensors,
   type DragEndEvent
 } from '@dnd-kit/core'
+import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import {
   SortableContext,
   sortableKeyboardCoordinates,
@@ -36,7 +37,7 @@ import { ChapterStructureModal } from '@/components/Project/ChapterStructureModa
 import { useAppStore, getChapters, getScenes, getNodesByType } from '@/store/appStore'
 import { useResizeHandle, usePersistLayout } from '@/hooks/useResize'
 import { cn } from '@/lib/utils'
-import { isChapterFolder } from '@/lib/treeUtils'
+import { isChapterFolder, isWikiEntityType } from '@/lib/treeUtils'
 import type { ChapterStructure, NodeType, TreeNode } from '@shared/types'
 import {
   SIDEBAR_MAX_WIDTH,
@@ -157,7 +158,8 @@ function SortableTreeItem({
   onDelete,
   onOpenNewWindow,
   onDoubleClick,
-  trailingAction
+  trailingAction,
+  className
 }: {
   node: TreeNode
   depth?: number
@@ -169,6 +171,7 @@ function SortableTreeItem({
   onOpenNewWindow: () => void
   onDoubleClick: () => void
   trailingAction?: React.ReactNode
+  className?: string
 }): React.JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: node.id
@@ -188,7 +191,8 @@ function SortableTreeItem({
         className={cn(
           'group flex items-center gap-1 rounded-md py-1 pr-2 text-sm cursor-pointer select-none',
           isSelected ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50',
-          isDragging && 'opacity-50'
+          isDragging && 'opacity-50',
+          className
         )}
         onClick={onSelect}
         onDoubleClick={(e) => {
@@ -303,12 +307,14 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
   const {
     nodes,
     selectedNodeId,
+    selectedEntityId,
     selectedContainerId,
     expandedSections,
     sectionOrder,
     sidebarWidth,
     projectMeta,
     setSelectedNodeId,
+    setSelectedEntity,
     selectContainer,
     toggleSection,
     setNodes,
@@ -366,7 +372,9 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
     }
     const node = await window.electronAPI.tree.create(null, type, defaults[type])
     addNode(node)
-    setSelectedNodeId(node.id)
+    if (isWikiEntityType(node.type)) {
+      setSelectedEntity(node.id, node.type)
+    }
     startRename(node)
   }
 
@@ -530,12 +538,14 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
               <DndContext
                 sensors={showChapterModal ? [] : sensors}
                 collisionDetection={closestCenter}
+                modifiers={[restrictToVerticalAxis]}
                 onDragEnd={handleNodeDragEnd}
               >
-                {chapters.map((chapter) => {
+                {chapters.map((chapter, chapterIndex) => {
                   const scenes = getScenes(nodes, chapter.id)
                   const showScenes = isChapterFolder(chapter)
                   const sortIds = showScenes ? [chapter.id, ...scenes.map((s) => s.id)] : [chapter.id]
+                  const isLastChapter = chapterIndex === chapters.length - 1
 
                   return (
                     <div key={chapter.id} className="group/chapter">
@@ -552,6 +562,7 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
                             onDelete={() => handleDelete(chapter.id)}
                             onOpenNewWindow={() => openInNewWindow(chapter)}
                             onDoubleClick={() => startRename(chapter)}
+                            className={isLastChapter && (!showScenes || scenes.length === 0) ? 'mb-1' : undefined}
                             trailingAction={
                               showScenes && scenes.length === 0 ? (
                                 <HoverAddButton
@@ -577,6 +588,9 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
                                   onDelete={() => handleDelete(scene.id)}
                                   onOpenNewWindow={() => openInNewWindow(scene)}
                                   onDoubleClick={() => startRename(scene)}
+                                  className={
+                                    isLastChapter && sceneIndex === scenes.length - 1 ? 'mb-1' : undefined
+                                  }
                                   trailingAction={
                                     sceneIndex === scenes.length - 1 ? (
                                       <HoverAddButton
@@ -601,6 +615,7 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
           <DndContext
             sensors={showChapterModal ? [] : sensors}
             collisionDetection={closestCenter}
+            modifiers={[restrictToVerticalAxis]}
             onDragEnd={handleSectionDragEnd}
           >
             <SortableContext items={sectionOrder} strategy={verticalListSortingStrategy}>
@@ -633,7 +648,12 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
                       !iconOnly &&
                       sectionNodes.map((node, nodeIndex) =>
                         renamingId === node.id ? (
-                          <div key={node.id}>{renderRenameInput(node.id)}</div>
+                          <div
+                            key={node.id}
+                            className={nodeIndex === sectionNodes.length - 1 ? 'mb-1' : undefined}
+                          >
+                            {renderRenameInput(node.id)}
+                          </div>
                         ) : (
                           <TreeContextMenu
                             key={node.id}
@@ -645,11 +665,16 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
                             <div
                               className={cn(
                                 'group/row mx-2 flex cursor-pointer items-center rounded-md py-1 pl-2 text-sm',
-                                selectedNodeId === node.id
+                                selectedEntityId === node.id
                                   ? 'bg-accent text-accent-foreground'
-                                  : 'hover:bg-accent/50'
+                                  : 'hover:bg-accent/50',
+                                nodeIndex === sectionNodes.length - 1 && 'mb-1'
                               )}
-                              onClick={() => setSelectedNodeId(node.id)}
+                              onClick={() => {
+                                if (isWikiEntityType(node.type)) {
+                                  setSelectedEntity(node.id, node.type)
+                                }
+                              }}
                               onDoubleClick={() => startRename(node)}
                             >
                               <span className="truncate flex-1">{node.title}</span>

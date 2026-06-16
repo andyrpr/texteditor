@@ -21,7 +21,9 @@ import {
   getUiState,
   updateUiState,
   createChapter,
-  getSyncState
+  getSyncState,
+  importCharacterImage,
+  importEntityImage
 } from './tomes/projectStore'
 import { validateTomesFile } from './tomes/validate'
 import {
@@ -44,11 +46,13 @@ import {
   detachPanel,
   reattachPanel,
   openDocumentWindow,
+  openImageViewerWindow,
   broadcast,
   saveSecondaryWindowState,
   getMainWindow,
   getPanelOwnerWindowId
 } from './windowManager'
+import { registerAssetScheme, registerAssetProtocol } from './assetProtocol'
 import type { CreateProjectInput, ExportOptions, NodeType } from '@shared/types'
 
 let mainWindow: BrowserWindow | null = null
@@ -56,6 +60,8 @@ let pendingOpenPath: string | null = null
 let isQuitting = false
 
 const gotLock = app.requestSingleInstanceLock()
+
+registerAssetScheme()
 
 if (!gotLock) {
   app.quit()
@@ -334,6 +340,12 @@ function registerIpcHandlers(): void {
     return { success: true }
   })
 
+  ipcMain.handle('windows:openImageViewer', async (_, { imagePath, title }) => {
+    const config = await getConfig()
+    openImageViewerWindow(imagePath, title, config.preferences.theme)
+    return { success: true }
+  })
+
   ipcMain.handle('windows:getLayout', async () => {
     return getWindowLayout()
   })
@@ -359,8 +371,9 @@ function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('dialog:selectImage', async () => {
-    if (!mainWindow) return null
-    return showSelectImageDialog(mainWindow)
+    const win = BrowserWindow.getFocusedWindow() ?? mainWindow
+    if (!win) return null
+    return showSelectImageDialog(win)
   })
 
   ipcMain.handle('tree:getAll', async () => {
@@ -397,6 +410,16 @@ function registerIpcHandlers(): void {
     return getNode(id)
   })
 
+  ipcMain.handle('entity:importCharacterImage', async (_, { nodeId, sourcePath }) => {
+    const relativePath = await importCharacterImage(nodeId, sourcePath)
+    return { relativePath }
+  })
+
+  ipcMain.handle('entity:importEntityImage', async (_, { nodeId, sourcePath, entityType }) => {
+    const relativePath = await importEntityImage(nodeId, sourcePath, entityType)
+    return { relativePath }
+  })
+
   ipcMain.handle('backup:list', async () => {
     const root = getProjectRootPath()
     if (!root) return []
@@ -412,6 +435,23 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle('export:document', async (_, _options: ExportOptions) => {
     return { success: false, message: 'Export not yet implemented' }
+  })
+
+}
+
+async function requestRendererFlush(): Promise<void> {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+
+  await new Promise<void>((resolve) => {
+    const timeout = setTimeout(resolve, 5000)
+
+    ipcMain.handleOnce('app:flushComplete', async () => {
+      clearTimeout(timeout)
+      resolve()
+      return { success: true }
+    })
+
+    mainWindow!.webContents.send('app:requestFlush')
   })
 }
 
@@ -432,6 +472,7 @@ app.on('before-quit', async (event) => {
   event.preventDefault()
   isQuitting = true
 
+  await requestRendererFlush()
   const result = await saveProject()
   mainWindow?.webContents.send('tomes:beforeQuit', {
     unreachableBackupPaths: result.unreachableBackupPaths
@@ -457,6 +498,7 @@ if (gotLock) {
       pendingOpenPath = coldStartPath
     }
 
+    registerAssetProtocol()
     registerIpcHandlers()
     buildMenu()
     createWindow()

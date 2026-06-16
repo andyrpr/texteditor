@@ -1,7 +1,7 @@
 import { useAppStore, getScenes, getNodesByType } from '@/store/appStore'
 import { RichTextEditor } from '@/components/Editor/RichTextEditor'
 import { ContainerView } from '@/components/Editor/ContainerView'
-import { isChapterFolder } from '@/lib/treeUtils'
+import { isChapterFolder, isWikiEntityType } from '@/lib/treeUtils'
 import type { ContainerSectionId } from '@/lib/treeUtils'
 import type { NodeType, TreeNode } from '@shared/types'
 
@@ -41,7 +41,21 @@ function isContainerSectionId(id: string): id is ContainerSectionId {
 }
 
 export function EditorPane(): React.JSX.Element {
-  const { nodes, selectedNodeId, selectedContainerId, setSelectedNodeId, setNodes } = useAppStore()
+  const {
+    nodes,
+    selectedNodeId,
+    selectedEntityId,
+    selectedContainerId,
+    setSelectedNodeId,
+    setSelectedEntity,
+    setNodes
+  } = useAppStore()
+
+  const selectWikiEntity = (node: TreeNode): void => {
+    if (isWikiEntityType(node.type)) {
+      setSelectedEntity(node.id, node.type)
+    }
+  }
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId) ?? null
 
@@ -60,8 +74,8 @@ export function EditorPane(): React.JSX.Element {
         title={meta.title}
         items={items}
         emptyMessage={meta.emptyMessage}
-        selectedNodeId={selectedNodeId}
-        onSelect={(node) => setSelectedNodeId(node.id)}
+        selectedNodeId={selectedEntityId}
+        onSelect={selectWikiEntity}
         onReorder={(reordered) => void persistReorder(reordered, null)}
       />
     )

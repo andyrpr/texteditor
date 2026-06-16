@@ -3,12 +3,13 @@ import { join } from 'path'
 import type { WindowBounds, WindowLayoutState } from '@shared/types'
 
 export type PanelType = 'sidebar' | 'entity'
-export type ChildWindowKind = PanelType | 'workspace'
+export type ChildWindowKind = PanelType | 'workspace' | 'imageViewer'
 
 interface ChildWindowRecord {
   window: BrowserWindow
   kind: ChildWindowKind
   nodeId?: string
+  imagePath?: string
   ownerWindowId: number
   panel?: PanelType
 }
@@ -138,7 +139,11 @@ export function reattachPanel(panel: PanelType, sourceWindow: BrowserWindow): vo
   const { ownerWindowId } = entry[1]
   const key = panelKey(ownerWindowId, panel)
   reattachingPanels.add(key)
-  entry[1].window.close()
+  const win = entry[1].window
+  if (!win.isDestroyed()) {
+    win.setClosable(true)
+    win.close()
+  }
   children.delete(entry[0])
   getOwnerWindow(ownerWindowId)?.webContents.send('windows:panelReattached', { panel })
 }
@@ -188,6 +193,58 @@ export function openDocumentWindow(
   })
 
   loadUrl(win, `child=workspace&nodeId=${encodeURIComponent(nodeId)}`)
+  return win
+}
+
+export function openImageViewerWindow(
+  imagePath: string,
+  title: string,
+  theme: 'light' | 'dark'
+): BrowserWindow {
+  const existing = [...children.entries()].find(
+    ([, r]) => r.kind === 'imageViewer' && r.imagePath === imagePath
+  )
+  if (existing) {
+    existing[1].window.setTitle(title)
+    existing[1].window.focus()
+    return existing[1].window
+  }
+
+  const b = defaultBounds(720, 480)
+  const win = new BrowserWindow({
+    x: b.x,
+    y: b.y,
+    width: b.width,
+    height: b.height,
+    minWidth: 320,
+    minHeight: 240,
+    title,
+    show: false,
+    backgroundColor: themeBackground(theme),
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: false,
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  })
+
+  const id = win.id.toString()
+  children.set(id, {
+    window: win,
+    kind: 'imageViewer',
+    imagePath,
+    ownerWindowId: win.id
+  })
+
+  win.once('ready-to-show', () => win.show())
+
+  win.on('closed', () => {
+    children.delete(id)
+  })
+
+  const hash = `child=imageViewer&imagePath=${encodeURIComponent(imagePath)}&title=${encodeURIComponent(title)}`
+  loadUrl(win, hash)
   return win
 }
 

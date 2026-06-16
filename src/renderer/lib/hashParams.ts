@@ -24,6 +24,10 @@ export function isWorkspaceWindow(): boolean {
   return window.location.hash.includes('child=workspace')
 }
 
+export function isImageViewerWindow(): boolean {
+  return window.location.hash.includes('child=imageViewer')
+}
+
 export function isChildWindow(): boolean {
   return window.location.hash.includes('child=')
 }

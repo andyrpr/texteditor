@@ -8,6 +8,7 @@ import { RecentProjectsScreen } from '@/components/Project/RecentProjectsScreen'
 import { QuitWarningModal } from '@/components/Project/QuitWarningModal'
 import { Toaster } from '@/components/UI/toast'
 import { useProject } from '@/hooks/useProject'
+import { useContentPersistence } from '@/hooks/useContentPersistence'
 import { useSyncFromMain, hydrateFromMain } from '@/hooks/useSync'
 import { useThemeSync } from '@/hooks/useThemeSync'
 import { isWorkspaceWindow } from '@/lib/hashParams'
@@ -17,12 +18,8 @@ import { SIDEBAR_MAX_WIDTH } from '@shared/types'
 export function AppLayout(): React.JSX.Element {
   const {
     isProjectOpen,
-    nodes,
-    selectedNodeId,
     sidebarDetached,
     entityDetached,
-    sidebarWidth,
-    rightPanelWidth,
     setShowNewProjectModal,
     setSidebarWidth,
     setRightPanelWidth,
@@ -30,9 +27,10 @@ export function AppLayout(): React.JSX.Element {
     setEntityDetached,
     setSelectedNodeId
   } = useAppStore()
-  const { openProject, saveProject } = useProject()
   const params = useSearchParams()
   const isSecondary = isWorkspaceWindow()
+  const { openProject } = useProject()
+  useContentPersistence(isProjectOpen && !isSecondary)
 
   const [quitWarningPaths, setQuitWarningPaths] = useState<string[]>([])
   const [secondaryHydrated, setSecondaryHydrated] = useState(!isSecondary)
@@ -64,9 +62,6 @@ export function AppLayout(): React.JSX.Element {
 
   useEffect(() => {
     const unsubOpen = window.electronAPI.on('menu:openProject', () => openProject())
-    const unsubSave = window.electronAPI.on('menu:save', () => {
-      if (isProjectOpen) saveProject()
-    })
     const unsubNew = window.electronAPI.on('menu:newProject', () => {
       if (!isProjectOpen && !isSecondary) setShowNewProjectModal(true)
     })
@@ -104,7 +99,6 @@ export function AppLayout(): React.JSX.Element {
     })
     return () => {
       unsubOpen()
-      unsubSave()
       unsubNew()
       unsubOpened()
       unsubBeforeQuit()
@@ -112,20 +106,11 @@ export function AppLayout(): React.JSX.Element {
     }
   }, [
     openProject,
-    saveProject,
-    isProjectOpen,
     isSecondary,
     setShowNewProjectModal,
     setSidebarDetached,
     setEntityDetached
   ])
-
-  useEffect(() => {
-    const node = nodes.find((n) => n.id === selectedNodeId)
-    if (node && ['character', 'location', 'lore', 'note'].includes(node.type)) {
-      useAppStore.getState().setRightPanelOpen(true)
-    }
-  }, [selectedNodeId, nodes])
 
   if (isSecondary && !secondaryHydrated) {
     return (
@@ -147,27 +132,11 @@ export function AppLayout(): React.JSX.Element {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
       <div className="flex flex-1 overflow-hidden">
-        {sidebarDetached ? (
-          <div
-            className="shrink-0 border-r border-sidebar-border bg-sidebar"
-            style={{ width: sidebarWidth }}
-            aria-hidden
-          />
-        ) : (
-          <Sidebar />
-        )}
+        {!sidebarDetached && <Sidebar />}
         <main className="drag-region flex flex-1 flex-col overflow-hidden bg-background">
           <EditorPane />
         </main>
-        {entityDetached ? (
-          <div
-            className="shrink-0 border-l border-border bg-card"
-            style={{ width: rightPanelWidth }}
-            aria-hidden
-          />
-        ) : (
-          <EntityPanel />
-        )}
+        {!entityDetached && <EntityPanel />}
       </div>
       <StatusBar />
       <Toaster />
