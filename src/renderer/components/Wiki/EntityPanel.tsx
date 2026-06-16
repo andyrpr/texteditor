@@ -6,7 +6,7 @@ import { Input } from '@/components/UI/input'
 import { Textarea } from '@/components/UI/textarea'
 import { ScrollArea } from '@/components/UI/scroll-area'
 import { CharacterPanel } from '@/components/Wiki/CharacterPanel'
-import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
+import { publishNavigationSync } from '@/lib/navigationSync'
 import {
   DEFAULT_CHARACTER_META,
   DEFAULT_LOCATION_META,
@@ -167,7 +167,10 @@ export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.E
   }
 
   const handleDetach = (): void => {
-    void window.electronAPI.windows.detach('entity').then(() => setEntityDetached(true))
+    void window.electronAPI.windows.detach('entity').then(() => {
+      setEntityDetached(true)
+      publishNavigationSync()
+    })
   }
 
   if (!detached && (!rightPanelOpen || !selectedEntityId || !node)) return null

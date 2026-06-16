@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { useAppStore } from '@/store/appStore'
 import { useToastStore } from '@/components/UI/toast'
 import { flushAllDirty, flushAndSaveProject } from '@/lib/contentPersistence'
+import { publishNavigationSync } from '@/lib/navigationSync'
 import type { CreateProjectInput } from '@shared/types'
 
 export function useProject(): {
@@ -75,6 +76,7 @@ export function useProject(): {
       selectFirstNode(result.nodes)
       setLastSaved(result.meta.updatedAt)
       setBackupWarningCount(0)
+      publishNavigationSync()
     },
     [setProject, selectFirstNode, setLastSaved, setBackupWarningCount, setSectionOrder]
   )

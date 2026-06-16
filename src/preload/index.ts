@@ -4,6 +4,7 @@ import type {
   ChapterStructure,
   CreateProjectInput,
   ExportOptions,
+  NavigationSyncState,
   NodeType,
   PriamaConfig,
   PriamaPreferences,
@@ -78,6 +79,10 @@ export interface ElectronAPI {
   export: {
     document: (options: ExportOptions) => Promise<{ success: boolean; message?: string; path?: string }>
   }
+  navigation: {
+    get: () => Promise<NavigationSyncState>
+    update: (state: NavigationSyncState) => Promise<{ success: boolean }>
+  }
   app: {
     notifyFlushComplete: () => Promise<{ success: boolean }>
   }
@@ -140,6 +145,10 @@ const api: ElectronAPI = {
   },
   export: {
     document: (options) => ipcRenderer.invoke('export:document', options)
+  },
+  navigation: {
+    get: () => ipcRenderer.invoke('navigation:get'),
+    update: (state) => ipcRenderer.invoke('navigation:update', state)
   },
   app: {
     notifyFlushComplete: () => ipcRenderer.invoke('app:flushComplete')

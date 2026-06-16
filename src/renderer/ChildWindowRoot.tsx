@@ -3,7 +3,8 @@ import { useSearchParams } from '@/lib/hashParams'
 import { Sidebar } from '@/components/Sidebar/Sidebar'
 import { EntityPanel } from '@/components/Wiki/EntityPanel'
 import { Button } from '@/components/UI/button'
-import { hydrateFromMain, useSyncFromMain } from '@/hooks/useSync'
+import { useSyncFromMain, hydrateFromMain } from '@/hooks/useSync'
+import { useNavigationSync, useNavigationSyncPublisher } from '@/hooks/useNavigationSync'
 import { useThemeSync } from '@/hooks/useThemeSync'
 import { PanelRightOpen } from 'lucide-react'
 
@@ -18,6 +19,8 @@ export function ChildWindowRoot(): React.JSX.Element {
 
   useSyncFromMain()
   useThemeSync()
+  useNavigationSync()
+  useNavigationSyncPublisher(true)
 
   useEffect(() => {
     void hydrateFromMain()

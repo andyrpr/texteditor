@@ -174,6 +174,16 @@ export interface ProjectUiState {
   sectionOrder: string[]
 }
 
+export interface NavigationSyncState {
+  selectedNodeId: string | null
+  selectedContainerId: string | null
+  selectedEntityId: string | null
+  selectedEntityType: WikiEntityType | null
+  expandedSections: string[]
+  rightPanelOpen: boolean
+  sectionOrder: string[]
+}
+
 export interface WindowBounds {
   x: number
   y: number

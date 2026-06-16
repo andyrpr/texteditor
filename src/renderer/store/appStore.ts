@@ -54,6 +54,7 @@ interface AppState {
   setRightPanelWidth: (width: number) => void
   setSidebarDetached: (detached: boolean) => void
   setEntityDetached: (detached: boolean) => void
+  applyNavigationSync: (nav: import('@shared/types').NavigationSyncState) => void
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -157,7 +158,18 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSidebarWidth: (width) => set({ sidebarWidth: width }),
   setRightPanelWidth: (width) => set({ rightPanelWidth: width }),
   setSidebarDetached: (detached) => set({ sidebarDetached: detached }),
-  setEntityDetached: (detached) => set({ entityDetached: detached })
+  setEntityDetached: (detached) => set({ entityDetached: detached }),
+
+  applyNavigationSync: (nav) =>
+    set({
+      selectedNodeId: nav.selectedNodeId,
+      selectedContainerId: nav.selectedContainerId,
+      selectedEntityId: nav.selectedEntityId,
+      selectedEntityType: nav.selectedEntityType,
+      expandedSections: new Set(nav.expandedSections),
+      rightPanelOpen: nav.rightPanelOpen,
+      sectionOrder: nav.sectionOrder
+    })
 }))
 
 export function getSelectedNode(state: AppState): TreeNode | null {

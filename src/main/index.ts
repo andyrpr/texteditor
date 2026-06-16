@@ -52,8 +52,13 @@ import {
   getMainWindow,
   getPanelOwnerWindowId
 } from './windowManager'
+import {
+  getNavigationState,
+  setNavigationState,
+  resetNavigationState
+} from './navigationState'
 import { registerAssetScheme, registerAssetProtocol } from './assetProtocol'
-import type { CreateProjectInput, ExportOptions, NodeType } from '@shared/types'
+import type { CreateProjectInput, ExportOptions, NavigationSyncState, NodeType } from '@shared/types'
 
 let mainWindow: BrowserWindow | null = null
 let pendingOpenPath: string | null = null
@@ -278,6 +283,7 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle('tomes:closeProject', async () => {
     closeProject()
+    resetNavigationState()
     return { success: true }
   })
 
@@ -295,6 +301,21 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle('tomes:getSyncState', async () => {
     return getSyncState()
+  })
+
+  ipcMain.handle('navigation:get', async () => {
+    return getNavigationState()
+  })
+
+  ipcMain.handle('navigation:update', async (event, state: NavigationSyncState) => {
+    setNavigationState(state)
+    const senderId = event.sender.id
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.isDestroyed() && win.webContents.id !== senderId) {
+        win.webContents.send('sync:navigation', state)
+      }
+    }
+    return { success: true }
   })
 
   ipcMain.handle('windows:detach', async (event, { panel }) => {

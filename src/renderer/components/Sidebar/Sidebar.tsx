@@ -36,6 +36,7 @@ import { Button } from '@/components/UI/button'
 import { ChapterStructureModal } from '@/components/Project/ChapterStructureModal'
 import { useAppStore, getChapters, getScenes, getNodesByType } from '@/store/appStore'
 import { useResizeHandle, usePersistLayout } from '@/hooks/useResize'
+import { publishNavigationSync } from '@/lib/navigationSync'
 import { cn } from '@/lib/utils'
 import { isChapterFolder, isWikiEntityType } from '@/lib/treeUtils'
 import type { ChapterStructure, NodeType, TreeNode } from '@shared/types'
@@ -462,7 +463,10 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
   }
 
   const handleDetach = (): void => {
-    void window.electronAPI.windows.detach('sidebar').then(() => setSidebarDetached(true))
+    void window.electronAPI.windows.detach('sidebar').then(() => {
+      setSidebarDetached(true)
+      publishNavigationSync()
+    })
   }
 
   const chapters = getChapters(nodes)

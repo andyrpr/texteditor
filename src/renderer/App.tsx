@@ -9,6 +9,7 @@ import { QuitWarningModal } from '@/components/Project/QuitWarningModal'
 import { Toaster } from '@/components/UI/toast'
 import { useProject } from '@/hooks/useProject'
 import { useContentPersistence } from '@/hooks/useContentPersistence'
+import { useNavigationSync, useNavigationSyncPublisher } from '@/hooks/useNavigationSync'
 import { useSyncFromMain, hydrateFromMain } from '@/hooks/useSync'
 import { useThemeSync } from '@/hooks/useThemeSync'
 import { isWorkspaceWindow } from '@/lib/hashParams'
@@ -37,6 +38,8 @@ export function AppLayout(): React.JSX.Element {
 
   useSyncFromMain()
   useThemeSync()
+  useNavigationSync()
+  useNavigationSyncPublisher(isProjectOpen && !isSecondary)
 
   useEffect(() => {
     if (!isSecondary) return
