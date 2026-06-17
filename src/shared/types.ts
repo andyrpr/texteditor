@@ -115,12 +115,45 @@ export interface EntityMention {
   name: string
 }
 
+export type ExportPageSize = 'letter' | 'a4'
+export type ExportMarginPreset = 'narrow' | 'normal' | 'wide'
+export type ExportFontFamily = 'serif' | 'sans'
+
+export interface ExportFormatting {
+  fontFamily: ExportFontFamily
+  fontSize: number
+  marginPreset: ExportMarginPreset
+  pageSize: ExportPageSize
+}
+
+export const DEFAULT_EXPORT_FORMATTING: ExportFormatting = {
+  fontFamily: 'serif',
+  fontSize: 12,
+  marginPreset: 'normal',
+  pageSize: 'letter'
+}
+
 export interface ExportOptions {
   format: 'docx' | 'pdf' | 'epub'
   title: string
   author: string
-  scope: 'chapter' | 'manuscript'
-  nodeId?: string
+  genre?: string
+  scope: 'chapters' | 'manuscript'
+  chapterIds?: string[]
+  formatting: ExportFormatting
+}
+
+export interface ExportSection {
+  id: string
+  title: string
+  level: 'chapter' | 'scene'
+  html: string
+}
+
+export interface ManuscriptChapterRef {
+  id: string
+  title: string
+  pathLabel: string
 }
 
 export interface BackupInfo {

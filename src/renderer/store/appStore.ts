@@ -29,6 +29,7 @@ interface AppState {
   entityDetached: boolean
 
   showNewProjectModal: boolean
+  showExportDialog: boolean
 
   setProject: (path: string, meta: ProjectMeta, nodes?: TreeNode[]) => void
   closeProject: () => void
@@ -53,6 +54,7 @@ interface AppState {
   toggleTheme: () => void
   setRightPanelOpen: (open: boolean) => void
   setShowNewProjectModal: (show: boolean) => void
+  setShowExportDialog: (show: boolean) => void
   setSidebarWidth: (width: number) => void
   setRightPanelWidth: (width: number) => void
   setSidebarDetached: (detached: boolean) => void
@@ -86,6 +88,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   sidebarDetached: false,
   entityDetached: false,
   showNewProjectModal: false,
+  showExportDialog: false,
 
   setProject: (path, meta, nodes) =>
     set({
@@ -197,6 +200,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   setRightPanelOpen: (open) => set({ rightPanelOpen: open }),
   setShowNewProjectModal: (show) => set({ showNewProjectModal: show }),
+  setShowExportDialog: (show) => set({ showExportDialog: show }),
   setSidebarWidth: (width) => set({ sidebarWidth: width }),
   setRightPanelWidth: (width) => set({ rightPanelWidth: width }),
   setSidebarDetached: (detached) => set({ sidebarDetached: detached }),

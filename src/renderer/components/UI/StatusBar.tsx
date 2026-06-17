@@ -5,7 +5,8 @@ import { Button } from '@/components/UI/button'
 import { useProject } from '@/hooks/useProject'
 
 export function StatusBar(): React.JSX.Element {
-  const { lastSaved, isDirty, theme, toggleTheme, projectMeta, backupWarningCount } = useAppStore()
+  const { lastSaved, isDirty, theme, toggleTheme, projectMeta, backupWarningCount, setShowExportDialog } =
+    useAppStore()
   const { saveProject } = useProject()
 
   const savedLabel = isDirty
@@ -33,11 +34,17 @@ export function StatusBar(): React.JSX.Element {
         )}
       </div>
       <div className="flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6"
+          onClick={() => setShowExportDialog(true)}
+          title="Export"
+        >
+          <Download className="h-3 w-3" />
+        </Button>
         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={saveProject} title="Save">
           <Save className="h-3 w-3" />
-        </Button>
-        <Button variant="ghost" size="icon" className="h-6 w-6" title="Export">
-          <Download className="h-3 w-3" />
         </Button>
         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={toggleTheme} title="Toggle theme">
           {theme === 'dark' ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
