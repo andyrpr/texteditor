@@ -11,6 +11,8 @@ import type { Editor } from '@tiptap/react'
 import { Button } from '@/components/UI/button'
 import { Separator } from '@/components/UI/separator'
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/UI/tooltip'
+import { useAppStore } from '@/store/appStore'
+import { SIDEBAR_MIN_WIDTH } from '@shared/types'
 import { StyleDropdown } from './StyleDropdown'
 import { cn, countWords } from '@/lib/utils'
 import type { BlockStyleType } from './BlockStyle'
@@ -31,6 +33,8 @@ const STYLE_SHORTCUTS: { key: string; style: BlockStyleType }[] = [
   { key: '8', style: 'blockquote' },
   { key: '9', style: 'code' }
 ]
+
+const SIDEBAR_ICON_ONLY_THRESHOLD = SIDEBAR_MIN_WIDTH + 16
 
 function ToolbarButton({
   onClick,
@@ -61,6 +65,9 @@ function ToolbarButton({
 }
 
 export function EditorToolbar({ editor, wordCount }: EditorToolbarProps): React.JSX.Element {
+  const { sidebarWidth, sidebarDetached } = useAppStore()
+  const isSidebarContracted = !sidebarDetached && sidebarWidth <= SIDEBAR_ICON_ONLY_THRESHOLD
+
   useEffect(() => {
     if (!editor) return
 
@@ -81,7 +88,12 @@ export function EditorToolbar({ editor, wordCount }: EditorToolbarProps): React.
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="no-drag flex items-center gap-0.5 border-b border-border px-3 py-1.5">
+      <div
+        className={cn(
+          'no-drag flex items-center gap-0.5 border-b border-border px-3 py-1.5',
+          isSidebarContracted && 'pl-14'
+        )}
+      >
         <StyleDropdown editor={editor} />
 
         <Separator orientation="vertical" className="mx-1 h-6" />

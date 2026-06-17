@@ -4,6 +4,7 @@ import type {
   ChapterStructure,
   CreateProjectInput,
   ExportOptions,
+  FolderScope,
   NavigationSyncState,
   NodeType,
   PriamaConfig,
@@ -39,7 +40,7 @@ export interface ElectronAPI {
     updateRecentPath: (projectId: string, primaryPath: string) => Promise<{ success: boolean }>
     showInFolder: (path: string) => Promise<{ success: boolean }>
     forceQuit: () => Promise<{ success: boolean }>
-    createChapter: (structure: ChapterStructure) => Promise<TreeNode>
+    createChapter: (structure: ChapterStructure, parentId?: string | null) => Promise<TreeNode>
     updateUiState: (uiState: ProjectUiState) => Promise<ProjectUiState>
     getSyncState: () => Promise<SyncState>
   }
@@ -58,9 +59,18 @@ export interface ElectronAPI {
   }
   tree: {
     getAll: () => Promise<TreeNode[]>
-    create: (parentId: string | null, type: NodeType, title: string) => Promise<TreeNode>
+    create: (
+      parentId: string | null,
+      type: NodeType,
+      title: string,
+      options?: { metadata?: string; scope?: FolderScope }
+    ) => Promise<TreeNode>
+    createFolder: (scope: FolderScope, parentId: string | null, title: string) => Promise<TreeNode>
     update: (id: string, updates: Partial<Pick<TreeNode, 'title' | 'content' | 'metadata' | 'parentId' | 'sortOrder'>>) => Promise<TreeNode>
     delete: (id: string) => Promise<{ success: boolean }>
+    moveToTrash: (id: string) => Promise<TreeNode[]>
+    restore: (id: string, targetParentId?: string | null) => Promise<TreeNode[]>
+    permanentDelete: (id: string) => Promise<TreeNode[]>
     reorder: (items: { id: string; parentId: string | null; sortOrder: number }[]) => Promise<TreeNode[]>
   }
   entity: {
@@ -107,7 +117,7 @@ const api: ElectronAPI = {
       ipcRenderer.invoke('tomes:updateRecentPath', { projectId, primaryPath }),
     showInFolder: (path) => ipcRenderer.invoke('tomes:showInFolder', { path }),
     forceQuit: () => ipcRenderer.invoke('tomes:forceQuit'),
-    createChapter: (structure) => ipcRenderer.invoke('tomes:createChapter', { structure }),
+    createChapter: (structure, parentId) => ipcRenderer.invoke('tomes:createChapter', { structure, parentId }),
     updateUiState: (uiState) => ipcRenderer.invoke('tomes:updateUiState', uiState),
     getSyncState: () => ipcRenderer.invoke('tomes:getSyncState')
   },
@@ -127,9 +137,15 @@ const api: ElectronAPI = {
   },
   tree: {
     getAll: () => ipcRenderer.invoke('tree:getAll'),
-    create: (parentId, type, title) => ipcRenderer.invoke('tree:create', { parentId, type, title }),
+    create: (parentId, type, title, options) =>
+      ipcRenderer.invoke('tree:create', { parentId, type, title, ...options }),
+    createFolder: (scope, parentId, title) =>
+      ipcRenderer.invoke('tree:createFolder', { scope, parentId, title }),
     update: (id, updates) => ipcRenderer.invoke('tree:update', { id, ...updates }),
     delete: (id) => ipcRenderer.invoke('tree:delete', { id }),
+    moveToTrash: (id) => ipcRenderer.invoke('tree:moveToTrash', { id }),
+    restore: (id, targetParentId) => ipcRenderer.invoke('tree:restore', { id, targetParentId }),
+    permanentDelete: (id) => ipcRenderer.invoke('tree:permanentDelete', { id }),
     reorder: (items) => ipcRenderer.invoke('tree:reorder', { items })
   },
   entity: {

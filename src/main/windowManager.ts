@@ -28,6 +28,15 @@ export function getMainWindow(): BrowserWindow | null {
   return mainWindowRef
 }
 
+export function isPanelWindowOpen(ownerWindowId: number, panel: PanelType): boolean {
+  return [...children.values()].some(
+    (record) =>
+      record.kind === panel &&
+      record.ownerWindowId === ownerWindowId &&
+      !record.window.isDestroyed()
+  )
+}
+
 export function themeBackground(theme: 'light' | 'dark'): string {
   return theme === 'dark' ? '#1a1a1a' : '#fafafa'
 }

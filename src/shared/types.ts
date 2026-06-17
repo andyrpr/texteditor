@@ -2,7 +2,11 @@ export type EntityType = 'character' | 'location' | 'lore'
 
 export type WikiEntityType = EntityType | 'note'
 
-export type NodeType = 'chapter' | 'scene' | 'character' | 'location' | 'lore' | 'note'
+export type FolderScope = 'manuscript' | 'characters' | 'locations' | 'lore' | 'notes'
+
+export type NodeType = 'folder' | 'chapter' | 'scene' | 'character' | 'location' | 'lore' | 'note'
+
+export type TrashCategory = 'chapters' | 'scenes' | 'characters' | 'locations' | 'lore' | 'notes'
 
 export type Genre =
   | 'Fantasy'
@@ -22,6 +26,10 @@ export interface ProjectMeta {
   updatedAt: string
 }
 
+export interface FolderMeta {
+  scope: FolderScope
+}
+
 export interface TreeNode {
   id: string
   parentId: string | null
@@ -32,6 +40,8 @@ export interface TreeNode {
   metadata: string
   createdAt: string
   updatedAt: string
+  deletedAt?: string | null
+  originalParentId?: string | null
 }
 
 export type CharacterRelationshipType =
@@ -180,6 +190,7 @@ export interface NavigationSyncState {
   selectedEntityId: string | null
   selectedEntityType: WikiEntityType | null
   expandedSections: string[]
+  expandedFolders: string[]
   rightPanelOpen: boolean
   sectionOrder: string[]
 }
@@ -226,6 +237,9 @@ export interface TomesIndexEntry {
   title: string
   sortOrder: number
   parentId?: string | null
+  deletedAt?: string | null
+  originalParentId?: string | null
+  folderScope?: FolderScope
 }
 
 export interface TomesManifest {
@@ -239,6 +253,7 @@ export interface TomesManifest {
   version: string
   uiState?: ProjectUiState
   index: {
+    folders: TomesIndexEntry[]
     chapters: TomesIndexEntry[]
     scenes: TomesIndexEntry[]
     characters: TomesIndexEntry[]
@@ -258,6 +273,8 @@ export interface TxDFile {
   metadata: string
   createdAt: string
   updatedAt: string
+  deletedAt?: string | null
+  originalParentId?: string | null
 }
 
 export const TOMES_MAGIC = '1.0'
@@ -360,6 +377,21 @@ export function normalizeNoteMeta(raw: Partial<NoteMeta> & Record<string, unknow
 
 export const DEFAULT_CHAPTER_META: ChapterMeta = {
   structure: 'scenes'
+}
+
+export const DEFAULT_FOLDER_META: FolderMeta = {
+  scope: 'manuscript'
+}
+
+export const TRASH_RETENTION_DAYS = 50
+
+export const TRASH_CATEGORY_LABELS: Record<TrashCategory, string> = {
+  chapters: 'Chapters',
+  scenes: 'Scenes',
+  characters: 'Characters',
+  locations: 'Locations',
+  lore: 'Lore',
+  notes: 'Notes'
 }
 
 export const SIDEBAR_MAX_WIDTH = 280

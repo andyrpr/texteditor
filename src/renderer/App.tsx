@@ -52,19 +52,16 @@ export function AppLayout(): React.JSX.Element {
 
   useEffect(() => {
     if (isSecondary) return
-    void window.electronAPI.tomes.getConfig().then((config) => {
-      const layout = config.windowLayout
-      if (layout) {
-        setSidebarWidth(layout.sidebarWidth ?? SIDEBAR_MAX_WIDTH)
-        setRightPanelWidth(
-          Math.min(
-            RIGHT_PANEL_MAX_WIDTH,
-            Math.max(RIGHT_PANEL_MIN_WIDTH, layout.rightPanelWidth ?? RIGHT_PANEL_MIN_WIDTH)
-          )
+    void window.electronAPI.windows.getLayout().then((layout) => {
+      setSidebarWidth(layout.sidebarWidth ?? SIDEBAR_MAX_WIDTH)
+      setRightPanelWidth(
+        Math.min(
+          RIGHT_PANEL_MAX_WIDTH,
+          Math.max(RIGHT_PANEL_MIN_WIDTH, layout.rightPanelWidth ?? RIGHT_PANEL_MIN_WIDTH)
         )
-        setSidebarDetached(layout.sidebarDetached ?? false)
-        setEntityDetached(layout.entityDetached ?? false)
-      }
+      )
+      setSidebarDetached(layout.sidebarDetached ?? false)
+      setEntityDetached(layout.entityDetached ?? false)
     })
   }, [isSecondary, setSidebarWidth, setRightPanelWidth, setSidebarDetached, setEntityDetached])
 
@@ -106,12 +103,24 @@ export function AppLayout(): React.JSX.Element {
       if (panel === 'entity') setEntityDetached(false)
       void hydrateNavigationFromMain()
     })
+    const unsubPanelClosed = window.electronAPI.on('windows:panelClosed', (data: unknown) => {
+      const { panel } = data as { panel: 'sidebar' | 'entity' }
+      if (panel === 'sidebar') {
+        setSidebarDetached(false)
+        void window.electronAPI.windows.updateLayout({ sidebarDetached: false })
+      }
+      if (panel === 'entity') {
+        setEntityDetached(false)
+        void window.electronAPI.windows.updateLayout({ entityDetached: false })
+      }
+    })
     return () => {
       unsubOpen()
       unsubNew()
       unsubOpened()
       unsubBeforeQuit()
       unsubPanelReattached()
+      unsubPanelClosed()
     }
   }, [
     openProject,

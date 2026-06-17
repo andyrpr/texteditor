@@ -4,7 +4,7 @@ import { Input } from '@/components/UI/input'
 import { AutoGrowTextarea } from '@/components/UI/auto-grow-textarea'
 import { Button } from '@/components/UI/button'
 import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
-import { useAppStore, getNodesByType } from '@/store/appStore'
+import { useAppStore } from '@/store/appStore'
 import { cn } from '@/lib/utils'
 import {
   CHARACTER_RELATIONSHIP_TYPES,
@@ -123,7 +123,7 @@ export function CharacterPanel({
   const [name, setName] = useState(title)
 
   const otherCharacters = useMemo(
-    () => getNodesByType(nodes, 'character').filter((n) => n.id !== nodeId),
+    () => nodes.filter((n) => n.type === 'character' && !n.deletedAt && n.id !== nodeId),
     [nodes, nodeId]
   )
 

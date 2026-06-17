@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -15,9 +16,11 @@ import {
   arrayMove
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical } from 'lucide-react'
+import { Folder, GripVertical } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { countNodeWords, stripNodeContentPreview } from '@/lib/treeUtils'
+import { countNodeWords, isFolder, stripNodeContentPreview } from '@/lib/treeUtils'
+import { TreeContextMenu, EmptyAreaContextMenu } from '@/components/Tree/TreeContextMenu'
+import { ConfirmDialog } from '@/components/UI/ConfirmDialog'
 import type { TreeNode } from '@shared/types'
 
 interface ContainerViewProps {
@@ -27,20 +30,56 @@ interface ContainerViewProps {
   emptyMessage: string
   selectedNodeId: string | null
   onSelect: (node: TreeNode) => void
-  onReorder: (items: TreeNode[]) => void
+  onReorder?: (items: TreeNode[]) => void
+  readOnly?: boolean
+  menuVariant?: 'manuscript' | 'wiki' | 'trash'
+  onRename?: (node: TreeNode) => void
+  onMoveTo?: (node: TreeNode) => void
+  onOpenNewWindow?: (node: TreeNode) => void
+  onMoveToTrash?: (node: TreeNode) => void
+  onRecover?: (node: TreeNode) => void
+  onPermanentDelete?: (node: TreeNode) => void
+  emptyMenuItems?: { label: string; onSelect: () => void }[]
+}
+
+interface ConfirmState {
+  title: string
+  description: string
+  destructive?: boolean
+  confirmLabel?: string
+  onConfirm: () => void | Promise<void>
 }
 
 function SortableCard({
   node,
   isSelected,
-  onSelect
+  readOnly,
+  menuVariant = 'manuscript',
+  onSelect,
+  onRename,
+  onMoveTo,
+  onOpenNewWindow,
+  onMoveToTrash,
+  onRecover,
+  onPermanentDelete,
+  onConfirm
 }: {
   node: TreeNode
   isSelected: boolean
+  readOnly?: boolean
+  menuVariant?: 'manuscript' | 'wiki' | 'trash'
   onSelect: () => void
+  onRename?: () => void
+  onMoveTo?: () => void
+  onOpenNewWindow?: () => void
+  onMoveToTrash?: () => void
+  onRecover?: () => void
+  onPermanentDelete?: () => void
+  onConfirm: (state: ConfirmState) => void
 }): React.JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: node.id
+    id: node.id,
+    disabled: readOnly
   })
 
   const style = {
@@ -50,8 +89,9 @@ function SortableCard({
 
   const words = countNodeWords(node)
   const preview = stripNodeContentPreview(node)
+  const folderNode = isFolder(node)
 
-  return (
+  const card = (
     <div
       ref={setNodeRef}
       style={style}
@@ -62,17 +102,22 @@ function SortableCard({
       )}
       onClick={onSelect}
     >
-      <button
-        type="button"
-        className="absolute right-2 top-2 rounded p-1 opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100 cursor-grab touch-none"
-        {...attributes}
-        {...listeners}
-        onClick={(e) => e.stopPropagation()}
-        aria-label="Drag to reorder"
-      >
-        <GripVertical className="h-4 w-4 text-muted-foreground" />
-      </button>
-      <h3 className="pr-8 font-medium leading-snug">{node.title}</h3>
+      {!readOnly && (
+        <button
+          type="button"
+          className="absolute right-2 top-2 rounded p-1 opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100 cursor-grab touch-none"
+          {...attributes}
+          {...listeners}
+          onClick={(e) => e.stopPropagation()}
+          aria-label="Drag to reorder"
+        >
+          <GripVertical className="h-4 w-4 text-muted-foreground" />
+        </button>
+      )}
+      <div className="flex items-start gap-2 pr-8">
+        {folderNode && <Folder className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />}
+        <h3 className="font-medium leading-snug">{node.title}</h3>
+      </div>
       <p className="mt-2 flex-1 text-sm text-muted-foreground line-clamp-3">{preview}</p>
       {words > 0 && (
         <p className="mt-3 text-xs text-muted-foreground">
@@ -80,6 +125,50 @@ function SortableCard({
         </p>
       )}
     </div>
+  )
+
+  if (readOnly && menuVariant === 'trash') {
+    return (
+      <TreeContextMenu
+        variant="trash"
+        node={node}
+        onRecover={onRecover}
+        onPermanentDelete={() =>
+          onConfirm({
+            title: 'Delete permanently?',
+            description: `This will permanently delete "${node.title}". This action cannot be undone.`,
+            destructive: true,
+            confirmLabel: 'Delete permanently',
+            onConfirm: () => onPermanentDelete?.()
+          })
+        }
+      >
+        {card}
+      </TreeContextMenu>
+    )
+  }
+
+  if (readOnly) return card
+
+  return (
+    <TreeContextMenu
+      variant={menuVariant}
+      node={node}
+      onRename={onRename}
+      onMoveTo={node.type === 'scene' ? onMoveTo : undefined}
+      onOpenNewWindow={folderNode ? undefined : onOpenNewWindow}
+      onMoveToTrash={() =>
+        onConfirm({
+          title: 'Move to trash?',
+          description: `Are you sure you want to move "${node.title}" to trash? You can recover it within 50 days.`,
+          destructive: true,
+          confirmLabel: 'Move to trash',
+          onConfirm: () => onMoveToTrash?.()
+        })
+      }
+    >
+      {card}
+    </TreeContextMenu>
   )
 }
 
@@ -90,14 +179,26 @@ export function ContainerView({
   emptyMessage,
   selectedNodeId,
   onSelect,
-  onReorder
+  onReorder,
+  readOnly = false,
+  menuVariant = 'manuscript',
+  onRename,
+  onMoveTo,
+  onOpenNewWindow,
+  onMoveToTrash,
+  onRecover,
+  onPermanentDelete,
+  emptyMenuItems
 }: ContainerViewProps): React.JSX.Element {
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null)
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
   const handleDragEnd = (event: DragEndEvent): void => {
+    if (!onReorder) return
     const { active, over } = event
     if (!over || active.id === over.id) return
     const oldIndex = items.findIndex((n) => n.id === active.id)
@@ -106,32 +207,62 @@ export function ContainerView({
     onReorder(arrayMove(items, oldIndex, newIndex))
   }
 
+  const content = (
+    <div className="flex-1 overflow-y-auto px-8 py-6">
+      {items.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+      ) : (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={items.map((n) => n.id)} strategy={rectSortingStrategy}>
+            <div className="mx-auto grid max-w-5xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {items.map((node) => (
+                <SortableCard
+                  key={node.id}
+                  node={node}
+                  isSelected={selectedNodeId === node.id}
+                  readOnly={readOnly}
+                  menuVariant={menuVariant}
+                  onSelect={() => onSelect(node)}
+                  onRename={onRename ? () => onRename(node) : undefined}
+                  onMoveTo={onMoveTo ? () => onMoveTo(node) : undefined}
+                  onOpenNewWindow={onOpenNewWindow ? () => onOpenNewWindow(node) : undefined}
+                  onMoveToTrash={onMoveToTrash ? () => onMoveToTrash(node) : undefined}
+                  onRecover={onRecover ? () => onRecover(node) : undefined}
+                  onPermanentDelete={onPermanentDelete ? () => onPermanentDelete(node) : undefined}
+                  onConfirm={setConfirm}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+      )}
+    </div>
+  )
+
   return (
     <div className="no-drag flex flex-1 flex-col overflow-hidden">
       <div className="shrink-0 border-b border-border px-8 py-4">
-        <h1 className="text-lg font-semibold">{title}</h1>
-        {subtitle && <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p>}
+        <div className="flex items-baseline justify-between gap-4">
+          <h1 className="text-lg font-semibold">{title}</h1>
+          {subtitle && <p className="shrink-0 text-sm text-muted-foreground">{subtitle}</p>}
+        </div>
       </div>
-      <div className="flex-1 overflow-y-auto px-8 py-6">
-        {items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{emptyMessage}</p>
-        ) : (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={items.map((n) => n.id)} strategy={rectSortingStrategy}>
-              <div className="mx-auto grid max-w-5xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {items.map((node) => (
-                  <SortableCard
-                    key={node.id}
-                    node={node}
-                    isSelected={selectedNodeId === node.id}
-                    onSelect={() => onSelect(node)}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
-        )}
-      </div>
+      {emptyMenuItems && emptyMenuItems.length > 0 ? (
+        <EmptyAreaContextMenu items={emptyMenuItems}>{content}</EmptyAreaContextMenu>
+      ) : (
+        content
+      )}
+      {confirm && (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => !open && setConfirm(null)}
+          title={confirm.title}
+          description={confirm.description}
+          confirmLabel={confirm.confirmLabel}
+          destructive={confirm.destructive}
+          onConfirm={confirm.onConfirm}
+        />
+      )}
     </div>
   )
 }

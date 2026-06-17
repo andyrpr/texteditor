@@ -3,6 +3,8 @@ import fse from 'fs-extra'
 import { v4 as uuidv4 } from 'uuid'
 import type {
   CreateProjectInput,
+  FolderMeta,
+  FolderScope,
   NodeType,
   ProjectMeta,
   ProjectUiState,
@@ -18,11 +20,14 @@ import {
   DEFAULT_LORE_META,
   DEFAULT_NOTE_META,
   DEFAULT_CHAPTER_META,
+  DEFAULT_FOLDER_META,
   DEFAULT_SECTION_ORDER,
   TOMES_MAGIC,
   PROJECT_FILENAME,
   TXD_EXT,
-  serializeMetadata
+  TRASH_RETENTION_DAYS,
+  serializeMetadata,
+  parseMetadata
 } from '@shared/types'
 import {
   getNodeDir,
@@ -55,6 +60,8 @@ function now(): string {
 
 function indexKeyForType(type: NodeType): keyof TomesManifest['index'] {
   switch (type) {
+    case 'folder':
+      return 'folders'
     case 'chapter':
       return 'chapters'
     case 'scene':
@@ -70,8 +77,32 @@ function indexKeyForType(type: NodeType): keyof TomesManifest['index'] {
   }
 }
 
-function defaultMetadataForType(type: NodeType): string {
+function scopeToEntityIndexKey(scope: FolderScope): keyof TomesManifest['index'] {
+  switch (scope) {
+    case 'characters':
+      return 'characters'
+    case 'locations':
+      return 'locations'
+    case 'lore':
+      return 'lore'
+    case 'notes':
+      return 'notes'
+    default:
+      return 'chapters'
+  }
+}
+
+function normalizeManifest(m: TomesManifest): TomesManifest {
+  if (!m.index.folders) {
+    m.index.folders = []
+  }
+  return m
+}
+
+function defaultMetadataForType(type: NodeType, scope?: FolderScope): string {
   switch (type) {
+    case 'folder':
+      return serializeMetadata({ ...DEFAULT_FOLDER_META, scope: scope ?? 'manuscript' })
     case 'character':
       return serializeMetadata(DEFAULT_CHARACTER_META)
     case 'location':
@@ -90,6 +121,8 @@ function defaultMetadataForType(type: NodeType): string {
 function generateFilename(type: NodeType, index: number, parentIndex?: number): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   switch (type) {
+    case 'folder':
+      return `folder-${pad(index)}${TXD_EXT}`
     case 'chapter':
       return `chapter-${pad(index)}${TXD_EXT}`
     case 'scene':
@@ -105,7 +138,11 @@ function generateFilename(type: NodeType, index: number, parentIndex?: number): 
   }
 }
 
-function txdToNode(txd: TxDFile): TreeNode {
+function getFolderScopeFromNode(node: TreeNode): FolderScope {
+  return parseMetadata<FolderMeta>(node.metadata, DEFAULT_FOLDER_META).scope
+}
+
+function txdToNode(txd: TxDFile, entry?: TomesIndexEntry): TreeNode {
   return {
     id: txd.id,
     parentId: txd.parentId,
@@ -115,7 +152,9 @@ function txdToNode(txd: TxDFile): TreeNode {
     content: txd.content,
     metadata: txd.metadata,
     createdAt: txd.createdAt,
-    updatedAt: txd.updatedAt
+    updatedAt: txd.updatedAt,
+    deletedAt: txd.deletedAt ?? entry?.deletedAt ?? null,
+    originalParentId: txd.originalParentId ?? entry?.originalParentId ?? null
   }
 }
 
@@ -129,7 +168,9 @@ function nodeToTxd(node: TreeNode): TxDFile {
     content: node.content,
     metadata: node.metadata,
     createdAt: node.createdAt,
-    updatedAt: node.updatedAt
+    updatedAt: node.updatedAt,
+    deletedAt: node.deletedAt ?? null,
+    originalParentId: node.originalParentId ?? null
   }
 }
 
@@ -143,9 +184,14 @@ async function writeTxdFile(filePath: string, txd: TxDFile): Promise<void> {
   await fse.writeFile(filePath, JSON.stringify(txd, null, 2), 'utf-8')
 }
 
-function getTxdPath(filename: string, type: NodeType): string {
+function getTxdPath(filename: string, type: NodeType, scope?: FolderScope): string {
   if (!projectRoot) throw new Error('No project open')
-  return join(getNodeDir(projectRoot, type), filename)
+  return join(getNodeDir(projectRoot, type, scope), filename)
+}
+
+function getTxdPathForNode(node: TreeNode, filename: string): string {
+  const scope = node.type === 'folder' ? getFolderScopeFromNode(node) : undefined
+  return getTxdPath(filename, node.type, scope)
 }
 
 async function writeManifest(): Promise<void> {
@@ -159,6 +205,7 @@ async function loadAllNodes(): Promise<TreeNode[]> {
 
   const nodes: TreeNode[] = []
   const categories: { key: keyof TomesManifest['index']; type: NodeType }[] = [
+    { key: 'folders', type: 'folder' },
     { key: 'chapters', type: 'chapter' },
     { key: 'scenes', type: 'scene' },
     { key: 'characters', type: 'character' },
@@ -168,11 +215,12 @@ async function loadAllNodes(): Promise<TreeNode[]> {
   ]
 
   for (const { key, type } of categories) {
-    for (const entry of manifest.index[key]) {
-      const filePath = getTxdPath(entry.filename, type)
+    const entries = manifest.index[key] ?? []
+    for (const entry of entries) {
+      const filePath = getTxdPathForEntry(entry, type)
       if (await fse.pathExists(filePath)) {
         const txd = await readTxdFile(filePath)
-        const node = txdToNode(txd)
+        const node = txdToNode(txd, entry)
         nodes.push(node)
         nodeCache.set(node.id, node)
       }
@@ -182,8 +230,22 @@ async function loadAllNodes(): Promise<TreeNode[]> {
   return nodes
 }
 
+function getEntryScope(entry: TomesIndexEntry, type: NodeType): FolderScope | undefined {
+  if (type !== 'folder') return undefined
+  if (entry.folderScope) return entry.folderScope
+  const cached = nodeCache.get(entry.id)
+  if (cached) return getFolderScopeFromNode(cached)
+  return 'manuscript'
+}
+
+function getTxdPathForEntry(entry: TomesIndexEntry, type: NodeType): string {
+  const scope = getEntryScope(entry, type)
+  return getTxdPath(entry.filename, type, scope)
+}
+
 function getEntryType(entryId: string): NodeType {
   if (!manifest) throw new Error('No project open')
+  if (manifest.index.folders?.some((e) => e.id === entryId)) return 'folder'
   if (manifest.index.chapters.some((e) => e.id === entryId)) return 'chapter'
   if (manifest.index.scenes.some((e) => e.id === entryId)) return 'scene'
   if (manifest.index.characters.some((e) => e.id === entryId)) return 'character'
@@ -233,11 +295,16 @@ export async function createProject(input: CreateProjectInput): Promise<{
   const timestamp = now()
 
   await fse.ensureDir(getManuscriptDir(root))
+  await fse.ensureDir(join(getManuscriptDir(root), 'folders'))
   await fse.ensureDir(join(getWikiDir(root), 'characters'))
+  await fse.ensureDir(join(getWikiDir(root), 'characters', 'folders'))
   await fse.ensureDir(getCharacterImagesDir(root))
   await fse.ensureDir(join(getWikiDir(root), 'locations'))
+  await fse.ensureDir(join(getWikiDir(root), 'locations', 'folders'))
   await fse.ensureDir(join(getWikiDir(root), 'lore'))
+  await fse.ensureDir(join(getWikiDir(root), 'lore', 'folders'))
   await fse.ensureDir(join(getWikiDir(root), 'notes'))
+  await fse.ensureDir(join(getWikiDir(root), 'notes', 'folders'))
   await fse.ensureDir(getBackupsDir(root))
 
   const chapterId = uuidv4()
@@ -256,6 +323,7 @@ export async function createProject(input: CreateProjectInput): Promise<{
     version: '1.0',
     uiState: { sectionOrder: [...DEFAULT_SECTION_ORDER] },
     index: {
+      folders: [],
       chapters: [{ id: chapterId, filename: chapterFilename, title: 'Chapter 1', sortOrder: 0 }],
       scenes: [{ id: sceneId, filename: sceneFilename, title: 'Scene 1', sortOrder: 0, parentId: chapterId }],
       characters: [],
@@ -331,12 +399,13 @@ export async function openProject(tomesFilePath: string): Promise<{
 
   closeProject()
 
-  manifest = validation.manifest
+  manifest = normalizeManifest(validation.manifest)
   projectRoot = validation.projectRoot
   tomesPath = tomesFilePath
   nodeCache.clear()
 
   const nodes = await loadAllNodes()
+  await purgeExpiredTrash()
   await updateRecentLastOpened(manifest.id)
 
   return {
@@ -365,7 +434,8 @@ export function getNode(id: string): TreeNode | null {
 export async function createNode(
   parentId: string | null,
   type: NodeType,
-  title: string
+  title: string,
+  options?: { metadata?: string; scope?: FolderScope }
 ): Promise<TreeNode> {
   if (!manifest || !projectRoot) throw new Error('No project open')
 
@@ -373,8 +443,11 @@ export async function createNode(
   const timestamp = now()
   const indexKey = indexKeyForType(type)
   const siblings = manifest.index[indexKey].filter((e) => {
+    if (e.deletedAt) return false
+    const entryParent = e.parentId ?? null
+    const targetParent = parentId ?? null
     if (type === 'scene') return e.parentId === parentId
-    return true
+    return entryParent === targetParent
   })
   const sortOrder = siblings.length
 
@@ -391,12 +464,17 @@ export async function createNode(
     filename = generateFilename(type, siblings.length + 1)
   }
 
+  const metadata =
+    options?.metadata ??
+    defaultMetadataForType(type, options?.scope ?? (type === 'folder' ? 'manuscript' : undefined))
+
   const entry: TomesIndexEntry = {
     id,
     filename,
     title,
     sortOrder,
-    ...(parentId ? { parentId } : {})
+    ...(parentId ? { parentId } : {}),
+    ...(type === 'folder' && options?.scope ? { folderScope: options.scope } : {})
   }
 
   manifest.index[indexKey].push(entry)
@@ -408,15 +486,29 @@ export async function createNode(
     title,
     sortOrder,
     content: '',
-    metadata: defaultMetadataForType(type),
+    metadata,
     createdAt: timestamp,
-    updatedAt: timestamp
+    updatedAt: timestamp,
+    deletedAt: null,
+    originalParentId: null
   }
 
-  await writeTxdFile(getTxdPath(filename, type), nodeToTxd(node))
+  const scope = type === 'folder' ? getFolderScopeFromNode(node) : undefined
+  await writeTxdFile(getTxdPath(filename, type, scope), nodeToTxd(node))
   await writeManifest()
   nodeCache.set(id, node)
   return node
+}
+
+export async function createFolder(
+  scope: FolderScope,
+  parentId: string | null,
+  title: string
+): Promise<TreeNode> {
+  return createNode(parentId, 'folder', title, {
+    scope,
+    metadata: serializeMetadata({ scope })
+  })
 }
 
 export async function updateNode(
@@ -454,13 +546,212 @@ export async function updateNode(
   if (updates.sortOrder !== undefined) entry.sortOrder = updates.sortOrder
   if (updates.parentId !== undefined) entry.parentId = updates.parentId
 
-  await writeTxdFile(getTxdPath(entry.filename, type), nodeToTxd(updated))
+  await writeTxdFile(getTxdPathForNode(updated, entry.filename), nodeToTxd(updated))
   await writeManifest()
   nodeCache.set(id, updated)
   return updated
 }
 
 export async function deleteNode(id: string): Promise<void> {
+  return permanentDeleteNode(id)
+}
+
+async function applyTrashFields(
+  id: string,
+  fields: { deletedAt?: string | null; originalParentId?: string | null; parentId?: string | null }
+): Promise<TreeNode> {
+  const current = nodeCache.get(id)
+  if (!current) throw new Error(`Node ${id} not found`)
+
+  const timestamp = now()
+  const updated: TreeNode = {
+    ...current,
+    ...fields,
+    updatedAt: timestamp
+  }
+
+  const type = getEntryType(id)
+  const indexKey = indexKeyForType(type)
+  const entry = manifest!.index[indexKey].find((e) => e.id === id)
+  if (!entry) throw new Error(`Index entry ${id} not found`)
+
+  if (fields.deletedAt !== undefined) entry.deletedAt = fields.deletedAt
+  if (fields.originalParentId !== undefined) entry.originalParentId = fields.originalParentId
+  if (fields.parentId !== undefined) entry.parentId = fields.parentId
+
+  await writeTxdFile(getTxdPathForNode(updated, entry.filename), nodeToTxd(updated))
+  nodeCache.set(id, updated)
+  return updated
+}
+
+function getFolderChildIds(parentId: string, scope: FolderScope): string[] {
+  if (!manifest) return []
+  const ids: string[] = []
+
+  for (const entry of manifest.index.folders) {
+    if (entry.deletedAt) continue
+    if ((entry.parentId ?? null) !== parentId) continue
+    const node = nodeCache.get(entry.id)
+    if (node && getFolderScopeFromNode(node) === scope) ids.push(entry.id)
+  }
+
+  if (scope === 'manuscript') {
+    for (const entry of manifest.index.chapters) {
+      if (!entry.deletedAt && (entry.parentId ?? null) === parentId) ids.push(entry.id)
+    }
+  } else {
+    const key = scopeToEntityIndexKey(scope)
+    for (const entry of manifest.index[key]) {
+      if (!entry.deletedAt && (entry.parentId ?? null) === parentId) ids.push(entry.id)
+    }
+  }
+
+  return ids
+}
+
+async function softDeleteNode(id: string, timestamp: string): Promise<void> {
+  const node = nodeCache.get(id)
+  if (!node || node.deletedAt) return
+
+  await applyTrashFields(id, {
+    deletedAt: timestamp,
+    originalParentId: node.parentId
+  })
+
+  if (node.type === 'chapter') {
+    const childScenes = manifest!.index.scenes.filter((s) => s.parentId === id && !s.deletedAt)
+    for (const scene of childScenes) {
+      await softDeleteNode(scene.id, timestamp)
+    }
+  }
+
+  if (node.type === 'folder') {
+    const scope = getFolderScopeFromNode(node)
+    const childIds = getFolderChildIds(id, scope)
+    for (const childId of childIds) {
+      await softDeleteNode(childId, timestamp)
+    }
+  }
+}
+
+export async function moveToTrash(id: string): Promise<TreeNode[]> {
+  if (!manifest) throw new Error('No project open')
+  const timestamp = now()
+  await softDeleteNode(id, timestamp)
+  await writeManifest()
+  return getAllNodes()
+}
+
+export async function restoreNode(
+  id: string,
+  targetParentId?: string | null
+): Promise<TreeNode[]> {
+  if (!manifest) throw new Error('No project open')
+  const node = nodeCache.get(id)
+  if (!node || !node.deletedAt) return getAllNodes()
+
+  let newParentId: string | null =
+    targetParentId !== undefined ? targetParentId : node.originalParentId ?? null
+
+  if (node.type === 'scene') {
+    const originalChapter = node.originalParentId
+      ? nodeCache.get(node.originalParentId)
+      : null
+    if (originalChapter && !originalChapter.deletedAt) {
+      newParentId = originalChapter.id
+    } else if (targetParentId === undefined) {
+      throw new Error('RESTORE_NEEDS_TARGET')
+    }
+  }
+
+  const siblingsKey = indexKeyForType(node.type)
+  const siblings = manifest.index[siblingsKey].filter(
+    (e) => !e.deletedAt && (e.parentId ?? null) === (newParentId ?? null)
+  )
+
+  const updated: TreeNode = {
+    ...node,
+    deletedAt: null,
+    originalParentId: null,
+    parentId: newParentId,
+    sortOrder: siblings.length,
+    updatedAt: now()
+  }
+
+  const entry = manifest.index[siblingsKey].find((e) => e.id === id)!
+  entry.deletedAt = null
+  entry.originalParentId = null
+  entry.parentId = newParentId
+  entry.sortOrder = updated.sortOrder
+
+  await writeTxdFile(getTxdPathForNode(updated, entry.filename), nodeToTxd(updated))
+  nodeCache.set(id, updated)
+
+  if (node.type === 'folder') {
+    const scope = getFolderScopeFromNode(node)
+    const childIds = getAllTrashedDescendants(id, scope)
+    for (const childId of childIds) {
+      await restoreNode(childId)
+    }
+  }
+
+  if (node.type === 'chapter') {
+    const deletedAt = node.deletedAt
+    const trashedScenes = manifest.index.scenes.filter(
+      (s) => s.parentId === id && s.deletedAt === deletedAt
+    )
+    for (const scene of trashedScenes) {
+      const sceneNode = nodeCache.get(scene.id)
+      if (!sceneNode) continue
+      const sceneUpdated: TreeNode = {
+        ...sceneNode,
+        deletedAt: null,
+        originalParentId: null,
+        updatedAt: now()
+      }
+      scene.deletedAt = null
+      scene.originalParentId = null
+      await writeTxdFile(getTxdPathForNode(sceneUpdated, scene.filename), nodeToTxd(sceneUpdated))
+      nodeCache.set(scene.id, sceneUpdated)
+    }
+  }
+
+  await writeManifest()
+  return getAllNodes()
+}
+
+function getAllTrashedDescendants(folderId: string, scope: FolderScope): string[] {
+  if (!manifest) return []
+  const ids: string[] = []
+  const folderIds = [folderId]
+
+  while (folderIds.length > 0) {
+    const current = folderIds.pop()!
+    for (const entry of manifest.index.folders) {
+      if (entry.deletedAt && (entry.parentId ?? null) === current) {
+        const node = nodeCache.get(entry.id)
+        if (node && getFolderScopeFromNode(node) === scope) {
+          ids.push(entry.id)
+          folderIds.push(entry.id)
+        }
+      }
+    }
+    if (scope === 'manuscript') {
+      for (const entry of manifest.index.chapters) {
+        if (entry.deletedAt && (entry.parentId ?? null) === current) ids.push(entry.id)
+      }
+    } else {
+      const key = scopeToEntityIndexKey(scope)
+      for (const entry of manifest.index[key]) {
+        if (entry.deletedAt && (entry.parentId ?? null) === current) ids.push(entry.id)
+      }
+    }
+  }
+
+  return ids
+}
+
+async function permanentDeleteNode(id: string): Promise<void> {
   if (!manifest || !projectRoot) throw new Error('No project open')
 
   const type = getEntryType(id)
@@ -468,7 +759,8 @@ export async function deleteNode(id: string): Promise<void> {
   const entry = manifest.index[indexKey].find((e) => e.id === id)
   if (!entry) return
 
-  const filePath = getTxdPath(entry.filename, type)
+  const node = nodeCache.get(id)
+  const filePath = getTxdPathForEntry(entry, type)
   await fse.remove(filePath).catch(() => {})
 
   manifest.index[indexKey] = manifest.index[indexKey].filter((e) => e.id !== id)
@@ -476,12 +768,63 @@ export async function deleteNode(id: string): Promise<void> {
   if (type === 'chapter') {
     const childScenes = manifest.index.scenes.filter((s) => s.parentId === id)
     for (const scene of childScenes) {
-      await deleteNode(scene.id)
+      await permanentDeleteNode(scene.id)
+    }
+  }
+
+  if (type === 'folder' && node) {
+    const folderScope = getFolderScopeFromNode(node)
+    const childIds = getFolderChildIds(id, folderScope)
+    for (const childId of [...childIds]) {
+      const child = nodeCache.get(childId)
+      if (child?.deletedAt) {
+        await permanentDeleteNode(childId)
+      }
     }
   }
 
   nodeCache.delete(id)
   await writeManifest()
+}
+
+export async function permanentDelete(id: string): Promise<TreeNode[]> {
+  await permanentDeleteNode(id)
+  return getAllNodes()
+}
+
+export async function purgeExpiredTrash(): Promise<void> {
+  if (!manifest) return
+
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - TRASH_RETENTION_DAYS)
+  const cutoffIso = cutoff.toISOString()
+
+  const allKeys: (keyof TomesManifest['index'])[] = [
+    'folders',
+    'chapters',
+    'scenes',
+    'characters',
+    'locations',
+    'lore',
+    'notes'
+  ]
+
+  const toPurge: string[] = []
+  for (const key of allKeys) {
+    for (const entry of manifest.index[key] ?? []) {
+      if (entry.deletedAt && entry.deletedAt < cutoffIso) {
+        toPurge.push(entry.id)
+      }
+    }
+  }
+
+  for (const id of toPurge) {
+    await permanentDeleteNode(id)
+  }
+
+  if (toPurge.length > 0) {
+    await writeManifest()
+  }
 }
 
 export async function reorderNodes(
@@ -509,7 +852,7 @@ export async function reorderNodes(
       nodeCache.set(item.id, updated)
       const entry2 = manifest.index[indexKey].find((e) => e.id === item.id)
       if (entry2) {
-        await writeTxdFile(getTxdPath(entry2.filename, type), nodeToTxd(updated))
+        await writeTxdFile(getTxdPathForNode(updated, entry2.filename), nodeToTxd(updated))
       }
     }
   }
@@ -519,7 +862,9 @@ export async function reorderNodes(
 }
 
 export function getEntityNodes(): TreeNode[] {
-  return getAllNodes().filter((n) => ['character', 'location', 'lore'].includes(n.type))
+  return getAllNodes().filter(
+    (n) => !n.deletedAt && ['character', 'location', 'lore'].includes(n.type)
+  )
 }
 
 export async function updateProjectMeta(updates: {
@@ -590,8 +935,11 @@ export async function updateUiState(uiState: ProjectUiState): Promise<ProjectUiS
   return getUiState()
 }
 
-export async function createChapter(structure: ChapterStructure): Promise<TreeNode> {
-  const chapter = await createNode(null, 'chapter', 'New Chapter')
+export async function createChapter(
+  structure: ChapterStructure,
+  parentId: string | null = null
+): Promise<TreeNode> {
+  const chapter = await createNode(parentId, 'chapter', 'New Chapter')
   const meta = { ...DEFAULT_CHAPTER_META, structure }
   await updateNode(chapter.id, { metadata: JSON.stringify(meta) })
 

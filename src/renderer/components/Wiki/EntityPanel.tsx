@@ -148,7 +148,6 @@ export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.E
     nodes,
     selectedEntityId,
     selectedEntityType,
-    rightPanelOpen,
     rightPanelWidth,
     setRightPanelOpen,
     setRightPanelWidth,
@@ -212,7 +211,7 @@ export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.E
       })
   }
 
-  if (!detached && (!rightPanelOpen || !selectedEntityId || !node)) return null
+  if (!detached && (!selectedEntityId || !node)) return null
   if (detached && !node) {
     return (
       <div className="flex flex-1 items-center justify-center text-muted-foreground">

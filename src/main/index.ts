@@ -9,8 +9,12 @@ import {
   getAllNodes,
   getNode,
   createNode,
+  createFolder,
   updateNode,
   deleteNode,
+  moveToTrash,
+  restoreNode,
+  permanentDelete,
   reorderNodes,
   getEntityNodes,
   getProjectPath,
@@ -39,7 +43,8 @@ import {
   updatePreferences,
   updateRecentPrimaryPath,
   updateWindowLayout,
-  getWindowLayout
+  getWindowLayout,
+  getWindowLayoutRepaired
 } from './config'
 import {
   setMainWindow,
@@ -287,8 +292,8 @@ function registerIpcHandlers(): void {
     return { success: true }
   })
 
-  ipcMain.handle('tomes:createChapter', async (_, { structure }) => {
-    const node = await createChapter(structure)
+  ipcMain.handle('tomes:createChapter', async (_, { structure, parentId }) => {
+    const node = await createChapter(structure, parentId ?? null)
     broadcastSync()
     return node
   })
@@ -367,8 +372,11 @@ function registerIpcHandlers(): void {
     return { success: true }
   })
 
-  ipcMain.handle('windows:getLayout', async () => {
-    return getWindowLayout()
+  ipcMain.handle('windows:getLayout', async (event) => {
+    const sender = BrowserWindow.fromWebContents(event.sender)
+    const mainWin = getMainWindow()
+    const mainId = sender && mainWin && sender.id === mainWin.id ? mainWin.id : undefined
+    return getWindowLayoutRepaired(mainId)
   })
 
   ipcMain.handle('windows:updateLayout', async (_, updates) => {
@@ -401,8 +409,16 @@ function registerIpcHandlers(): void {
     return getAllNodes()
   })
 
-  ipcMain.handle('tree:create', async (_, { parentId, type, title }) => {
-    return createNode(parentId, type as NodeType, title)
+  ipcMain.handle('tree:create', async (_, { parentId, type, title, metadata, scope }) => {
+    const node = await createNode(parentId, type as NodeType, title, { metadata, scope })
+    broadcastSync()
+    return node
+  })
+
+  ipcMain.handle('tree:createFolder', async (_, { scope, parentId, title }) => {
+    const node = await createFolder(scope, parentId, title)
+    broadcastSync()
+    return node
   })
 
   ipcMain.handle('tree:update', async (_, { id, ...updates }) => {
@@ -415,6 +431,24 @@ function registerIpcHandlers(): void {
     await deleteNode(id)
     broadcastSync()
     return { success: true }
+  })
+
+  ipcMain.handle('tree:moveToTrash', async (_, { id }) => {
+    const nodes = await moveToTrash(id)
+    broadcastSync()
+    return nodes
+  })
+
+  ipcMain.handle('tree:restore', async (_, { id, targetParentId }) => {
+    const nodes = await restoreNode(id, targetParentId)
+    broadcastSync()
+    return nodes
+  })
+
+  ipcMain.handle('tree:permanentDelete', async (_, { id }) => {
+    const nodes = await permanentDelete(id)
+    broadcastSync()
+    return nodes
   })
 
   ipcMain.handle('tree:reorder', async (_, { items }) => {

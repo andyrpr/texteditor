@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { FileText, Files } from 'lucide-react'
 import {
   Dialog,
@@ -21,18 +20,6 @@ export function ChapterStructureModal({
   onOpenChange,
   onSelect
 }: ChapterStructureModalProps): React.JSX.Element {
-  const [remember, setRemember] = useState(false)
-
-  const handleSelect = async (structure: ChapterStructure): Promise<void> => {
-    if (remember) {
-      await window.electronAPI.tomes.updatePreferences({
-        skipChapterStructurePrompt: true,
-        defaultChapterStructure: structure
-      })
-    }
-    onSelect(structure)
-  }
-
   const options = [
     {
       id: 'simple' as const,
@@ -49,13 +36,7 @@ export function ChapterStructureModal({
   ]
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(value) => {
-        if (!value) setRemember(false)
-        onOpenChange(value)
-      }}
-    >
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="no-drag sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Chapter Structure</DialogTitle>
@@ -68,7 +49,7 @@ export function ChapterStructureModal({
               <button
                 key={opt.id}
                 type="button"
-                onClick={() => void handleSelect(opt.id)}
+                onClick={() => onSelect(opt.id)}
                 className={cn(
                   'no-drag flex gap-4 rounded-lg border border-border p-4 text-left transition-colors hover:border-primary hover:bg-accent/50'
                 )}
@@ -83,17 +64,6 @@ export function ChapterStructureModal({
               </button>
             )
           })}
-        </div>
-        <div className="border-t border-border pt-4">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={remember}
-              onChange={(e) => setRemember(e.target.checked)}
-              className="rounded"
-            />
-            Don&apos;t ask again — use the structure I choose above for new chapters
-          </label>
         </div>
       </DialogContent>
     </Dialog>

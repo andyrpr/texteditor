@@ -37,11 +37,16 @@ export function getBackupsDir(projectRoot: string): string {
   return join(projectRoot, 'backups')
 }
 
-export function getNodeDir(projectRoot: string, type: string): string {
+export function getNodeDir(projectRoot: string, type: string, scope?: string): string {
   switch (type) {
     case 'chapter':
     case 'scene':
       return getManuscriptDir(projectRoot)
+    case 'folder':
+      if (scope === 'manuscript' || !scope) {
+        return join(getManuscriptDir(projectRoot), 'folders')
+      }
+      return join(getWikiDir(projectRoot), scope, 'folders')
     case 'character':
       return join(getWikiDir(projectRoot), 'characters')
     case 'location':

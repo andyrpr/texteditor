@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { ProjectMeta, TreeNode, WikiEntityType } from '@shared/types'
+import type { FolderScope, ProjectMeta, TreeNode, WikiEntityType } from '@shared/types'
 import { DEFAULT_SECTION_ORDER, SIDEBAR_MAX_WIDTH } from '@shared/types'
 
 interface AppState {
@@ -15,6 +15,7 @@ interface AppState {
   selectedNodeId: string | null
   selectedContainerId: string | null
   expandedSections: Set<string>
+  expandedFolders: Set<string>
   sectionOrder: string[]
 
   selectedEntityId: string | null
@@ -42,7 +43,9 @@ interface AppState {
   removeNode: (id: string) => void
   setSelectedNodeId: (id: string | null) => void
   selectContainer: (id: string | null) => void
+  selectWikiEntity: (id: string | null, type: WikiEntityType | null) => void
   toggleSection: (section: string) => void
+  toggleFolder: (folderId: string) => void
   setSectionOrder: (order: string[]) => void
 
   setSelectedEntity: (id: string | null, type: WikiEntityType | null) => void
@@ -70,6 +73,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   selectedNodeId: null,
   selectedContainerId: null,
   expandedSections: new Set(['manuscript', 'characters', 'locations', 'lore', 'notes']),
+  expandedFolders: new Set<string>(),
   sectionOrder: [...DEFAULT_SECTION_ORDER],
 
   selectedEntityId: null,
@@ -104,6 +108,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       selectedContainerId: null,
       selectedEntityId: null,
       selectedEntityType: null,
+      expandedFolders: new Set(),
       isDirty: false,
       lastSaved: null,
       backupWarningCount: 0
@@ -128,19 +133,56 @@ export const useAppStore = create<AppState>((set, get) => ({
         ? { selectedEntityId: null, selectedEntityType: null, rightPanelOpen: false }
         : {})
     })),
-  setSelectedNodeId: (id) => set({ selectedNodeId: id, selectedContainerId: null }),
-  selectContainer: (id) => set({ selectedContainerId: id, selectedNodeId: null }),
+  setSelectedNodeId: (id) =>
+    set({
+      selectedNodeId: id,
+      selectedContainerId: null,
+      selectedEntityId: null,
+      selectedEntityType: null,
+      rightPanelOpen: false
+    }),
+  selectContainer: (id) =>
+    set({
+      selectedContainerId: id,
+      selectedNodeId: null,
+      selectedEntityId: null,
+      selectedEntityType: null,
+      rightPanelOpen: false
+    }),
+  selectWikiEntity: (id, type) => get().setSelectedEntity(id, type),
   toggleSection: (section) => {
     const expanded = new Set(get().expandedSections)
     if (expanded.has(section)) expanded.delete(section)
     else expanded.add(section)
     set({ expandedSections: expanded })
   },
+  toggleFolder: (folderId) => {
+    const expanded = new Set(get().expandedFolders)
+    if (expanded.has(folderId)) expanded.delete(folderId)
+    else expanded.add(folderId)
+    set({ expandedFolders: expanded })
+  },
 
   setSectionOrder: (order) => set({ sectionOrder: order }),
 
-  setSelectedEntity: (id, type) =>
-    set({ selectedEntityId: id, selectedEntityType: type, rightPanelOpen: id !== null }),
+  setSelectedEntity: (id, type) => {
+    const reopenPanel = id !== null
+    if (reopenPanel && get().entityDetached) {
+      void window.electronAPI.windows.updateLayout({ entityDetached: false })
+      set({
+        selectedEntityId: id,
+        selectedEntityType: type,
+        rightPanelOpen: true,
+        entityDetached: false
+      })
+      return
+    }
+    set({
+      selectedEntityId: id,
+      selectedEntityType: type,
+      rightPanelOpen: reopenPanel
+    })
+  },
 
   setTheme: (theme, options) => {
     document.documentElement.classList.toggle('dark', theme === 'dark')
@@ -167,6 +209,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       selectedEntityId: nav.selectedEntityId,
       selectedEntityType: nav.selectedEntityType,
       expandedSections: new Set(nav.expandedSections),
+      expandedFolders: new Set(nav.expandedFolders ?? []),
       rightPanelOpen: nav.rightPanelOpen,
       sectionOrder: nav.sectionOrder
     })
@@ -177,16 +220,4 @@ export function getSelectedNode(state: AppState): TreeNode | null {
   return state.nodes.find((n) => n.id === state.selectedNodeId) ?? null
 }
 
-export function getChapters(nodes: TreeNode[]): TreeNode[] {
-  return nodes.filter((n) => n.type === 'chapter').sort((a, b) => a.sortOrder - b.sortOrder)
-}
-
-export function getScenes(nodes: TreeNode[], chapterId: string): TreeNode[] {
-  return nodes
-    .filter((n) => n.parentId === chapterId && n.type === 'scene')
-    .sort((a, b) => a.sortOrder - b.sortOrder)
-}
-
-export function getNodesByType(nodes: TreeNode[], type: TreeNode['type']): TreeNode[] {
-  return nodes.filter((n) => n.type === type).sort((a, b) => a.sortOrder - b.sortOrder)
-}
+export { getChapters, getScenes, getNodesByType, getActiveNodes } from '@/lib/treeUtils'

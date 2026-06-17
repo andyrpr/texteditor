@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useAppStore } from '@/store/appStore'
-import { applyNavigationSync, publishNavigationSync } from '@/lib/navigationSync'
+import { applyNavigationSync, getNavigationSnapshot, publishNavigationSync } from '@/lib/navigationSync'
 import type { NavigationSyncState } from '@shared/types'
 
 function navigationChanged(
@@ -23,6 +23,26 @@ function navigationChanged(
 
 export async function hydrateNavigationFromMain(): Promise<void> {
   const nav = await window.electronAPI.navigation.get()
+  const current = getNavigationSnapshot()
+
+  // Avoid overwriting a selection the user (or project open) already made while this fetch was in flight.
+  const hasLocalSelection =
+    current.selectedEntityId !== null ||
+    current.selectedNodeId !== null ||
+    current.selectedContainerId !== null
+
+  if (hasLocalSelection) {
+    if (
+      current.selectedEntityId !== nav.selectedEntityId ||
+      current.selectedNodeId !== nav.selectedNodeId ||
+      current.selectedContainerId !== nav.selectedContainerId ||
+      current.rightPanelOpen !== nav.rightPanelOpen
+    ) {
+      publishNavigationSync()
+    }
+    return
+  }
+
   applyNavigationSync(nav)
 }
 
