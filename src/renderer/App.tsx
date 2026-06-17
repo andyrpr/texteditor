@@ -131,10 +131,10 @@ export function AppLayout(): React.JSX.Element {
 
   if (!isProjectOpen) {
     return (
-      <>
+      <div className="launch-screen h-screen overflow-hidden bg-[var(--launch-bg)]">
         <RecentProjectsScreen />
         <Toaster />
-      </>
+      </div>
     )
   }
 

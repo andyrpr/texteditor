@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BookOpen, FolderOpen, Plus } from 'lucide-react'
+import { FolderOpen, Heart, Plus } from 'lucide-react'
 import { Button } from '@/components/UI/button'
 import {
   Dialog,
@@ -15,6 +15,9 @@ import { useProject } from '@/hooks/useProject'
 import type { RecentProjectWithStatus } from '@shared/types'
 
 import { useAppStore } from '@/store/appStore'
+
+const launchBtnBase =
+  'font-sans inline-flex items-center gap-[7px] rounded-[7px] border border-transparent px-4 py-[9px] text-[13.5px] font-semibold transition-[background,border-color,color,transform] duration-100 active:scale-[0.97]'
 
 export function RecentProjectsScreen(): React.JSX.Element {
   const { openProject, openProjectAtPath, removeFromRecent, locateProject } = useProject()
@@ -61,58 +64,79 @@ export function RecentProjectsScreen(): React.JSX.Element {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto bg-background">
-      <div className="mx-auto w-full max-w-4xl px-6 py-12">
-        <div className="mb-10 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
-            <BookOpen className="h-8 w-8 text-primary" />
-          </div>
-          <h1 className="font-serif text-3xl font-semibold tracking-tight">Priama</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Local-first writing for authors. Your stories, your files, fully offline.
+    <div className="flex h-screen flex-col text-[var(--launch-ink)]">
+      <header className="flex shrink-0 items-start justify-between gap-6 border-b border-[var(--launch-hairline)] px-12 pb-[22px] pt-12">
+        <div>
+          <h1 className="font-serif text-[28px] font-bold leading-[1.15] tracking-[0.2px] text-[var(--launch-accent)]">
+            Priama
+          </h1>
+          <p className="mt-1 text-[12.5px] tracking-[0.1px] text-[var(--launch-ink-faint)]">
+            Free forever, fully offline, no account needed — made for writers by{' '}
+            <span className="text-[var(--launch-ink-dim)]">@cigardev</span>.
           </p>
         </div>
-
-        <div className="mb-8 flex justify-center gap-3">
-          <Button size="lg" onClick={() => setShowNewProjectModal(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            New Project
-          </Button>
-          <Button size="lg" variant="outline" onClick={openProject}>
-            <FolderOpen className="mr-2 h-4 w-4" />
+        <div className="mt-1 flex shrink-0 gap-[10px]">
+          <button
+            type="button"
+            className={`${launchBtnBase} border-[var(--launch-hairline)] bg-transparent text-[var(--launch-ink-dim)] hover:border-[var(--launch-btn-secondary-hover-border)] hover:text-[var(--launch-ink)]`}
+            onClick={openProject}
+          >
+            <FolderOpen className="h-3.5 w-3.5 shrink-0" />
             Open Project
-          </Button>
+          </button>
+          <button
+            type="button"
+            className={`${launchBtnBase} bg-[var(--launch-ink)] text-[#18181a] hover:bg-[var(--launch-btn-primary-hover)]`}
+            onClick={() => setShowNewProjectModal(true)}
+          >
+            <Plus className="h-3.5 w-3.5 shrink-0" strokeWidth={2.4} />
+            New Project
+          </button>
+        </div>
+      </header>
+
+      <main className="flex-1 overflow-y-auto px-12 pt-[30px]">
+        <div className="mb-[18px]">
+          <h2 className="text-[11.5px] font-bold uppercase tracking-[0.14em] text-[var(--launch-ink-faint)]">
+            Recent Projects
+          </h2>
         </div>
 
-        {recents.length > 0 && (
-          <section>
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Recent Projects
-            </h2>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {recents.map((project) => (
-                <ProjectCard
-                  key={project.id}
-                  project={project}
-                  onOpen={() => handleOpen(project)}
-                  onShowInFolder={() =>
-                    window.electronAPI.tomes.showInFolder(project.primaryPath)
-                  }
-                  onRemove={async () => {
-                    await removeFromRecent(project.id)
-                    await loadRecents()
-                  }}
-                />
-              ))}
-            </div>
-          </section>
-        )}
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] items-stretch gap-[14px] pb-10">
+          {recents.map((project) => (
+            <ProjectCard
+              key={project.id}
+              project={project}
+              onOpen={() => handleOpen(project)}
+              onShowInFolder={() => window.electronAPI.tomes.showInFolder(project.primaryPath)}
+              onRemove={async () => {
+                await removeFromRecent(project.id)
+                await loadRecents()
+              }}
+            />
+          ))}
 
-        {recents.length === 0 && (
-          <p className="text-center text-sm text-muted-foreground">
-            No recent projects yet. Create your first book project to get started.
-          </p>
-        )}
+          <button
+            type="button"
+            className="flex h-full min-h-0 flex-col items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-[var(--launch-hairline)] bg-transparent text-center text-[var(--launch-ink-faint)] transition-[background,border-color,color,transform] duration-100 hover:border-[var(--launch-accent)] hover:bg-[var(--launch-accent)]/5 hover:text-[var(--launch-ink)] active:scale-[0.99]"
+            onClick={() => setShowNewProjectModal(true)}
+          >
+            <Plus className="h-5 w-5" strokeWidth={2} />
+            <span className="text-[12.5px] font-semibold">New Project</span>
+          </button>
+        </div>
+      </main>
+
+      <div className="flex h-12 shrink-0 items-center justify-end pl-12 pr-10">
+        <a
+          href="https://github.com/sponsors/cigardev"
+          target="_blank"
+          rel="noreferrer"
+          className="relative -top-0.5 inline-flex items-center gap-1.5 rounded-md bg-gradient-to-b from-[var(--launch-gold-top)] to-[var(--launch-gold)] px-3 py-1.5 text-xs font-bold text-[var(--launch-gold-text)] shadow-[0_1px_2px_rgba(0,0,0,0.25)] transition-[filter,transform] duration-100 hover:brightness-105 active:scale-[0.97]"
+        >
+          <Heart className="h-[13px] w-[13px]" />
+          Support Priama
+        </a>
       </div>
 
       <NewProjectModal open={showNewProjectModal} onOpenChange={setShowNewProjectModal} />

@@ -28,18 +28,25 @@ export function ProjectCard({
           onClick={() => project.exists && onOpen()}
           disabled={!project.exists}
           className={cn(
-            'group relative flex flex-col overflow-hidden rounded-xl border border-border bg-card text-left transition-shadow hover:shadow-md',
+            'group relative flex h-full flex-col rounded-[10px] border border-[var(--launch-hairline)] bg-[var(--launch-bg-card)] px-[18px] pb-4 pt-[18px] text-left transition-[background,border-color,transform] duration-100 hover:-translate-y-px hover:border-[var(--launch-card-hover-border)] hover:bg-[var(--launch-bg-card-hover)]',
             !project.exists && 'cursor-not-allowed opacity-60'
           )}
         >
-          <div className="h-24 w-full" style={{ backgroundColor: project.coverColor }} />
-          <div className="flex flex-1 flex-col gap-1 p-4">
-            <h3 className="truncate font-semibold">{project.title}</h3>
-            <p className="truncate text-xs text-muted-foreground">{project.author || 'Unknown author'}</p>
-            <p className="text-xs text-muted-foreground">{lastOpened}</p>
-            <p className="truncate text-xs text-muted-foreground/70">
-              {truncatePath(project.primaryPath, 35)}
+          <div
+            className="absolute bottom-[14px] left-0 top-[14px] w-[3px] rounded-[2px]"
+            style={{ backgroundColor: project.coverColor }}
+          />
+          <div className="flex min-w-0 flex-col gap-[3px] pl-[14px]">
+            <h3 className="truncate font-serif text-[17px] font-bold leading-tight text-[var(--launch-ink)]">
+              {project.title}
+            </h3>
+            <p className="truncate text-[12.5px] text-[var(--launch-ink-dim)]">
+              {project.author || 'Unknown author'}
             </p>
+            <span className="text-[11.5px] text-[var(--launch-ink-faint)]">{lastOpened}</span>
+            <span className="truncate font-mono text-[10.5px] text-[var(--launch-ink-faint)]">
+              {truncatePath(project.primaryPath, 28)}
+            </span>
           </div>
           {!project.exists && (
             <div className="absolute right-2 top-2 flex items-center gap-1 rounded bg-destructive/90 px-2 py-0.5 text-xs text-white">

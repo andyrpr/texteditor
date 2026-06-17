@@ -56,13 +56,18 @@
 }
 
 @layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
   * {
     @apply border-border;
   }
 
   body {
-    @apply bg-background text-foreground antialiased;
-    font-family: 'Inter', system-ui, sans-serif;
+    @apply bg-background font-serif text-foreground antialiased;
     -webkit-font-smoothing: antialiased;
     user-select: none;
   }
@@ -204,4 +209,39 @@
 
 .panel-textarea-scroll::-webkit-scrollbar-thumb:hover {
   background-color: hsl(var(--muted-foreground) / 0.38);
+}
+
+/* Launch screen — theme-aware palette (dark values match HTML mockup) */
+.launch-screen {
+  --launch-bg: #fafaf9;
+  --launch-bg-card: #ffffff;
+  --launch-bg-card-hover: #f4f4f5;
+  --launch-hairline: #e4e4e7;
+  --launch-ink: #18181a;
+  --launch-ink-dim: #71717a;
+  --launch-ink-faint: #a1a1aa;
+  --launch-accent: #e0463b;
+  --launch-gold: #c9a24b;
+  --launch-gold-top: #e8b65c;
+  --launch-gold-text: #2a1a0d;
+  --launch-card-hover-border: #d4d4d8;
+  --launch-btn-primary-hover: #f4f4f5;
+  --launch-btn-secondary-hover-border: #a1a1aa;
+}
+
+.dark .launch-screen {
+  --launch-bg: #121214;
+  --launch-bg-card: #1c1c1f;
+  --launch-bg-card-hover: #222226;
+  --launch-hairline: #2c2c30;
+  --launch-ink: #ece8e1;
+  --launch-ink-dim: #9b9a9d;
+  --launch-ink-faint: #6c6b6f;
+  --launch-accent: #e0463b;
+  --launch-gold: #c9a24b;
+  --launch-gold-top: #e8b65c;
+  --launch-gold-text: #2a1a0d;
+  --launch-card-hover-border: #3a393e;
+  --launch-btn-primary-hover: #ffffff;
+  --launch-btn-secondary-hover-border: #46454a;
 }
