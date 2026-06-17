@@ -3,10 +3,12 @@ import { createRoot } from 'react-dom/client'
 import { AppLayout } from './App'
 import { ChildWindowRoot } from './ChildWindowRoot'
 import { ImageViewerRoot } from './ImageViewerRoot'
-import { isDetachedPanelWindow, isImageViewerWindow } from './lib/hashParams'
+import { DevicePreviewWindow } from './components/DevicePreview/DevicePreviewWindow'
+import { isDetachedPanelWindow, isDevicePreviewWindow, isImageViewerWindow } from './lib/hashParams'
 import './index.css'
 
 function Root(): React.JSX.Element {
+  if (isDevicePreviewWindow()) return <DevicePreviewWindow />
   if (isImageViewerWindow()) return <ImageViewerRoot />
   if (isDetachedPanelWindow()) return <ChildWindowRoot />
   return <AppLayout />
