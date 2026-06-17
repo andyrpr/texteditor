@@ -67,15 +67,12 @@ export function chapterSections(nodes: TreeNode[], chapter: TreeNode): ExportSec
         }
       ]
     }
-    return [
-      { id: `${chapter.id}-heading`, title: chapter.title, level: 'chapter', html: '' },
-      ...scenes.map((scene) => ({
-        id: scene.id,
-        title: scene.title,
-        level: 'scene' as const,
-        html: scene.content
-      }))
-    ]
+    return scenes.map((scene) => ({
+      id: scene.id,
+      title: scene.title,
+      level: 'scene' as const,
+      html: scene.content
+    }))
   }
 
   return []

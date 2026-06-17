@@ -28,6 +28,10 @@ export function isImageViewerWindow(): boolean {
   return window.location.hash.includes('child=imageViewer')
 }
 
+export function isDevicePreviewWindow(): boolean {
+  return window.location.hash.includes('child=devicePreview')
+}
+
 export function isChildWindow(): boolean {
   return window.location.hash.includes('child=')
 }

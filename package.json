@@ -43,6 +43,7 @@
     "docx": "^9.2.0",
     "electron-updater": "^6.3.9",
     "epub-gen-memory": "^1.1.2",
+    "epubjs": "^0.3.93",
     "fs-extra": "^11.3.0",
     "lucide-react": "^0.475.0",
     "puppeteer-core": "^24.2.1",

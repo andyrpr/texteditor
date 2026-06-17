@@ -29,7 +29,7 @@ export function AppLayout(): React.JSX.Element {
     setRightPanelWidth,
     setSidebarDetached,
     setEntityDetached,
-    setSelectedNodeId
+    setSelectedNodeId,
   } = useAppStore()
   const params = useSearchParams()
   const isSecondary = isWorkspaceWindow()
@@ -75,6 +75,10 @@ export function AppLayout(): React.JSX.Element {
     })
     const unsubExport = window.electronAPI.on('menu:export', () => {
       if (isProjectOpen && !isSecondary) setShowExportDialog(true)
+    })
+    const unsubDevicePreview = window.electronAPI.on('menu:devicePreview', () => {
+      if (!isProjectOpen || isSecondary) return
+      void window.electronAPI.windows.openDevicePreview({ scope: 'manuscript' })
     })
     const unsubOpened = window.electronAPI.on('tomes:projectOpened', (data: unknown) => {
       if (isSecondary) return
@@ -124,6 +128,7 @@ export function AppLayout(): React.JSX.Element {
       unsubOpen()
       unsubNew()
       unsubExport()
+      unsubDevicePreview()
       unsubOpened()
       unsubBeforeQuit()
       unsubPanelReattached()

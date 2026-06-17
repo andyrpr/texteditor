@@ -1,11 +1,11 @@
 import { BrowserWindow, screen } from 'electron'
 import { join } from 'path'
-import type { WindowBounds, WindowLayoutState } from '@shared/types'
+import type { DevicePreviewRequestOptions, WindowBounds, WindowLayoutState } from '@shared/types'
 import { getNavigationState } from './navigationState'
 import { getSyncState } from './tomes/projectStore'
 
 export type PanelType = 'sidebar' | 'entity'
-export type ChildWindowKind = PanelType | 'workspace' | 'imageViewer'
+export type ChildWindowKind = PanelType | 'workspace' | 'imageViewer' | 'devicePreview'
 
 interface ChildWindowRecord {
   window: BrowserWindow
@@ -265,6 +265,47 @@ export function openImageViewerWindow(
 
   const hash = `child=imageViewer&imagePath=${encodeURIComponent(imagePath)}&title=${encodeURIComponent(title)}`
   loadUrl(win, hash)
+  return win
+}
+
+export function openDevicePreviewWindow(
+  options: DevicePreviewRequestOptions,
+  theme: 'light' | 'dark'
+): BrowserWindow {
+  const b = defaultBounds(1100, 820)
+  const win = new BrowserWindow({
+    x: b.x,
+    y: b.y,
+    width: b.width,
+    height: b.height,
+    minWidth: 640,
+    minHeight: 480,
+    title: 'Device Preview',
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    show: false,
+    backgroundColor: themeBackground(theme),
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: false,
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  })
+
+  const id = win.id.toString()
+  children.set(id, { window: win, kind: 'devicePreview', ownerWindowId: win.id })
+
+  win.once('ready-to-show', () => win.show())
+
+  win.on('closed', () => {
+    children.delete(id)
+  })
+
+  const params = new URLSearchParams({ child: 'devicePreview', scope: options.scope })
+  if (options.nodeId) {
+    params.set('nodeId', options.nodeId)
+  }
+  loadUrl(win, params.toString())
   return win
 }
 

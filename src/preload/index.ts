@@ -3,6 +3,8 @@ import type {
   BackupLocationStatus,
   ChapterStructure,
   CreateProjectInput,
+  DevicePreviewRequestOptions,
+  DevicePreviewResponse,
   ExportOptions,
   FolderScope,
   NavigationSyncState,
@@ -49,6 +51,7 @@ export interface ElectronAPI {
     reattach: (panel: 'sidebar' | 'entity') => Promise<{ success: boolean }>
     openDocument: (nodeId: string, title: string) => Promise<{ success: boolean }>
     openImageViewer: (imagePath: string, title: string) => Promise<{ success: boolean }>
+    openDevicePreview: (options: DevicePreviewRequestOptions) => Promise<{ success: boolean }>
     getLayout: () => Promise<WindowLayoutState>
     updateLayout: (updates: Partial<WindowLayoutState>) => Promise<WindowLayoutState>
   }
@@ -89,6 +92,9 @@ export interface ElectronAPI {
   export: {
     document: (options: ExportOptions) => Promise<{ success: boolean; message?: string; path?: string }>
   }
+  devicePreview: {
+    getEpub: (options: DevicePreviewRequestOptions) => Promise<DevicePreviewResponse>
+  }
   navigation: {
     get: () => Promise<NavigationSyncState>
     update: (state: NavigationSyncState) => Promise<{ success: boolean }>
@@ -127,6 +133,7 @@ const api: ElectronAPI = {
     openDocument: (nodeId, title) => ipcRenderer.invoke('windows:openDocument', { nodeId, title }),
     openImageViewer: (imagePath, title) =>
       ipcRenderer.invoke('windows:openImageViewer', { imagePath, title }),
+    openDevicePreview: (options) => ipcRenderer.invoke('windows:openDevicePreview', options),
     getLayout: () => ipcRenderer.invoke('windows:getLayout'),
     updateLayout: (updates) => ipcRenderer.invoke('windows:updateLayout', updates)
   },
@@ -161,6 +168,9 @@ const api: ElectronAPI = {
   },
   export: {
     document: (options) => ipcRenderer.invoke('export:document', options)
+  },
+  devicePreview: {
+    getEpub: (options) => ipcRenderer.invoke('devicePreview:getEpub', options)
   },
   navigation: {
     get: () => ipcRenderer.invoke('navigation:get'),

@@ -53,6 +53,7 @@ import {
   reattachPanel,
   openDocumentWindow,
   openImageViewerWindow,
+  openDevicePreviewWindow,
   broadcast,
   saveSecondaryWindowState,
   getMainWindow,
@@ -65,7 +66,14 @@ import {
 } from './navigationState'
 import { registerAssetScheme, registerAssetProtocol } from './assetProtocol'
 import { exportDocument } from './export'
-import type { CreateProjectInput, ExportOptions, NavigationSyncState, NodeType } from '@shared/types'
+import { generatePreviewEpub } from './tomes/preview/generatePreviewEpub'
+import type {
+  CreateProjectInput,
+  DevicePreviewRequestOptions,
+  ExportOptions,
+  NavigationSyncState,
+  NodeType
+} from '@shared/types'
 
 let mainWindow: BrowserWindow | null = null
 let pendingOpenPath: string | null = null
@@ -234,7 +242,21 @@ function buildMenu(): void {
         { type: 'separator' },
         { role: 'togglefullscreen' }
       ]
-    }
+    },
+    ...(isMac
+      ? [{
+          label: 'Window',
+          submenu: [
+            { role: 'windowMenu' as const },
+            { type: 'separator' as const },
+            {
+              label: 'Device Preview',
+              accelerator: 'CmdOrCtrl+Shift+P',
+              click: () => mainWindow?.webContents.send('menu:devicePreview')
+            }
+          ]
+        }]
+      : [])
   ]
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
@@ -379,6 +401,12 @@ function registerIpcHandlers(): void {
     return { success: true }
   })
 
+  ipcMain.handle('windows:openDevicePreview', async (_, options: DevicePreviewRequestOptions) => {
+    const config = await getConfig()
+    openDevicePreviewWindow(options, config.preferences.theme)
+    return { success: true }
+  })
+
   ipcMain.handle('windows:getLayout', async (event) => {
     const sender = BrowserWindow.fromWebContents(event.sender)
     const mainWin = getMainWindow()
@@ -508,6 +536,17 @@ function registerIpcHandlers(): void {
 
     return exportDocument(savePath, options, getAllNodes(), getProjectMeta())
   })
+
+  ipcMain.handle(
+    'devicePreview:getEpub',
+    async (_, options: DevicePreviewRequestOptions) => {
+      const nodes = getAllNodes()
+      const meta = getProjectMeta()
+      if (!meta) throw new Error('No project open')
+      const epub = await generatePreviewEpub(nodes, options, meta)
+      return { epub, title: meta.title, author: meta.author }
+    }
+  )
 
 }
 

@@ -150,6 +150,63 @@ export interface ExportSection {
   html: string
 }
 
+export interface DevicePreviewRequestOptions {
+  scope: 'chapter' | 'manuscript'
+  nodeId?: string
+}
+
+export interface DevicePreviewResponse {
+  epub: ArrayBuffer
+  title: string
+  author: string
+}
+
+export type DevicePresetId =
+  | 'kindle-6'
+  | 'kindle-paperwhite'
+  | 'kindle-scribe'
+  | 'pocketbook-era'
+  | 'pocketbook-verse'
+  | 'pocketbook-inkpad-4'
+  | 'ipad-mini'
+  | 'ipad-10'
+  | 'iphone-se'
+  | 'iphone-15'
+  | 'iphone-15-pro-max'
+  | 'samsung-galaxy-s27'
+
+export interface DevicePreset {
+  id: DevicePresetId
+  label: string
+  widthPx: number
+  heightPx: number
+}
+
+export const DEVICE_PRESETS: DevicePreset[] = [
+  { id: 'kindle-6', label: 'Kindle (6")', widthPx: 1072, heightPx: 1448 },
+  { id: 'kindle-paperwhite', label: 'Kindle Paperwhite (6.8")', widthPx: 1236, heightPx: 1648 },
+  { id: 'kindle-scribe', label: 'Kindle Scribe (10.2")', widthPx: 1860, heightPx: 2480 },
+  { id: 'pocketbook-era', label: 'PocketBook Era (6")', widthPx: 1072, heightPx: 1448 },
+  { id: 'pocketbook-verse', label: 'PocketBook Verse (6.8")', widthPx: 1264, heightPx: 1680 },
+  { id: 'pocketbook-inkpad-4', label: 'PocketBook InkPad 4 (7.8")', widthPx: 1404, heightPx: 1872 },
+  { id: 'ipad-mini', label: 'iPad mini (8.3")', widthPx: 1488, heightPx: 2266 },
+  { id: 'ipad-10', label: 'iPad (10.9")', widthPx: 1640, heightPx: 2360 },
+  { id: 'iphone-se', label: 'iPhone SE', widthPx: 750, heightPx: 1334 },
+  { id: 'iphone-15', label: 'iPhone 15', widthPx: 1170, heightPx: 2532 },
+  { id: 'iphone-15-pro-max', label: 'iPhone 15 Pro Max', widthPx: 1290, heightPx: 2796 },
+  { id: 'samsung-galaxy-s27', label: 'Samsung Galaxy S27', widthPx: 1440, heightPx: 3120 }
+]
+
+export function deviceMaxDimension(preset: DevicePreset): number {
+  return Math.max(preset.widthPx, preset.heightPx)
+}
+
+export const LARGEST_DEVICE_PRESET = DEVICE_PRESETS.reduce((largest, preset) =>
+  deviceMaxDimension(preset) > deviceMaxDimension(largest) ? preset : largest
+)
+
+export const LARGEST_DEVICE_MAX_DIMENSION = deviceMaxDimension(LARGEST_DEVICE_PRESET)
+
 export interface ManuscriptChapterRef {
   id: string
   title: string
