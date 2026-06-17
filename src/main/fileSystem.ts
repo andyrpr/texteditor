@@ -54,4 +54,40 @@ export async function showSelectImageDialog(window: BrowserWindow): Promise<stri
   return result.filePaths[0]
 }
 
+const EXPORT_FILTERS: Record<'docx' | 'pdf' | 'epub', { name: string; extensions: string[] }> = {
+  docx: { name: 'Word Document', extensions: ['docx'] },
+  pdf: { name: 'PDF Document', extensions: ['pdf'] },
+  epub: { name: 'EPUB Ebook', extensions: ['epub'] }
+}
+
+function sanitizeFilename(name: string): string {
+  return name.replace(/[<>:"/\\|?*\u0000-\u001F]/g, '').trim() || 'export'
+}
+
+export async function showSaveExportDialog(
+  window: BrowserWindow,
+  format: 'docx' | 'pdf' | 'epub',
+  title: string
+): Promise<string | null> {
+  const parent = BrowserWindow.getFocusedWindow() ?? window
+  parent.focus()
+
+  const filter = EXPORT_FILTERS[format]
+  const result = await dialog.showSaveDialog(parent, {
+    title: 'Export Manuscript',
+    defaultPath: join(homedir(), 'Documents', `${sanitizeFilename(title)}.${filter.extensions[0]}`),
+    filters: [filter],
+    properties: ['createDirectory', 'showOverwriteConfirmation']
+  })
+
+  if (result.canceled || !result.filePath) return null
+
+  let filePath = result.filePath
+  const ext = `.${filter.extensions[0]}`
+  if (!filePath.toLowerCase().endsWith(ext)) {
+    filePath += ext
+  }
+  return filePath
+}
+
 export { PROJECT_FILENAME }

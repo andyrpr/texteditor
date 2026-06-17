@@ -33,7 +33,8 @@ import { validateTomesFile } from './tomes/validate'
 import {
   showOpenTomesDialog,
   showChooseFolderDialog,
-  showSelectImageDialog
+  showSelectImageDialog,
+  showSaveExportDialog
 } from './fileSystem'
 import { checkBackupLocations, listLocalBackups } from './tomes/backup'
 import {
@@ -63,6 +64,7 @@ import {
   resetNavigationState
 } from './navigationState'
 import { registerAssetScheme, registerAssetProtocol } from './assetProtocol'
+import { exportDocument } from './export'
 import type { CreateProjectInput, ExportOptions, NavigationSyncState, NodeType } from '@shared/types'
 
 let mainWindow: BrowserWindow | null = null
@@ -197,6 +199,11 @@ function buildMenu(): void {
           label: 'Save',
           accelerator: 'CmdOrCtrl+S',
           click: () => mainWindow?.webContents.send('menu:save')
+        },
+        {
+          label: 'Export…',
+          accelerator: 'CmdOrCtrl+Shift+E',
+          click: () => mainWindow?.webContents.send('menu:export')
         },
         { type: 'separator' },
         isMac ? { role: 'close' } : { role: 'quit' }
@@ -488,8 +495,18 @@ function registerIpcHandlers(): void {
     return { success: true }
   })
 
-  ipcMain.handle('export:document', async (_, _options: ExportOptions) => {
-    return { success: false, message: 'Export not yet implemented' }
+  ipcMain.handle('export:document', async (event, options: ExportOptions) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win || !isOpen()) {
+      return { success: false, message: 'No project open' }
+    }
+
+    const savePath = await showSaveExportDialog(win, options.format, options.title)
+    if (!savePath) {
+      return { success: false, message: 'Cancelled' }
+    }
+
+    return exportDocument(savePath, options, getAllNodes(), getProjectMeta())
   })
 
 }

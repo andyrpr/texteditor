@@ -4,6 +4,7 @@ import { Sidebar } from '@/components/Sidebar/Sidebar'
 import { EditorPane } from '@/components/Editor/EditorPane'
 import { EntityPanel } from '@/components/Wiki/EntityPanel'
 import { StatusBar } from '@/components/UI/StatusBar'
+import { ExportDialog } from '@/components/Export/ExportDialog'
 import { RecentProjectsScreen } from '@/components/Project/RecentProjectsScreen'
 import { QuitWarningModal } from '@/components/Project/QuitWarningModal'
 import { Toaster } from '@/components/UI/toast'
@@ -22,6 +23,8 @@ export function AppLayout(): React.JSX.Element {
     sidebarDetached,
     entityDetached,
     setShowNewProjectModal,
+    showExportDialog,
+    setShowExportDialog,
     setSidebarWidth,
     setRightPanelWidth,
     setSidebarDetached,
@@ -70,6 +73,9 @@ export function AppLayout(): React.JSX.Element {
     const unsubNew = window.electronAPI.on('menu:newProject', () => {
       if (!isProjectOpen && !isSecondary) setShowNewProjectModal(true)
     })
+    const unsubExport = window.electronAPI.on('menu:export', () => {
+      if (isProjectOpen && !isSecondary) setShowExportDialog(true)
+    })
     const unsubOpened = window.electronAPI.on('tomes:projectOpened', (data: unknown) => {
       if (isSecondary) return
       const result = data as {
@@ -117,6 +123,7 @@ export function AppLayout(): React.JSX.Element {
     return () => {
       unsubOpen()
       unsubNew()
+      unsubExport()
       unsubOpened()
       unsubBeforeQuit()
       unsubPanelReattached()
@@ -126,6 +133,8 @@ export function AppLayout(): React.JSX.Element {
     openProject,
     isSecondary,
     setShowNewProjectModal,
+    setShowExportDialog,
+    isProjectOpen,
     setSidebarDetached,
     setEntityDetached
   ])
@@ -157,6 +166,7 @@ export function AppLayout(): React.JSX.Element {
         {!entityDetached && <EntityPanel />}
       </div>
       <StatusBar />
+      <ExportDialog open={showExportDialog} onOpenChange={setShowExportDialog} />
       <Toaster />
       {!isSecondary && (
         <QuitWarningModal
