@@ -1,20 +1,25 @@
 import fse from 'fs-extra'
-import type { ExportOptions, ExportSection, TreeNode } from '@shared/types'
+import type { BookSettings, ExportOptions, ExportSection, TreeNode } from '@shared/types'
 import { buildEpubChapterEntries } from '@shared/export/epubChapters'
 import { buildEpubBuffer } from './buildEpubBuffer'
+import { resolveCoverFileUrl } from './resolveCoverFileUrl'
 
 export async function exportEpub(
   savePath: string,
   options: ExportOptions,
   _sections: ExportSection[],
-  nodes: TreeNode[]
+  nodes: TreeNode[],
+  bookSettings: BookSettings
 ): Promise<void> {
-  const content = buildEpubChapterEntries(nodes, options)
+  const coverImageSrc = await resolveCoverFileUrl(bookSettings.coverImagePath)
+  const content = buildEpubChapterEntries(nodes, options, bookSettings, coverImageSrc)
+
   const buffer = await buildEpubBuffer(
     {
       title: options.title,
       author: options.author,
-      genre: options.genre
+      genre: options.genre,
+      cover: coverImageSrc
     },
     content
   )

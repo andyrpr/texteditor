@@ -8,6 +8,8 @@ import { cn } from '@/lib/utils'
 interface ProjectCardProps {
   project: RecentProjectWithStatus
   onOpen: () => void
+  onRename: () => void
+  onStats: () => void
   onShowInFolder: () => void
   onRemove: () => void
 }
@@ -15,6 +17,8 @@ interface ProjectCardProps {
 export function ProjectCard({
   project,
   onOpen,
+  onRename,
+  onStats,
   onShowInFolder,
   onRemove
 }: ProjectCardProps): React.JSX.Element {
@@ -64,6 +68,18 @@ export function ProjectCard({
             onSelect={onOpen}
           >
             Open
+          </ContextMenu.Item>
+          <ContextMenu.Item
+            className="flex cursor-pointer rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent"
+            onSelect={onRename}
+          >
+            Rename
+          </ContextMenu.Item>
+          <ContextMenu.Item
+            className="flex cursor-pointer rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent"
+            onSelect={onStats}
+          >
+            Stats
           </ContextMenu.Item>
           <ContextMenu.Item
             className="flex cursor-pointer rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent"

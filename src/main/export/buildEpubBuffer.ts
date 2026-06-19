@@ -5,6 +5,7 @@ export interface EpubMetadata {
   title: string
   author: string
   genre?: string
+  cover?: string
 }
 
 export async function buildEpubBuffer(
@@ -17,8 +18,9 @@ export async function buildEpubBuffer(
     publisher: 'Priama',
     lang: 'en',
     tocTitle: 'Table of Contents',
-    prependChapterTitles: true,
-    ...(meta.genre ? { tags: meta.genre } : {})
+    prependChapterTitles: false,
+    ...(meta.genre ? { tags: meta.genre } : {}),
+    ...(meta.cover ? { cover: meta.cover } : {})
   }
 
   const generateEpub =

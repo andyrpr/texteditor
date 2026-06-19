@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { useAppStore } from '@/store/appStore'
 import { useToastStore } from '@/components/UI/toast'
-import { flushAllDirty, flushAndSaveProject } from '@/lib/contentPersistence'
+import { flushAllDirty, flushAndSaveProject, resetPersistenceState } from '@/lib/contentPersistence'
 import { publishNavigationSync } from '@/lib/navigationSync'
 import type { CreateProjectInput } from '@shared/types'
 
@@ -13,6 +13,7 @@ export function useProject(): {
   loadNodes: () => Promise<void>
   closeProject: () => Promise<void>
   removeFromRecent: (id: string) => Promise<void>
+  renameRecentProject: (id: string, title: string) => Promise<void>
   locateProject: (projectId: string) => Promise<void>
 } {
   const {
@@ -108,13 +109,40 @@ export function useProject(): {
   }, [applySaveResult])
 
   const closeProject = useCallback(async () => {
-    await flushAllDirty()
-    await window.electronAPI.tomes.closeProject()
+    if (!useAppStore.getState().isProjectOpen) return
+
+    try {
+      await flushAllDirty()
+    } catch (err) {
+      console.error('Failed to flush before close:', err)
+      addToast('Could not save all changes before closing.', 'warning')
+    }
+
+    resetPersistenceState()
     closeProjectStore()
-  }, [closeProjectStore])
+
+    try {
+      const result = await window.electronAPI.tomes.saveProject()
+      applySaveResult(result)
+    } catch (err) {
+      console.error('Save failed on close:', err)
+      addToast('Project could not be fully saved before closing.', 'warning')
+    }
+
+    try {
+      await window.electronAPI.tomes.closeProject()
+    } catch (err) {
+      console.error('Close project failed:', err)
+      addToast('Could not finish closing the project.', 'warning')
+    }
+  }, [closeProjectStore, addToast, applySaveResult])
 
   const removeFromRecent = useCallback(async (id: string) => {
     await window.electronAPI.tomes.removeFromRecent(id)
+  }, [])
+
+  const renameRecentProject = useCallback(async (id: string, title: string) => {
+    await window.electronAPI.tomes.renameRecentProject(id, title)
   }, [])
 
   const locateProject = useCallback(
@@ -135,6 +163,7 @@ export function useProject(): {
     loadNodes,
     closeProject,
     removeFromRecent,
+    renameRecentProject,
     locateProject
   }
 }

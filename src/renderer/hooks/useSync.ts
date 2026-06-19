@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useAppStore } from '@/store/appStore'
+import { resetPersistenceState } from '@/lib/contentPersistence'
 
 export function useSyncFromMain(): void {
   useEffect(() => {
@@ -13,8 +14,9 @@ export function useSyncFromMain(): void {
       if (state.meta && state.path) {
         useAppStore.getState().setProject(state.path, state.meta, state.nodes)
         useAppStore.getState().setSectionOrder(state.uiState.sectionOrder)
-      } else {
-        useAppStore.getState().setNodes(state.nodes)
+      } else if (useAppStore.getState().isProjectOpen) {
+        useAppStore.getState().closeProject()
+        resetPersistenceState()
       }
     })
     return unsub

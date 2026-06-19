@@ -1,4 +1,5 @@
 import type { ExportOptions, ProjectMeta, TreeNode } from '@shared/types'
+import { DEFAULT_BOOK_SETTINGS } from '@shared/types'
 import { collectSections, hasExportableContent } from '@shared/export/manuscript'
 import { exportDocx } from './exportDocx'
 import { exportEpub } from './exportEpub'
@@ -14,14 +15,15 @@ export async function exportDocument(
   savePath: string,
   options: ExportOptions,
   nodes: TreeNode[],
-  _meta: ProjectMeta | null
+  meta: ProjectMeta | null
 ): Promise<ExportResult> {
   try {
     if (options.scope === 'chapters' && (!options.chapterIds || options.chapterIds.length === 0)) {
       return { success: false, message: 'Select at least one chapter to export.' }
     }
 
-    const sections = collectSections(nodes, options.scope, options.chapterIds)
+    const bookSettings = meta?.bookSettings ?? DEFAULT_BOOK_SETTINGS
+    const sections = collectSections(nodes, options.scope, options.chapterIds, bookSettings)
 
     if (!hasExportableContent(sections)) {
       return { success: false, message: 'Nothing to export.' }
@@ -29,13 +31,13 @@ export async function exportDocument(
 
     switch (options.format) {
       case 'docx':
-        await exportDocx(savePath, options, sections)
+        await exportDocx(savePath, options, sections, bookSettings)
         break
       case 'epub':
-        await exportEpub(savePath, options, sections, nodes)
+        await exportEpub(savePath, options, sections, nodes, bookSettings)
         break
       case 'pdf':
-        await exportPdf(savePath, options, sections)
+        await exportPdf(savePath, options, sections, bookSettings)
         break
       default:
         return { success: false, message: 'Unsupported export format.' }

@@ -184,3 +184,12 @@ export async function updateRecentPrimaryPath(projectId: string, primaryPath: st
     await saveConfig(config)
   }
 }
+
+export async function updateRecentTitle(projectId: string, title: string): Promise<void> {
+  const config = await getConfig()
+  const entry = config.recentProjects.find((p) => p.id === projectId)
+  if (entry) {
+    entry.title = title
+    await saveConfig(config)
+  }
+}

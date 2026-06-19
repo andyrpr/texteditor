@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   BackupLocationStatus,
+  BookSettings,
   ChapterStructure,
   CreateProjectInput,
   DevicePreviewRequestOptions,
@@ -40,10 +41,13 @@ export interface ElectronAPI {
     getConfig: () => Promise<PriamaConfig>
     updatePreferences: (updates: Partial<PriamaPreferences>) => Promise<PriamaPreferences>
     updateRecentPath: (projectId: string, primaryPath: string) => Promise<{ success: boolean }>
+    renameRecentProject: (projectId: string, title: string) => Promise<{ success: boolean; title: string }>
     showInFolder: (path: string) => Promise<{ success: boolean }>
     forceQuit: () => Promise<{ success: boolean }>
     createChapter: (structure: ChapterStructure, parentId?: string | null) => Promise<TreeNode>
     updateUiState: (uiState: ProjectUiState) => Promise<ProjectUiState>
+    updateBookSettings: (updates: Partial<BookSettings>) => Promise<BookSettings>
+    importCoverImage: (sourcePath: string) => Promise<{ relativePath: string }>
     getSyncState: () => Promise<SyncState>
   }
   windows: {
@@ -121,10 +125,14 @@ const api: ElectronAPI = {
     updatePreferences: (updates) => ipcRenderer.invoke('tomes:updatePreferences', updates),
     updateRecentPath: (projectId, primaryPath) =>
       ipcRenderer.invoke('tomes:updateRecentPath', { projectId, primaryPath }),
+    renameRecentProject: (projectId, title) =>
+      ipcRenderer.invoke('tomes:renameRecentProject', { projectId, title }),
     showInFolder: (path) => ipcRenderer.invoke('tomes:showInFolder', { path }),
     forceQuit: () => ipcRenderer.invoke('tomes:forceQuit'),
     createChapter: (structure, parentId) => ipcRenderer.invoke('tomes:createChapter', { structure, parentId }),
     updateUiState: (uiState) => ipcRenderer.invoke('tomes:updateUiState', uiState),
+    updateBookSettings: (updates) => ipcRenderer.invoke('tomes:updateBookSettings', updates),
+    importCoverImage: (sourcePath) => ipcRenderer.invoke('tomes:importCoverImage', { sourcePath }),
     getSyncState: () => ipcRenderer.invoke('tomes:getSyncState')
   },
   windows: {

@@ -22,12 +22,14 @@ import {
   isOpen,
   saveProject,
   getRecentProjectsWithStatus,
-  getUiState,
+  renameRecentProject,
   updateUiState,
   createChapter,
   getSyncState,
   importCharacterImage,
-  importEntityImage
+  importEntityImage,
+  updateBookSettings,
+  importCoverImage
 } from './tomes/projectStore'
 import { validateTomesFile } from './tomes/validate'
 import {
@@ -56,6 +58,7 @@ import {
   openDevicePreviewWindow,
   broadcast,
   saveSecondaryWindowState,
+  closeAllChildren,
   getMainWindow,
   getPanelOwnerWindowId
 } from './windowManager'
@@ -68,6 +71,7 @@ import { registerAssetScheme, registerAssetProtocol } from './assetProtocol'
 import { exportDocument } from './export'
 import { generatePreviewEpub } from './tomes/preview/generatePreviewEpub'
 import type {
+  BookSettings,
   CreateProjectInput,
   DevicePreviewRequestOptions,
   ExportOptions,
@@ -214,7 +218,18 @@ function buildMenu(): void {
           click: () => mainWindow?.webContents.send('menu:export')
         },
         { type: 'separator' },
-        isMac ? { role: 'close' } : { role: 'quit' }
+        {
+          label: 'Close Project',
+          accelerator: 'CmdOrCtrl+W',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow() ?? mainWindow
+            win?.webContents.send('menu:closeProject')
+          }
+        },
+        { type: 'separator' },
+        isMac
+          ? { role: 'close' as const, registerAccelerator: false }
+          : { role: 'quit' as const }
       ]
     },
     {
@@ -310,14 +325,23 @@ function registerIpcHandlers(): void {
     return { success: true }
   })
 
+  ipcMain.handle('tomes:renameRecentProject', async (_, { projectId, title }) => {
+    const result = await renameRecentProject(projectId, title)
+    if (isOpen()) broadcastSync()
+    return result
+  })
+
   ipcMain.handle('tomes:showInFolder', async (_, { path }) => {
     shell.showItemInFolder(path)
     return { success: true }
   })
 
   ipcMain.handle('tomes:closeProject', async () => {
+    closeAllChildren()
+    await updateWindowLayout({ sidebarDetached: false, entityDetached: false })
     closeProject()
     resetNavigationState()
+    broadcastSync()
     return { success: true }
   })
 
@@ -331,6 +355,17 @@ function registerIpcHandlers(): void {
     const result = await updateUiState(uiState)
     broadcastSync()
     return result
+  })
+
+  ipcMain.handle('tomes:updateBookSettings', async (_, updates: Partial<BookSettings>) => {
+    const settings = await updateBookSettings(updates)
+    broadcastSync()
+    return settings
+  })
+
+  ipcMain.handle('tomes:importCoverImage', async (_, { sourcePath }: { sourcePath: string }) => {
+    const relativePath = await importCoverImage(sourcePath)
+    return { relativePath }
   })
 
   ipcMain.handle('tomes:getSyncState', async () => {

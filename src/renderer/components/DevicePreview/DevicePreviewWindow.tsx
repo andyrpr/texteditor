@@ -9,6 +9,7 @@ import { listManuscriptChapters } from '@shared/export/manuscript'
 import {
   DEVICE_PRESETS,
   LARGEST_DEVICE_PRESET,
+  type BookSettings,
   type DevicePresetId,
   type DevicePreviewRequestOptions
 } from '@shared/types'
@@ -97,6 +98,7 @@ export function DevicePreviewWindow(): React.JSX.Element {
   const epubRef = useRef<ArrayBuffer | null>(null)
   const fetchIdRef = useRef(0)
   const fontSizeRef = useRef(fontSize)
+  const lastBookSettingsKeyRef = useRef<string | null>(null)
   fontSizeRef.current = fontSize
 
   const referenceSize = useMemo(() => {
@@ -196,6 +198,22 @@ export function DevicePreviewWindow(): React.JSX.Element {
     const options: DevicePreviewRequestOptions =
       scope === 'chapter' && nodeId ? { scope: 'chapter', nodeId } : { scope: 'manuscript' }
     void fetchEpub(options)
+  }, [scope, nodeId, fetchEpub])
+
+  useEffect(() => {
+    const unsub = window.electronAPI.on('sync:state', (data: unknown) => {
+      const state = data as { meta: { bookSettings?: BookSettings } | null }
+      if (!state.meta) return
+
+      const key = JSON.stringify(state.meta.bookSettings ?? {})
+      if (key === lastBookSettingsKeyRef.current) return
+      lastBookSettingsKeyRef.current = key
+
+      const options: DevicePreviewRequestOptions =
+        scope === 'chapter' && nodeId ? { scope: 'chapter', nodeId } : { scope: 'manuscript' }
+      void fetchEpub(options)
+    })
+    return unsub
   }, [scope, nodeId, fetchEpub])
 
   useEffect(() => {

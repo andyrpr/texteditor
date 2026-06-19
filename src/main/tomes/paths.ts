@@ -25,6 +25,10 @@ export function getWikiDir(projectRoot: string): string {
   return join(projectRoot, 'wiki')
 }
 
+export function getAssetsDir(projectRoot: string): string {
+  return join(projectRoot, 'assets')
+}
+
 export function getCharacterImagesDir(projectRoot: string): string {
   return join(getWikiDir(projectRoot), 'characters', 'images')
 }
