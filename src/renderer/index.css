@@ -158,6 +158,19 @@
   border-radius: 2px;
 }
 
+/* Spell check underlines */
+.spell-error {
+  text-decoration: underline wavy;
+  text-decoration-color: hsl(var(--destructive));
+  text-decoration-skip-ink: none;
+  cursor: context-menu;
+}
+
+.search-result .spell-error,
+.search-result-current .spell-error {
+  text-decoration: none;
+}
+
 .entity-mention {
   @apply cursor-pointer rounded-sm bg-primary/15 px-0.5 text-primary underline decoration-primary/40 underline-offset-2 transition-colors hover:bg-primary/25;
 }

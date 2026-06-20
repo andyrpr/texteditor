@@ -9,6 +9,9 @@ import { BlockStyle } from './BlockStyle'
 import { EditorToolbar } from './EditorToolbar'
 import { SearchBar } from './SearchBar'
 import SearchAndReplace from './searchAndReplace'
+import { SpellCheckExtension } from '@/extensions/SpellCheckExtension'
+import { SpellSuggestions } from './SpellSuggestions'
+import { addCustomWord } from '@/lib/spellCheck'
 import { useAppStore } from '@/store/appStore'
 import { markContentDirty, registerActiveEditor } from '@/lib/contentPersistence'
 import { countWords } from '@/lib/utils'
@@ -52,6 +55,15 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchOpenWithReplace, setSearchOpenWithReplace] = useState(false)
   const [searchFocusKey, setSearchFocusKey] = useState(0)
+  const [spellMenu, setSpellMenu] = useState<{
+    x: number
+    y: number
+    word: string
+    suggestions: string[]
+    message?: string
+    from: number
+    to: number
+  } | null>(null)
 
   const entityMap = useMemo(() => buildEntityNames(nodes), [nodes])
   const isEditable =
@@ -73,7 +85,8 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
       SearchAndReplace.configure({
         searchResultClass: 'search-result',
         disableRegex: true
-      })
+      }),
+      SpellCheckExtension
     ],
     content: node?.content ?? '',
     editable: !!isEditable,
@@ -85,7 +98,7 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
         autocomplete: 'off',
         autocorrect: 'on',
         autocapitalize: 'sentences',
-        spellcheck: 'true',
+        spellcheck: 'false',
         'data-form-type': 'other',
         'data-lpignore': 'true',
         'data-1p-ignore': 'true'
@@ -209,7 +222,39 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
   }
 
   return (
-    <div className="no-drag flex flex-1 flex-col overflow-hidden">
+    <div
+      className="no-drag flex flex-1 flex-col overflow-hidden"
+      onContextMenu={(e) => {
+        const target = e.target as HTMLElement
+        const spellEl = target.closest('.spell-error') as HTMLElement | null
+        if (!spellEl) return
+
+        e.preventDefault()
+
+        const word = spellEl.dataset.word ?? ''
+        const suggestions: string[] = JSON.parse(spellEl.dataset.suggestions ?? '[]')
+        const message = spellEl.dataset.message || undefined
+
+        if (!editor) return
+        try {
+          const view = editor.view
+          const domPos = view.posAtDOM(spellEl, 0)
+          if (domPos === null) return
+
+          setSpellMenu({
+            x: e.clientX,
+            y: e.clientY,
+            word,
+            suggestions,
+            message,
+            from: domPos,
+            to: domPos + word.length
+          })
+        } catch {
+          return
+        }
+      }}
+    >
       <EditorToolbar editor={editor} wordCount={wordCount} onOpenSearch={handleOpenSearch} />
       {searchOpen && editor && (
         <SearchBar
@@ -225,6 +270,32 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
           <EditorContent editor={editor} className="font-serif text-lg leading-relaxed" />
         </div>
       </div>
+
+      {spellMenu && (
+        <SpellSuggestions
+          x={spellMenu.x}
+          y={spellMenu.y}
+          word={spellMenu.word}
+          suggestions={spellMenu.suggestions}
+          message={spellMenu.message}
+          onSelect={(replacement) => {
+            if (!editor) return
+            editor
+              .chain()
+              .focus()
+              .setTextSelection({ from: spellMenu.from, to: spellMenu.to })
+              .insertContent(replacement)
+              .run()
+            setSpellMenu(null)
+          }}
+          onAddToDictionary={() => {
+            addCustomWord(spellMenu.word)
+            setSpellMenu(null)
+            editor?.commands.refreshSpellCheck()
+          }}
+          onClose={() => setSpellMenu(null)}
+        />
+      )}
     </div>
   )
 }
