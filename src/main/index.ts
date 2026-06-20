@@ -30,7 +30,8 @@ import {
   importEntityImage,
   updateBookSettings,
   updateCategories,
-  importCoverImage
+  importCoverImage,
+  deleteProject
 } from './tomes/projectStore'
 import { validateTomesFile } from './tomes/validate'
 import {
@@ -313,6 +314,18 @@ function registerIpcHandlers(): void {
   ipcMain.handle('tomes:removeFromRecent', async (_, { id }) => {
     await removeFromRecent(id)
     return { success: true }
+  })
+
+  ipcMain.handle('tomes:deleteProject', async (_, { primaryPath, projectId }: { primaryPath: string; projectId: string }) => {
+    const result = await deleteProject(primaryPath)
+    await removeFromRecent(projectId)
+    if (result.wasOpen) {
+      closeAllChildren()
+      await updateWindowLayout({ sidebarDetached: false, entityDetached: false })
+      resetNavigationState()
+      broadcastSync()
+    }
+    return { success: true, wasOpen: result.wasOpen }
   })
 
   ipcMain.handle('tomes:updateBackupLocations', async (_, { projectId, paths }) => {
