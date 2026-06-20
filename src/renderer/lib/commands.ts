@@ -33,7 +33,6 @@ export function makeCreateNodeCommand(params: {
           options
         )
         createdId = node.id
-        useAppStore.getState().addNode(node)
       } catch (err) {
         console.error('Create node failed:', err)
       }
@@ -73,7 +72,6 @@ export function makeCreateFolderCommand(params: {
           params.title
         )
         createdId = node.id
-        useAppStore.getState().addNode(node)
       } catch (err) {
         console.error('Create folder failed:', err)
       }

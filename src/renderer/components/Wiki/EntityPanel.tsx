@@ -3,6 +3,7 @@ import { X, PanelRightOpen } from 'lucide-react'
 import { useAppStore } from '@/store/appStore'
 import { Button } from '@/components/UI/button'
 import { Input } from '@/components/UI/input'
+import { ComboField } from '@/components/UI/ComboField'
 import { AutoGrowTextarea } from '@/components/UI/auto-grow-textarea'
 import { ScrollArea } from '@/components/UI/scroll-area'
 import { CharacterPanel } from '@/components/Wiki/CharacterPanel'
@@ -10,6 +11,7 @@ import { EntryPanel } from '@/components/Wiki/EntryPanel'
 import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
 import { NotePanel } from '@/components/Wiki/NotePanel'
 import { publishNavigationSyncAsync } from '@/lib/navigationSync'
+import { useFieldSuggestions } from '@/hooks/useFieldSuggestions'
 import { useResizeHandle, usePersistLayout } from '@/hooks/useResize'
 import { cn } from '@/lib/utils'
 import {
@@ -55,6 +57,7 @@ function LocationPanel({
 }): React.JSX.Element {
   const [meta, setMeta] = useState(metadata)
   const [name, setName] = useState(title)
+  const typeSuggestions = useFieldSuggestions('location', 'type', nodeId)
 
   useEffect(() => {
     setMeta(metadata)
@@ -87,7 +90,13 @@ function LocationPanel({
         <Input value={name} onChange={(e) => setName(e.target.value)} onBlur={save} />
       </Field>
       <Field label="Type">
-        <Input value={meta.type} onChange={(e) => setMeta({ ...meta, type: e.target.value })} onBlur={save} placeholder="city, forest, dungeon..." />
+        <ComboField
+          value={meta.type}
+          suggestions={typeSuggestions}
+          onChange={(v) => setMeta({ ...meta, type: v })}
+          onBlur={save}
+          placeholder="city, forest, dungeon..."
+        />
       </Field>
       <Field label="Description">
         <AutoGrowTextarea measureKey={nodeId} value={meta.description} onChange={(e) => setMeta({ ...meta, description: e.target.value })} onBlur={save} rows={4} />
@@ -112,6 +121,7 @@ function LorePanel({
 }): React.JSX.Element {
   const [meta, setMeta] = useState(metadata)
   const [name, setName] = useState(title)
+  const categorySuggestions = useFieldSuggestions('lore', 'category', nodeId)
 
   useEffect(() => {
     setMeta(metadata)
@@ -128,7 +138,13 @@ function LorePanel({
         <Input value={name} onChange={(e) => setName(e.target.value)} onBlur={save} />
       </Field>
       <Field label="Category">
-        <Input value={meta.category} onChange={(e) => setMeta({ ...meta, category: e.target.value })} onBlur={save} placeholder="magic, religion, history..." />
+        <ComboField
+          value={meta.category}
+          suggestions={categorySuggestions}
+          onChange={(v) => setMeta({ ...meta, category: v })}
+          onBlur={save}
+          placeholder="magic, religion, history..."
+        />
       </Field>
       <Field label="Description">
         <AutoGrowTextarea measureKey={nodeId} value={meta.description} onChange={(e) => setMeta({ ...meta, description: e.target.value })} onBlur={save} rows={4} />
