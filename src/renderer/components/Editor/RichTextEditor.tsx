@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
@@ -7,6 +7,8 @@ import CharacterCount from '@tiptap/extension-character-count'
 import { EntityMention } from './EntityMention'
 import { BlockStyle } from './BlockStyle'
 import { EditorToolbar } from './EditorToolbar'
+import { SearchBar } from './SearchBar'
+import SearchAndReplace from './searchAndReplace'
 import { useAppStore } from '@/store/appStore'
 import { markContentDirty, registerActiveEditor } from '@/lib/contentPersistence'
 import { countWords } from '@/lib/utils'
@@ -47,6 +49,9 @@ function buildEntityNames(nodes: TreeNode[]): Map<string, { id: string; type: st
 
 export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element {
   const { nodes, updateNodeInStore, setSelectedEntity } = useAppStore()
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchOpenWithReplace, setSearchOpenWithReplace] = useState(false)
+  const [searchFocusKey, setSearchFocusKey] = useState(0)
 
   const entityMap = useMemo(() => buildEntityNames(nodes), [nodes])
   const isEditable =
@@ -64,7 +69,11 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
       Placeholder.configure({
         placeholder: 'Start writing...'
       }),
-      CharacterCount
+      CharacterCount,
+      SearchAndReplace.configure({
+        searchResultClass: 'search-result',
+        disableRegex: true
+      })
     ],
     content: node?.content ?? '',
     editable: !!isEditable,
@@ -125,6 +134,60 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
     }
   }, [editor, node?.id, node?.content, isEditable])
 
+  useEffect(() => {
+    setSearchOpen(false)
+  }, [node?.id])
+
+  useEffect(() => {
+    if (!editor) return
+
+    const handler = (e: KeyboardEvent): void => {
+      const mod = e.metaKey || e.ctrlKey
+      if (!mod) return
+
+      if (e.key === 'f') {
+        e.preventDefault()
+        if (searchOpen) {
+          setSearchFocusKey((k) => k + 1)
+        } else {
+          setSearchOpenWithReplace(false)
+          setSearchOpen(true)
+        }
+      }
+      if (e.key === 'h') {
+        e.preventDefault()
+        if (searchOpen) {
+          setSearchOpenWithReplace(true)
+          setSearchFocusKey((k) => k + 1)
+        } else {
+          setSearchOpenWithReplace(true)
+          setSearchOpen(true)
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [editor, searchOpen])
+
+  const handleCloseSearch = (): void => {
+    setSearchOpen(false)
+    if (editor) {
+      editor.commands.setSearchTerm('')
+      editor.commands.setReplaceTerm('')
+      editor.commands.focus()
+    }
+  }
+
+  const handleOpenSearch = (): void => {
+    if (searchOpen) {
+      setSearchFocusKey((k) => k + 1)
+    } else {
+      setSearchOpenWithReplace(false)
+      setSearchOpen(true)
+    }
+  }
+
   const wordCount = editor ? countWords(editor.getHTML()) : 0
 
   if (!node) {
@@ -147,7 +210,16 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
 
   return (
     <div className="no-drag flex flex-1 flex-col overflow-hidden">
-      <EditorToolbar editor={editor} wordCount={wordCount} />
+      <EditorToolbar editor={editor} wordCount={wordCount} onOpenSearch={handleOpenSearch} />
+      {searchOpen && editor && (
+        <SearchBar
+          key={searchOpenWithReplace ? 'replace' : 'search'}
+          editor={editor}
+          onClose={handleCloseSearch}
+          defaultShowReplace={searchOpenWithReplace}
+          focusKey={searchFocusKey}
+        />
+      )}
       <div className="editor-scroll flex-1 overflow-y-auto px-8 py-6">
         <div className="mx-auto max-w-3xl">
           <EditorContent editor={editor} className="font-serif text-lg leading-relaxed" />

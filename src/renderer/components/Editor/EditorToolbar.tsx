@@ -6,6 +6,7 @@ import {
   Strikethrough,
   List,
   ListOrdered,
+  Search,
   Settings
 } from 'lucide-react'
 import type { Editor } from '@tiptap/react'
@@ -21,6 +22,7 @@ import type { BlockStyleType } from './BlockStyle'
 interface EditorToolbarProps {
   editor: Editor | null
   wordCount: number
+  onOpenSearch?: () => void
 }
 
 const STYLE_SHORTCUTS: { key: string; style: BlockStyleType }[] = [
@@ -65,7 +67,7 @@ function ToolbarButton({
   )
 }
 
-export function EditorToolbar({ editor, wordCount }: EditorToolbarProps): React.JSX.Element {
+export function EditorToolbar({ editor, wordCount, onOpenSearch }: EditorToolbarProps): React.JSX.Element {
   const { sidebarWidth, sidebarDetached, setShowBookSettingsModal } = useAppStore()
   const isSidebarContracted = !sidebarDetached && sidebarWidth <= SIDEBAR_ICON_ONLY_THRESHOLD
 
@@ -146,6 +148,11 @@ export function EditorToolbar({ editor, wordCount }: EditorToolbarProps): React.
         </ToolbarButton>
 
         <div className="ml-auto flex items-center gap-1">
+          {onOpenSearch && (
+            <ToolbarButton onClick={onOpenSearch} tooltip="Find (⌘F)">
+              <Search className="h-4 w-4" />
+            </ToolbarButton>
+          )}
           <ToolbarButton
             onClick={() => setShowBookSettingsModal(true)}
             tooltip="Book Settings"
