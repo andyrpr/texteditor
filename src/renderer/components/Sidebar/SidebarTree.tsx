@@ -23,6 +23,13 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { ChevronDown, ChevronRight, Folder, GripVertical, Plus } from 'lucide-react'
 import { useAppStore } from '@/store/appStore'
+import { useHistoryStore } from '@/store/historyStore'
+import {
+  makeMoveToTrashCommand,
+  makeRenameCommand,
+  makeReorderCommand,
+  makeReparentCommand
+} from '@/lib/commands'
 import { TreeContextMenu } from '@/components/Tree/TreeContextMenu'
 import { ConfirmDialog } from '@/components/UI/ConfirmDialog'
 import { cn } from '@/lib/utils'
@@ -237,7 +244,6 @@ export function SidebarTree({
     selectContainer,
     toggleFolder,
     setNodes,
-    updateNodeInStore
   } = useAppStore()
 
   const [renamingId, setRenamingId] = useState<string | null>(null)
@@ -260,20 +266,26 @@ export function SidebarTree({
       description: `Are you sure you want to move ${label} to trash? You can recover it within 50 days.`,
       destructive: true,
       onConfirm: async () => {
-        const updated = await window.electronAPI.tree.moveToTrash(node.id)
-        setNodes(updated)
+        await useHistoryStore.getState().push(makeMoveToTrashCommand({ node }))
         await onConfirm()
       }
     })
   }
 
   const handleRename = async (id: string): Promise<void> => {
-    if (!renameValue.trim()) {
+    const trimmed = renameValue.trim()
+    if (!trimmed) {
       setRenamingId(null)
       return
     }
-    const updated = await window.electronAPI.tree.update(id, { title: renameValue.trim() })
-    updateNodeInStore(id, { title: updated.title })
+    const node = nodes.find((n) => n.id === id)
+    if (!node || trimmed === node.title) {
+      setRenamingId(null)
+      return
+    }
+    await useHistoryStore.getState().push(
+      makeRenameCommand({ id, oldTitle: node.title, newTitle: trimmed })
+    )
     setRenamingId(null)
   }
 
@@ -313,10 +325,13 @@ export function SidebarTree({
     const overParent = overNode.parentId ?? null
 
     if (isFolder(overNode) && getChildren(nodes, overNode.id, scope).length >= 0) {
-      const updated = await window.electronAPI.tree.update(activeNode.id, { parentId: overNode.id })
-      updateNodeInStore(activeNode.id, { parentId: updated.parentId })
-      const all = await window.electronAPI.tree.getAll()
-      setNodes(all)
+      await useHistoryStore.getState().push(
+        makeReparentCommand({
+          nodeId: activeNode.id,
+          oldParentId: activeNode.parentId ?? null,
+          newParentId: overNode.id
+        })
+      )
       return
     }
 
@@ -329,10 +344,10 @@ export function SidebarTree({
 
     const reordered = arrayMove(siblings, oldIndex, newIndex)
     const items = reordered.map((n, i) => ({ id: n.id, parentId: n.parentId, sortOrder: i }))
+    const nodesBefore = [...nodes]
     const orderMap = new Map(items.map((item) => [item.id, item.sortOrder]))
     setNodes(nodes.map((n) => (orderMap.has(n.id) ? { ...n, sortOrder: orderMap.get(n.id)! } : n)))
-    const updated = await window.electronAPI.tree.reorder(items)
-    setNodes(updated)
+    await useHistoryStore.getState().push(makeReorderCommand({ previousNodes: nodesBefore, newItems: items }))
   }
 
   const renderRenameInput = (id: string): React.JSX.Element => (
@@ -510,10 +525,10 @@ function SceneList({
     if (oldIndex === -1 || newIndex === -1) return
     const reordered = arrayMove(scenes, oldIndex, newIndex)
     const items = reordered.map((n, i) => ({ id: n.id, parentId: chapterId, sortOrder: i }))
+    const nodesBefore = [...nodes]
     const orderMap = new Map(items.map((item) => [item.id, item.sortOrder]))
     setNodes(nodes.map((n) => (orderMap.has(n.id) ? { ...n, sortOrder: orderMap.get(n.id)! } : n)))
-    const updated = await window.electronAPI.tree.reorder(items)
-    setNodes(updated)
+    await useHistoryStore.getState().push(makeReorderCommand({ previousNodes: nodesBefore, newItems: items }))
   }
 
   return (
@@ -551,8 +566,7 @@ function SceneList({
             onRename={() => startRename(scene)}
             onMoveToTrash={() =>
               confirmTrash(scene, async () => {
-                const updated = await window.electronAPI.tree.moveToTrash(scene.id)
-                setNodes(updated)
+                /* selection cleared by store sync */
               })
             }
             onOpenNewWindow={() => onOpenNewWindow(scene)}

@@ -34,6 +34,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Button } from '@/components/UI/button'
 import { ChapterStructureModal } from '@/components/Project/ChapterStructureModal'
 import { SidebarTree } from '@/components/Sidebar/SidebarTree'
+import { UndoRedoButtons } from '@/components/Sidebar/UndoRedoButtons'
 import {
   Dialog,
   DialogContent,
@@ -42,6 +43,8 @@ import {
   DialogTitle
 } from '@/components/UI/dialog'
 import { useAppStore } from '@/store/appStore'
+import { useHistoryStore } from '@/store/historyStore'
+import { makeCreateChapterCommand, makeCreateNodeCommand } from '@/lib/commands'
 import { useResizeHandle, usePersistLayout } from '@/hooks/useResize'
 import { publishNavigationSyncAsync } from '@/lib/navigationSync'
 import { cn } from '@/lib/utils'
@@ -180,8 +183,6 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
     selectWikiEntity,
     setSelectedNodeId,
     toggleSection,
-    setNodes,
-    addNode,
     setSectionOrder,
     setSidebarWidth,
     setSidebarDetached,
@@ -212,9 +213,10 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
   }, [sectionOrder])
 
   const handleAddScene = async (chapterId: string): Promise<void> => {
-    const node = await window.electronAPI.tree.create(chapterId, 'scene', 'New Scene')
-    addNode(node)
-    setSelectedNodeId(node.id)
+    const createdId = await useHistoryStore.getState().push(
+      makeCreateNodeCommand({ parentId: chapterId, type: 'scene', title: 'New Scene' })
+    )
+    if (createdId) setSelectedNodeId(createdId)
   }
 
   const handleAddEntity = async (type: NodeType, parentId: string | null = null): Promise<void> => {
@@ -227,9 +229,10 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
       lore: 'New Lore Entry',
       note: 'New Note'
     }
-    const node = await window.electronAPI.tree.create(parentId, type, defaults[type])
-    addNode(node)
-    if (isWikiEntityType(node.type)) selectWikiEntity(node.id, node.type)
+    const createdId = await useHistoryStore.getState().push(
+      makeCreateNodeCommand({ parentId, type, title: defaults[type] })
+    )
+    if (createdId && isWikiEntityType(type)) selectWikiEntity(createdId, type)
   }
 
   const handleAddChapterClick = (): void => {
@@ -239,14 +242,16 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
 
   const handleChapterStructure = async (structure: ChapterStructure): Promise<void> => {
     setShowChapterModal(false)
-    const node = await window.electronAPI.tomes.createChapter(structure, chapterParentId)
-    const all = await window.electronAPI.tree.getAll()
-    setNodes(all)
+    const chapterId = await useHistoryStore.getState().push(
+      makeCreateChapterCommand({ structure, parentId: chapterParentId })
+    )
+    if (!chapterId) return
+    const all = useAppStore.getState().nodes
     if (structure === 'scenes') {
-      const scene = all.find((n) => n.parentId === node.id && n.type === 'scene')
-      setSelectedNodeId(scene?.id ?? node.id)
+      const scene = all.find((n) => n.parentId === chapterId && n.type === 'scene')
+      setSelectedNodeId(scene?.id ?? chapterId)
     } else {
-      setSelectedNodeId(node.id)
+      setSelectedNodeId(chapterId)
     }
   }
 
@@ -321,10 +326,15 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
 
           <div className={cn('relative flex min-h-0 flex-1 flex-col', !detached && 'border-r border-sidebar-border')}>
             <div className={cn('flex-1 overflow-x-hidden overflow-y-auto', iconOnly ? 'py-1' : 'py-2')}>
-              {!detached && !iconOnly && projectMeta && (
-                <div className="mb-1 min-w-0 px-2">
-                  <p className="truncate text-sm font-semibold leading-tight">{projectMeta.title}</p>
-                  {projectMeta.author && <p className="mt-0.5 truncate text-xs leading-tight text-muted-foreground">{projectMeta.author}</p>}
+              {!iconOnly && projectMeta && (
+                <div className="mb-1 flex min-w-0 items-center gap-2 px-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold leading-tight">{projectMeta.title}</p>
+                    {projectMeta.author && (
+                      <p className="mt-0.5 truncate text-xs leading-tight text-muted-foreground">{projectMeta.author}</p>
+                    )}
+                  </div>
+                  <UndoRedoButtons />
                 </div>
               )}
 
