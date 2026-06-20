@@ -3,14 +3,11 @@ import {
   ChevronDown,
   ChevronRight,
   BookOpen,
-  Users,
-  MapPin,
-  Scroll,
-  StickyNote,
   Plus,
   GripVertical,
   PanelLeftOpen,
-  Trash2
+  Trash2,
+  Settings2
 } from 'lucide-react'
 import {
   DndContext,
@@ -33,8 +30,10 @@ import { CSS } from '@dnd-kit/utilities'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/UI/tooltip'
 import { Button } from '@/components/UI/button'
 import { ChapterStructureModal } from '@/components/Project/ChapterStructureModal'
+import { CategoryManagerModal } from '@/components/Sidebar/CategoryManagerModal'
 import { SidebarTree } from '@/components/Sidebar/SidebarTree'
 import { UndoRedoButtons } from '@/components/Sidebar/UndoRedoButtons'
+import { resolveIcon } from '@/components/Sidebar/categoryIcons'
 import {
   Dialog,
   DialogContent,
@@ -45,6 +44,7 @@ import {
 import { useAppStore } from '@/store/appStore'
 import { useHistoryStore } from '@/store/historyStore'
 import { makeCreateChapterCommand, makeCreateNodeCommand } from '@/lib/commands'
+import { requestSidebarRenameAfterCreate } from '@/lib/pendingRename'
 import { useResizeHandle, usePersistLayout } from '@/hooks/useResize'
 import { publishNavigationSyncAsync } from '@/lib/navigationSync'
 import { cn } from '@/lib/utils'
@@ -54,15 +54,21 @@ import {
   isWikiEntityType,
   trashContainerId
 } from '@/lib/treeUtils'
-import type { ChapterStructure, FolderScope, NodeType, TrashCategory } from '@shared/types'
+import type { CategoryDefinition, ChapterStructure, FolderScope, NodeType, TrashCategory } from '@shared/types'
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH, TRASH_CATEGORY_LABELS } from '@shared/types'
 
-const SECTION_MAP = {
-  manuscript: { id: 'manuscript', label: 'Manuscript', icon: BookOpen, scope: 'manuscript' as FolderScope },
-  characters: { id: 'characters', label: 'Characters', icon: Users, scope: 'characters' as FolderScope, nodeType: 'character' as NodeType },
-  locations: { id: 'locations', label: 'Locations', icon: MapPin, scope: 'locations' as FolderScope, nodeType: 'location' as NodeType },
-  lore: { id: 'lore', label: 'Lore', icon: Scroll, scope: 'lore' as FolderScope, nodeType: 'lore' as NodeType },
-  notes: { id: 'notes', label: 'Notes', icon: StickyNote, scope: 'notes' as FolderScope, nodeType: 'note' as NodeType }
+const BUILTIN_TO_SCOPE: Record<string, FolderScope> = {
+  'builtin-characters': 'characters',
+  'builtin-locations': 'locations',
+  'builtin-lore': 'lore',
+  'builtin-notes': 'notes'
+}
+
+const BUILTIN_TO_NODETYPE: Record<string, NodeType> = {
+  'builtin-characters': 'character',
+  'builtin-locations': 'location',
+  'builtin-lore': 'lore',
+  'builtin-notes': 'note'
 }
 
 const SIDEBAR_TITLEBAR_INSET = 78
@@ -174,6 +180,7 @@ interface SidebarProps {
 export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
   const {
     nodes,
+    categories,
     selectedContainerId,
     expandedSections,
     sectionOrder,
@@ -182,8 +189,10 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
     selectContainer,
     selectWikiEntity,
     setSelectedNodeId,
+    selectEntry,
     toggleSection,
     setSectionOrder,
+    updateCategories,
     setSidebarWidth,
     setSidebarDetached,
     setEntityDetached
@@ -192,6 +201,7 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
   const [showChapterModal, setShowChapterModal] = useState(false)
   const [chapterParentId, setChapterParentId] = useState<string | null>(null)
   const [showTrashEmpty, setShowTrashEmpty] = useState(false)
+  const [showCategoryManager, setShowCategoryManager] = useState(false)
 
   const iconOnly = !detached && sidebarWidth <= SIDEBAR_ICON_ONLY_THRESHOLD
   const showSidebarDetach = sidebarWidth >= SIDEBAR_MAX_WIDTH * 0.5
@@ -206,17 +216,37 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
-  const orderedSections = useMemo(() => {
-    const manuscript = SECTION_MAP.manuscript
-    const rest = sectionOrder.map((id) => SECTION_MAP[id as keyof typeof SECTION_MAP]).filter(Boolean)
-    return [manuscript, ...rest]
-  }, [sectionOrder])
+  const orderedCategories = useMemo((): CategoryDefinition[] => {
+    if (categories.length === 0) return []
+
+    const catById = new Map(categories.map((c) => [c.id, c]))
+    const ordered: CategoryDefinition[] = []
+    for (const id of sectionOrder) {
+      const cat = catById.get(id)
+      if (cat) ordered.push(cat)
+    }
+    for (const cat of categories) {
+      if (!ordered.find((c) => c.id === cat.id)) {
+        ordered.push(cat)
+      }
+    }
+    return ordered
+  }, [categories, sectionOrder])
+
+  const isCategoryExpanded = (categoryId: string): boolean => {
+    if (expandedSections.has(categoryId)) return true
+    const legacyScope = BUILTIN_TO_SCOPE[categoryId]
+    return legacyScope ? expandedSections.has(legacyScope) : false
+  }
 
   const handleAddScene = async (chapterId: string): Promise<void> => {
     const createdId = await useHistoryStore.getState().push(
       makeCreateNodeCommand({ parentId: chapterId, type: 'scene', title: 'New Scene' })
     )
-    if (createdId) setSelectedNodeId(createdId)
+    if (createdId) {
+      setSelectedNodeId(createdId)
+      requestSidebarRenameAfterCreate(createdId)
+    }
   }
 
   const handleAddEntity = async (type: NodeType, parentId: string | null = null): Promise<void> => {
@@ -227,12 +257,31 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
       character: 'New Character',
       location: 'New Location',
       lore: 'New Lore Entry',
-      note: 'New Note'
+      note: 'New Note',
+      entry: 'New Entry'
     }
     const createdId = await useHistoryStore.getState().push(
       makeCreateNodeCommand({ parentId, type, title: defaults[type] })
     )
     if (createdId && isWikiEntityType(type)) selectWikiEntity(createdId, type)
+    requestSidebarRenameAfterCreate(createdId)
+  }
+
+  /** Creates a new entry node in a custom category. */
+  const handleAddEntry = async (categoryId: string): Promise<void> => {
+    const category = categories.find((c) => c.id === categoryId)
+    const title = category ? `New ${category.name.replace(/s$/, '')}` : 'New Entry'
+    const createdId = await useHistoryStore.getState().push(
+      makeCreateNodeCommand({ parentId: null, type: 'entry', title, categoryId })
+    )
+    if (createdId) {
+      if (category?.mode === 'panel') {
+        selectEntry(createdId, categoryId)
+      } else {
+        setSelectedNodeId(createdId)
+      }
+      requestSidebarRenameAfterCreate(createdId)
+    }
   }
 
   const handleAddChapterClick = (): void => {
@@ -253,6 +302,7 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
     } else {
       setSelectedNodeId(chapterId)
     }
+    requestSidebarRenameAfterCreate(chapterId)
   }
 
   const openInNewWindow = (node: import('@shared/types').TreeNode): void => {
@@ -272,9 +322,22 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
     const oldIndex = sectionOrder.indexOf(String(active.id))
     const newIndex = sectionOrder.indexOf(String(over.id))
     if (oldIndex === -1 || newIndex === -1) return
-    const next = arrayMove(sectionOrder, oldIndex, newIndex)
-    setSectionOrder(next)
-    await window.electronAPI.tomes.updateUiState({ sectionOrder: next })
+    const nextOrder = arrayMove(sectionOrder, oldIndex, newIndex)
+    setSectionOrder(nextOrder)
+
+    const reorderedCategories = nextOrder
+      .map((id, i) => {
+        const cat = categories.find((c) => c.id === id)
+        return cat ? { ...cat, sortOrder: i } : null
+      })
+      .filter((c): c is CategoryDefinition => c !== null)
+
+    const inOrder = new Set(nextOrder)
+    const remaining = categories.filter((c) => !inOrder.has(c.id))
+    const merged = [...reorderedCategories, ...remaining]
+
+    await updateCategories(merged)
+    await window.electronAPI.tomes.updateUiState({ sectionOrder: nextOrder })
   }
 
   const handleDetach = (): void => {
@@ -364,33 +427,49 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
               </div>
 
               <DndContext sensors={sensors} collisionDetection={closestCorners} modifiers={[restrictToVerticalAxis]} onDragEnd={handleSectionDragEnd}>
-                <SortableContext items={sectionOrder} strategy={verticalListSortingStrategy}>
-                  {orderedSections.slice(1).map((section) => (
-                    <SortableSection key={section.id} id={section.id} iconOnly={iconOnly}>
-                      <SectionHeader
-                        label={section.label}
-                        icon={section.icon}
-                        isExpanded={expandedSections.has(section.id)}
-                        iconOnly={iconOnly}
-                        isContainerSelected={selectedContainerId === section.id}
-                        onToggle={() => toggleSection(section.id)}
-                        onSelectContainer={() => {
-                          if (!expandedSections.has(section.id)) toggleSection(section.id)
-                          selectContainer(section.id)
-                        }}
-                        onAdd={() => void handleAddEntity(section.nodeType!)}
-                        addOnHover
-                      />
-                      {expandedSections.has(section.id) && !iconOnly && section.scope && (
-                        <SidebarTree
-                          scope={section.scope}
-                          parentId={null}
-                          onAddEntity={() => void handleAddEntity(section.nodeType!)}
-                          onOpenNewWindow={openInNewWindow}
+                <SortableContext items={orderedCategories.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+                  {orderedCategories.map((category) => {
+                    const Icon = resolveIcon(category.icon)
+                    const legacyScope = BUILTIN_TO_SCOPE[category.id]
+                    const legacyNodeType = BUILTIN_TO_NODETYPE[category.id]
+                    const isBuiltIn = !!legacyScope
+
+                    return (
+                      <SortableSection key={category.id} id={category.id} iconOnly={iconOnly}>
+                        <SectionHeader
+                          label={category.name}
+                          icon={Icon}
+                          isExpanded={isCategoryExpanded(category.id)}
+                          iconOnly={iconOnly}
+                          isContainerSelected={selectedContainerId === category.id}
+                          onToggle={() => toggleSection(category.id)}
+                          onSelectContainer={() => {
+                            if (!isCategoryExpanded(category.id)) toggleSection(category.id)
+                            selectContainer(category.id)
+                          }}
+                          onAdd={
+                            isBuiltIn
+                              ? () => void handleAddEntity(legacyNodeType!)
+                              : () => void handleAddEntry(category.id)
+                          }
+                          addOnHover
                         />
-                      )}
-                    </SortableSection>
-                  ))}
+                        {isCategoryExpanded(category.id) && !iconOnly && (
+                          <SidebarTree
+                            scope={isBuiltIn ? legacyScope! : 'entry'}
+                            parentId={null}
+                            categoryId={isBuiltIn ? undefined : category.id}
+                            onAddEntity={
+                              isBuiltIn
+                                ? () => void handleAddEntity(legacyNodeType!)
+                                : () => void handleAddEntry(category.id)
+                            }
+                            onOpenNewWindow={openInNewWindow}
+                          />
+                        )}
+                      </SortableSection>
+                    )
+                  })}
                 </SortableContext>
               </DndContext>
 
@@ -406,6 +485,34 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
                 />
                 {expandedSections.has('trash') && !iconOnly && trashCategories.map(renderTrashCategory)}
               </div>
+
+              {!iconOnly && (
+                <div className="mt-2 px-2 pb-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowCategoryManager(true)}
+                    className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted-foreground/60 transition-colors hover:bg-accent/30 hover:text-muted-foreground"
+                  >
+                    <Settings2 className="h-3 w-3" />
+                    <span>Manage categories</span>
+                  </button>
+                </div>
+              )}
+
+              {iconOnly && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => setShowCategoryManager(true)}
+                      className="mx-auto mb-1 flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground/60 hover:bg-accent/50 hover:text-muted-foreground"
+                    >
+                      <Settings2 className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">Manage categories</TooltipContent>
+                </Tooltip>
+              )}
             </div>
 
             {!detached && <div {...handleProps} className={cn(handleProps.className, 'right-0')} style={{ right: 0 }} />}
@@ -416,6 +523,8 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
       {showChapterModal && (
         <ChapterStructureModal open={showChapterModal} onOpenChange={setShowChapterModal} onSelect={(s) => void handleChapterStructure(s)} />
       )}
+
+      <CategoryManagerModal open={showCategoryManager} onOpenChange={setShowCategoryManager} />
 
       <Dialog open={showTrashEmpty} onOpenChange={setShowTrashEmpty}>
         <DialogContent className="max-w-sm">

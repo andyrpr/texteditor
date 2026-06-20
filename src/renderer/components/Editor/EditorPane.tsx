@@ -6,15 +6,16 @@ import {
   makeCreateFolderCommand,
   makeCreateNodeCommand,
   makeMoveToTrashCommand,
-  makeRenameCommand,
   makeReorderCommand,
   makeReparentCommand
 } from '@/lib/commands'
+import { requestRenameAfterCreate } from '@/lib/pendingRename'
 import { RichTextEditor } from '@/components/Editor/RichTextEditor'
 import { ContainerView } from '@/components/Editor/ContainerView'
 import { MoveSceneDialog } from '@/components/Tree/MoveSceneDialog'
 import {
   folderContainerId,
+  getCategoryScopedChildren,
   getChildren,
   getScenes,
   getSceneChapters,
@@ -26,7 +27,9 @@ import {
   isWikiEntityType,
   nodeTypeForWikiSection,
   parseFolderContainerId,
-  parseTrashContainerId
+  parseTrashContainerId,
+  resolveEntryCategoryIdForFolder,
+  resolveLegacySectionContainerId
 } from '@/lib/treeUtils'
 import type { ContainerSectionId } from '@/lib/treeUtils'
 import type { ChapterStructure, FolderScope, NodeType, TreeNode } from '@shared/types'
@@ -67,15 +70,26 @@ function isContainerSectionId(id: string): id is ContainerSectionId {
   return id in SECTION_CONTAINER_META
 }
 
+function containerSelectionId(
+  selectedNodeId: string | null,
+  selectedEntityId: string | null,
+  selectedEntryId: string | null
+): string | null {
+  return selectedEntryId ?? selectedEntityId ?? selectedNodeId
+}
+
 export function EditorPane(): React.JSX.Element {
   const {
     nodes,
+    categories,
     selectedNodeId,
     selectedEntityId,
+    selectedEntryId,
     selectedContainerId,
     setSelectedNodeId,
     selectWikiEntity,
     setSelectedEntity,
+    selectEntry,
     selectContainer,
     setNodes
   } = useAppStore()
@@ -89,14 +103,6 @@ export function EditorPane(): React.JSX.Element {
     const nodesBefore = [...useAppStore.getState().nodes]
     const items = reordered.map((n, i) => ({ id: n.id, parentId, sortOrder: i }))
     await useHistoryStore.getState().push(makeReorderCommand({ previousNodes: nodesBefore, newItems: items }))
-  }
-
-  const handleRename = async (node: TreeNode): Promise<void> => {
-    const title = window.prompt('Rename', node.title)
-    if (!title?.trim() || title.trim() === node.title) return
-    await useHistoryStore.getState().push(
-      makeRenameCommand({ id: node.id, oldTitle: node.title, newTitle: title.trim() })
-    )
   }
 
   const handleMoveToTrash = async (node: TreeNode): Promise<void> => {
@@ -135,14 +141,25 @@ export function EditorPane(): React.JSX.Element {
     void window.electronAPI.windows.openDocument(node.id, node.title)
   }
 
-  const createFolder = async (scope: FolderScope, parentId: string | null): Promise<void> => {
+  const createFolder = async (
+    scope: FolderScope,
+    parentId: string | null,
+    entryCategoryId?: string
+  ): Promise<void> => {
     const createdId = await useHistoryStore.getState().push(
       makeCreateFolderCommand({ scope, parentId, title: 'New Folder' })
     )
-    selectContainer(parentId ? folderContainerId(parentId) : scope === 'manuscript' ? 'manuscript' : scope)
+    if (parentId) {
+      selectContainer(folderContainerId(parentId))
+    } else if (scope === 'manuscript') {
+      selectContainer('manuscript')
+    } else if (entryCategoryId) {
+      selectContainer(entryCategoryId)
+    } else {
+      selectContainer(scope)
+    }
     if (createdId) {
-      const node = useAppStore.getState().nodes.find((n) => n.id === createdId)
-      if (node) await handleRename(node)
+      requestRenameAfterCreate(createdId, 'container')
     }
   }
 
@@ -161,8 +178,23 @@ export function EditorPane(): React.JSX.Element {
       setSelectedEntity(createdId, type)
     }
     if (createdId) {
-      const node = useAppStore.getState().nodes.find((n) => n.id === createdId)
-      if (node) await handleRename(node)
+      requestRenameAfterCreate(createdId, 'container')
+    }
+  }
+
+  const createEntry = async (categoryId: string, parentId: string | null): Promise<void> => {
+    const category = categories.find((c) => c.id === categoryId)
+    const title = category ? `New ${category.name.replace(/s$/, '')}` : 'New Entry'
+    const createdId = await useHistoryStore.getState().push(
+      makeCreateNodeCommand({ parentId, type: 'entry', title, categoryId })
+    )
+    if (createdId) {
+      if (category?.mode === 'panel') {
+        selectEntry(createdId, categoryId)
+      } else {
+        setSelectedNodeId(createdId)
+      }
+      requestRenameAfterCreate(createdId, 'container')
     }
   }
 
@@ -178,6 +210,7 @@ export function EditorPane(): React.JSX.Element {
     } else {
       setSelectedNodeId(chapterId)
     }
+    requestRenameAfterCreate(chapterId, 'container')
   }
 
   const createScene = async (chapterId: string): Promise<void> => {
@@ -186,8 +219,7 @@ export function EditorPane(): React.JSX.Element {
     )
     if (createdId) {
       setSelectedNodeId(createdId)
-      const node = useAppStore.getState().nodes.find((n) => n.id === createdId)
-      if (node) await handleRename(node)
+      requestRenameAfterCreate(createdId, 'container')
     }
   }
 
@@ -210,7 +242,11 @@ export function EditorPane(): React.JSX.Element {
     setRecoverSceneNode(null)
   }
 
-  const handleSelectContainerItem = (node: TreeNode, scope: FolderScope): void => {
+  const handleSelectContainerItem = (
+    node: TreeNode,
+    scope: FolderScope,
+    entryCategoryId?: string
+  ): void => {
     if (isFolder(node)) {
       selectContainer(folderContainerId(node.id))
       return
@@ -219,22 +255,42 @@ export function EditorPane(): React.JSX.Element {
       setSelectedNodeId(node.id)
       return
     }
+    if (node.type === 'entry' && entryCategoryId) {
+      const category = categories.find((c) => c.id === entryCategoryId)
+      if (category?.mode === 'panel') {
+        selectEntry(node.id, entryCategoryId)
+      } else {
+        setSelectedNodeId(node.id)
+      }
+      return
+    }
     if (isWikiEntityType(node.type)) {
       setSelectedEntity(node.id, node.type)
     }
   }
 
-  const buildEmptyMenu = (scope: FolderScope, parentId: string | null) => {
+  const buildEmptyMenu = (
+    scope: FolderScope,
+    parentId: string | null,
+    entryCategoryId?: string
+  ) => {
     const items: { label: string; onSelect: () => void }[] = [
-      { label: 'New Folder', onSelect: () => void createFolder(scope, parentId) }
+      {
+        label: 'New Folder',
+        onSelect: () => void createFolder(scope, parentId, entryCategoryId)
+      }
     ]
     if (scope === 'manuscript') {
       items.push(
         { label: 'New Chapter', onSelect: () => void createChapter('simple', parentId) },
         { label: 'New Chapter with Scenes', onSelect: () => void createChapter('scenes', parentId) }
       )
+    } else if (scope === 'entry' && entryCategoryId) {
+      const category = categories.find((c) => c.id === entryCategoryId)
+      const label = category ? `New ${category.name.replace(/s$/, '')}` : 'New Entry'
+      items.push({ label, onSelect: () => void createEntry(entryCategoryId, parentId) })
     } else {
-      const type = nodeTypeForWikiSection(scope)
+      const type = nodeTypeForWikiSection(scope as ContainerSectionId)
       if (type) {
         const labels: Record<string, string> = {
           character: 'New Character',
@@ -289,10 +345,14 @@ export function EditorPane(): React.JSX.Element {
     )
   }
 
-  if (selectedContainerId && isContainerSectionId(selectedContainerId)) {
-    const meta = SECTION_CONTAINER_META[selectedContainerId]
+  const sectionContainerId = selectedContainerId
+    ? resolveLegacySectionContainerId(selectedContainerId)
+    : null
+
+  if (sectionContainerId) {
+    const meta = SECTION_CONTAINER_META[sectionContainerId]
     const items = getChildren(nodes, null, meta.scope)
-    const isManuscript = selectedContainerId === 'manuscript'
+    const isManuscript = sectionContainerId === 'manuscript'
 
     return (
       <>
@@ -300,15 +360,45 @@ export function EditorPane(): React.JSX.Element {
           title={meta.title}
           items={items}
           emptyMessage={meta.emptyMessage}
-          selectedNodeId={isManuscript ? selectedNodeId : selectedEntityId}
+          selectedNodeId={
+            isManuscript ? selectedNodeId : containerSelectionId(selectedNodeId, selectedEntityId, selectedEntryId)
+          }
           onSelect={(node) => handleSelectContainerItem(node, meta.scope)}
           onReorder={(reordered) => void persistReorder(reordered, null)}
           menuVariant={isManuscript ? 'manuscript' : 'wiki'}
-          onRename={(node) => void handleRename(node)}
           onMoveTo={(node) => setMoveSceneNode(node)}
           onOpenNewWindow={openInNewWindow}
           onMoveToTrash={(node) => void handleMoveToTrash(node)}
           emptyMenuItems={buildEmptyMenu(meta.scope, null)}
+        />
+        {dialogs}
+      </>
+    )
+  }
+
+  const entryCategory =
+    selectedContainerId && !sectionContainerId
+      ? (categories.find((c) => c.id === selectedContainerId) ?? null)
+      : null
+
+  if (entryCategory) {
+    const items = getCategoryScopedChildren(nodes, null, entryCategory.id)
+    const emptyLabel = entryCategory.name.replace(/s$/, '')
+
+    return (
+      <>
+        <ContainerView
+          title={entryCategory.name}
+          items={items}
+          emptyMessage={`No ${emptyLabel.toLowerCase()} entries yet. Right-click to add a folder or entry.`}
+          selectedNodeId={containerSelectionId(selectedNodeId, selectedEntityId, selectedEntryId)}
+          onSelect={(node) => handleSelectContainerItem(node, 'entry', entryCategory.id)}
+          onReorder={(reordered) => void persistReorder(reordered, null)}
+          menuVariant="wiki"
+          onMoveTo={(node) => setMoveSceneNode(node)}
+          onOpenNewWindow={openInNewWindow}
+          onMoveToTrash={(node) => void handleMoveToTrash(node)}
+          emptyMenuItems={buildEmptyMenu('entry', null, entryCategory.id)}
         />
         {dialogs}
       </>
@@ -320,22 +410,36 @@ export function EditorPane(): React.JSX.Element {
     const folder = nodes.find((n) => n.id === folderId)
     if (folder && isFolder(folder)) {
       const folderScope = getFolderScope(folder) ?? 'manuscript'
-      const items = getChildren(nodes, folderId, folderScope)
+      const entryCategoryId =
+        folderScope === 'entry'
+          ? resolveEntryCategoryIdForFolder(
+              nodes,
+              folderId,
+              categories.map((c) => c.id)
+            )
+          : undefined
+      const items =
+        folderScope === 'entry' && entryCategoryId
+          ? getCategoryScopedChildren(nodes, folderId, entryCategoryId)
+          : getChildren(nodes, folderId, folderScope)
       return (
         <>
           <ContainerView
             title={folder.title}
             items={items}
             emptyMessage="This folder is empty. Right-click to add items."
-            selectedNodeId={folderScope === 'manuscript' ? selectedNodeId : selectedEntityId}
-            onSelect={(node) => handleSelectContainerItem(node, folderScope)}
+            selectedNodeId={
+              folderScope === 'manuscript'
+                ? selectedNodeId
+                : containerSelectionId(selectedNodeId, selectedEntityId, selectedEntryId)
+            }
+            onSelect={(node) => handleSelectContainerItem(node, folderScope, entryCategoryId)}
             onReorder={(reordered) => void persistReorder(reordered, folderId)}
             menuVariant={folderScope === 'manuscript' ? 'manuscript' : 'wiki'}
-            onRename={(node) => void handleRename(node)}
             onMoveTo={(node) => setMoveSceneNode(node)}
             onOpenNewWindow={openInNewWindow}
             onMoveToTrash={(node) => void handleMoveToTrash(node)}
-            emptyMenuItems={buildEmptyMenu(folderScope, folderId)}
+            emptyMenuItems={buildEmptyMenu(folderScope, folderId, entryCategoryId)}
           />
           {dialogs}
         </>
@@ -356,7 +460,6 @@ export function EditorPane(): React.JSX.Element {
           onSelect={(node) => setSelectedNodeId(node.id)}
           onReorder={(reordered) => void persistReorder(reordered, selectedNode.id)}
           menuVariant="manuscript"
-          onRename={(node) => void handleRename(node)}
           onMoveTo={(node) => setMoveSceneNode(node)}
           onOpenNewWindow={openInNewWindow}
           onMoveToTrash={(node) => void handleMoveToTrash(node)}

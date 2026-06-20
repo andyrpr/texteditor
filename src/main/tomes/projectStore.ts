@@ -3,6 +3,7 @@ import fse from 'fs-extra'
 import { v4 as uuidv4 } from 'uuid'
 import type {
   BookSettings,
+  CategoryDefinition,
   CreateProjectInput,
   FolderMeta,
   FolderScope,
@@ -16,6 +17,7 @@ import type {
   ChapterStructure
 } from '@shared/types'
 import {
+  BUILTIN_CATEGORIES,
   DEFAULT_CHARACTER_META,
   DEFAULT_BOOK_SETTINGS,
   DEFAULT_LOCATION_META,
@@ -79,6 +81,8 @@ function indexKeyForType(type: NodeType): keyof TomesManifest['index'] {
       return 'lore'
     case 'note':
       return 'notes'
+    case 'entry':
+      return 'entries'
   }
 }
 
@@ -92,6 +96,8 @@ function scopeToEntityIndexKey(scope: FolderScope): keyof TomesManifest['index']
       return 'lore'
     case 'notes':
       return 'notes'
+    case 'entry':
+      return 'entries'
     default:
       return 'chapters'
   }
@@ -100,6 +106,12 @@ function scopeToEntityIndexKey(scope: FolderScope): keyof TomesManifest['index']
 function normalizeManifest(m: TomesManifest): TomesManifest {
   if (!m.index.folders) {
     m.index.folders = []
+  }
+  if (!m.index.entries) {
+    m.index.entries = []
+  }
+  if (!m.categories) {
+    m.categories = [...BUILTIN_CATEGORIES]
   }
   return m
 }
@@ -140,6 +152,8 @@ function generateFilename(type: NodeType, index: number, parentIndex?: number): 
       return `lore-${pad(index)}${TXD_EXT}`
     case 'note':
       return `note-${pad(index)}${TXD_EXT}`
+    case 'entry':
+      return `entry-${pad(index)}${TXD_EXT}`
   }
 }
 
@@ -159,7 +173,8 @@ function txdToNode(txd: TxDFile, entry?: TomesIndexEntry): TreeNode {
     createdAt: txd.createdAt,
     updatedAt: txd.updatedAt,
     deletedAt: txd.deletedAt ?? entry?.deletedAt ?? null,
-    originalParentId: txd.originalParentId ?? entry?.originalParentId ?? null
+    originalParentId: txd.originalParentId ?? entry?.originalParentId ?? null,
+    categoryId: txd.categoryId ?? entry?.categoryId ?? null
   }
 }
 
@@ -175,7 +190,8 @@ function nodeToTxd(node: TreeNode): TxDFile {
     createdAt: node.createdAt,
     updatedAt: node.updatedAt,
     deletedAt: node.deletedAt ?? null,
-    originalParentId: node.originalParentId ?? null
+    originalParentId: node.originalParentId ?? null,
+    categoryId: node.categoryId ?? null
   }
 }
 
@@ -216,7 +232,8 @@ async function loadAllNodes(): Promise<TreeNode[]> {
     { key: 'characters', type: 'character' },
     { key: 'locations', type: 'location' },
     { key: 'lore', type: 'lore' },
-    { key: 'notes', type: 'note' }
+    { key: 'notes', type: 'note' },
+    { key: 'entries', type: 'entry' }
   ]
 
   for (const { key, type } of categories) {
@@ -256,6 +273,7 @@ function getEntryType(entryId: string): NodeType {
   if (manifest.index.characters.some((e) => e.id === entryId)) return 'character'
   if (manifest.index.locations.some((e) => e.id === entryId)) return 'location'
   if (manifest.index.lore.some((e) => e.id === entryId)) return 'lore'
+  if (manifest.index.entries?.some((e) => e.id === entryId)) return 'entry'
   return 'note'
 }
 
@@ -279,6 +297,7 @@ export function getProjectMeta(): ProjectMeta | null {
     author: manifest.author,
     genre: manifest.genre,
     bookSettings: normalizeBookSettings(manifest.bookSettings ?? {}),
+    categories: manifest.categories ?? [...BUILTIN_CATEGORIES],
     createdAt: manifest.createdAt,
     updatedAt: manifest.lastSavedAt
   }
@@ -311,13 +330,11 @@ export async function createProject(input: CreateProjectInput): Promise<{
   await fse.ensureDir(join(getWikiDir(root), 'lore', 'folders'))
   await fse.ensureDir(join(getWikiDir(root), 'notes'))
   await fse.ensureDir(join(getWikiDir(root), 'notes', 'folders'))
+  await fse.ensureDir(join(getWikiDir(root), 'entries'))
+  await fse.ensureDir(join(getWikiDir(root), 'entries', 'folders'))
+  await fse.ensureDir(join(getWikiDir(root), 'entry', 'folders'))
   await fse.ensureDir(getBackupsDir(root))
   await fse.ensureDir(getAssetsDir(root))
-
-  const chapterId = uuidv4()
-  const sceneId = uuidv4()
-  const chapterFilename = generateFilename('chapter', 1)
-  const sceneFilename = generateFilename('scene', 1, 1)
 
   manifest = {
     __tomes: TOMES_MAGIC,
@@ -328,15 +345,17 @@ export async function createProject(input: CreateProjectInput): Promise<{
     createdAt: timestamp,
     lastSavedAt: timestamp,
     version: '1.0',
-    uiState: { sectionOrder: [...DEFAULT_SECTION_ORDER] },
+    categories: input.categories,
+    uiState: { sectionOrder: input.categories.map((c) => c.id) },
     index: {
       folders: [],
-      chapters: [{ id: chapterId, filename: chapterFilename, title: 'Chapter 1', sortOrder: 0 }],
-      scenes: [{ id: sceneId, filename: sceneFilename, title: 'Scene 1', sortOrder: 0, parentId: chapterId }],
+      chapters: [],
+      scenes: [],
       characters: [],
       locations: [],
       lore: [],
-      notes: []
+      notes: [],
+      entries: []
     }
   }
 
@@ -345,35 +364,6 @@ export async function createProject(input: CreateProjectInput): Promise<{
   nodeCache.clear()
 
   await fse.writeFile(tomes, JSON.stringify(manifest, null, 2), 'utf-8')
-
-  const chapterNode: TreeNode = {
-    id: chapterId,
-    parentId: null,
-    type: 'chapter',
-    title: 'Chapter 1',
-    sortOrder: 0,
-    content: '',
-    metadata: '{}',
-    createdAt: timestamp,
-    updatedAt: timestamp
-  }
-
-  const sceneNode: TreeNode = {
-    id: sceneId,
-    parentId: chapterId,
-    type: 'scene',
-    title: 'Scene 1',
-    sortOrder: 0,
-    content: '',
-    metadata: '{}',
-    createdAt: timestamp,
-    updatedAt: timestamp
-  }
-
-  await writeTxdFile(getTxdPath(chapterFilename, 'chapter'), nodeToTxd(chapterNode))
-  await writeTxdFile(getTxdPath(sceneFilename, 'scene'), nodeToTxd(sceneNode))
-  nodeCache.set(chapterId, chapterNode)
-  nodeCache.set(sceneId, sceneNode)
 
   await addRecentProject({
     id,
@@ -442,7 +432,7 @@ export async function createNode(
   parentId: string | null,
   type: NodeType,
   title: string,
-  options?: { metadata?: string; scope?: FolderScope }
+  options?: { metadata?: string; scope?: FolderScope; categoryId?: string }
 ): Promise<TreeNode> {
   if (!manifest || !projectRoot) throw new Error('No project open')
 
@@ -481,7 +471,8 @@ export async function createNode(
     title,
     sortOrder,
     ...(parentId ? { parentId } : {}),
-    ...(type === 'folder' && options?.scope ? { folderScope: options.scope } : {})
+    ...(type === 'folder' && options?.scope ? { folderScope: options.scope } : {}),
+    ...(type === 'entry' && options?.categoryId ? { categoryId: options.categoryId } : {})
   }
 
   manifest.index[indexKey].push(entry)
@@ -497,7 +488,8 @@ export async function createNode(
     createdAt: timestamp,
     updatedAt: timestamp,
     deletedAt: null,
-    originalParentId: null
+    originalParentId: null,
+    categoryId: options?.categoryId ?? null
   }
 
   const scope = type === 'folder' ? getFolderScopeFromNode(node) : undefined
@@ -813,7 +805,8 @@ export async function purgeExpiredTrash(): Promise<void> {
     'characters',
     'locations',
     'lore',
-    'notes'
+    'notes',
+    'entries'
   ]
 
   const toPurge: string[] = []
@@ -1030,6 +1023,13 @@ export async function updateBookSettings(updates: Partial<BookSettings>): Promis
   manifest.bookSettings = normalizeBookSettings({ ...manifest.bookSettings, ...updates })
   await writeManifest()
   return manifest.bookSettings
+}
+
+export async function updateCategories(categories: CategoryDefinition[]): Promise<ProjectMeta> {
+  if (!manifest) throw new Error('No project open')
+  manifest.categories = categories
+  await writeManifest()
+  return getProjectMeta()!
 }
 
 export async function importCoverImage(sourcePath: string): Promise<string> {

@@ -6,6 +6,7 @@ import { Input } from '@/components/UI/input'
 import { AutoGrowTextarea } from '@/components/UI/auto-grow-textarea'
 import { ScrollArea } from '@/components/UI/scroll-area'
 import { CharacterPanel } from '@/components/Wiki/CharacterPanel'
+import { EntryPanel } from '@/components/Wiki/EntryPanel'
 import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
 import { NotePanel } from '@/components/Wiki/NotePanel'
 import { publishNavigationSyncAsync } from '@/lib/navigationSync'
@@ -24,7 +25,7 @@ import {
   RIGHT_PANEL_MIN_WIDTH,
   RIGHT_PANEL_MAX_WIDTH
 } from '@shared/types'
-import type { CharacterMeta, LocationMeta, LoreMeta, NoteMeta } from '@shared/types'
+import type { CharacterMeta, LocationMeta, LoreMeta, NoteMeta, TreeNode } from '@shared/types'
 
 function Field({
   label,
@@ -148,16 +149,24 @@ export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.E
     nodes,
     selectedEntityId,
     selectedEntityType,
+    selectedEntryId,
+    selectedEntryCategoryId,
+    categories,
     rightPanelWidth,
     setRightPanelOpen,
     setRightPanelWidth,
     setSelectedEntity,
+    selectEntry,
     updateNodeInStore,
     setDirty,
     setEntityDetached
   } = useAppStore()
 
-  const node = selectedEntityId ? nodes.find((n) => n.id === selectedEntityId) : null
+  const activeId = selectedEntryId ?? selectedEntityId
+  const node = activeId ? nodes.find((n) => n.id === activeId) : null
+  const entryCategory = selectedEntryId
+    ? (categories.find((c) => c.id === selectedEntryCategoryId) ?? null)
+    : null
 
   const { handleProps } = useResizeHandle(
     rightPanelWidth,
@@ -203,6 +212,23 @@ export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.E
     setDirty(true)
   }
 
+  const handleEntryUpdate = async (updates: {
+    title?: string
+    metadata?: string
+  }): Promise<void> => {
+    if (!node) return
+    const payload: { title?: string; metadata?: string } = {}
+    if (updates.title) payload.title = updates.title
+    if (updates.metadata !== undefined) payload.metadata = updates.metadata
+
+    const updated = await window.electronAPI.tree.update(node.id, payload)
+    const storeUpdates: Partial<TreeNode> = {}
+    if (updates.title) storeUpdates.title = updated.title
+    if (updates.metadata !== undefined) storeUpdates.metadata = updated.metadata
+    updateNodeInStore(node.id, storeUpdates)
+    setDirty(true)
+  }
+
   const handleDetach = (): void => {
     void publishNavigationSyncAsync()
       .then(() => window.electronAPI.windows.detach('entity'))
@@ -211,7 +237,7 @@ export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.E
       })
   }
 
-  if (!detached && (!selectedEntityId || !node)) return null
+  if (!detached && (!activeId || !node)) return null
   if (detached && !node) {
     return (
       <div className="flex flex-1 items-center justify-center text-muted-foreground">
@@ -221,7 +247,7 @@ export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.E
   }
   if (!node) return null
 
-  const panelType = selectedEntityType ?? node.type
+  const panelType = selectedEntryId ? 'entry' : (selectedEntityType ?? node.type)
 
   return (
     <aside
@@ -238,7 +264,9 @@ export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.E
       {!detached && (
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <div>
-            <h2 className="text-sm font-semibold capitalize">{panelType}</h2>
+            <h2 className="text-sm font-semibold capitalize">
+              {panelType === 'entry' ? (entryCategory?.name ?? 'Entry') : panelType}
+            </h2>
             <p className="text-xs text-muted-foreground">{node.title}</p>
           </div>
           <div className="flex items-center gap-1">
@@ -257,7 +285,11 @@ export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.E
               className="h-7 w-7"
               onClick={() => {
                 setRightPanelOpen(false)
-                setSelectedEntity(null, null)
+                if (selectedEntryId) {
+                  selectEntry(null, null)
+                } else {
+                  setSelectedEntity(null, null)
+                }
               }}
             >
               <X className="h-4 w-4" />
@@ -306,6 +338,20 @@ export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.E
               )}
               onUpdate={handleNoteUpdate}
             />
+          )}
+          {panelType === 'entry' && entryCategory && (
+            <EntryPanel
+              nodeId={node.id}
+              title={node.title}
+              metadata={node.metadata}
+              category={entryCategory}
+              onUpdate={handleEntryUpdate}
+            />
+          )}
+          {panelType === 'entry' && !entryCategory && (
+            <p className="text-sm text-muted-foreground">
+              Category not found. It may have been deleted.
+            </p>
           )}
         </div>
       </ScrollArea>

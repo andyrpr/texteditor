@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -55,6 +55,7 @@ interface SidebarTreeProps {
   parentId: string | null
   depth?: number
   disabled?: boolean
+  categoryId?: string
   onAddScene?: (chapterId: string) => void
   onAddEntity?: () => void
   onOpenNewWindow: (node: TreeNode) => void
@@ -229,6 +230,7 @@ export function SidebarTree({
   parentId,
   depth = 0,
   disabled = false,
+  categoryId,
   onAddScene,
   onAddEntity,
   onOpenNewWindow
@@ -237,8 +239,11 @@ export function SidebarTree({
     nodes,
     selectedNodeId,
     selectedEntityId,
+    selectedEntryId,
     selectedContainerId,
+    categories,
     expandedFolders,
+    selectEntry,
     setSelectedNodeId,
     selectWikiEntity,
     selectContainer,
@@ -250,8 +255,16 @@ export function SidebarTree({
   const [renameValue, setRenameValue] = useState('')
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
+  const pendingRenameNodeId = useAppStore((s) => s.pendingRenameNodeId)
+  const pendingRenameTarget = useAppStore((s) => s.pendingRenameTarget)
 
-  const children = getChildren(nodes, parentId, scope)
+  const children = useMemo(() => {
+    const raw = getChildren(nodes, parentId, scope)
+    if (scope === 'entry' && categoryId) {
+      return raw.filter((n) => n.type === 'folder' || n.categoryId === categoryId)
+    }
+    return raw
+  }, [nodes, parentId, scope, categoryId])
   const activeDragNode = activeDragId ? (nodes.find((n) => n.id === activeDragId) ?? null) : null
 
   const sensors = useSensors(
@@ -294,9 +307,28 @@ export function SidebarTree({
     setRenameValue(node.title)
   }
 
+  useEffect(() => {
+    if (pendingRenameTarget !== 'sidebar' || !pendingRenameNodeId) return
+    const node = useAppStore.getState().consumePendingRename('sidebar', (n) => {
+      if (children.some((c) => c.id === n.id)) return true
+      if (n.type === 'scene' && n.parentId && children.some((c) => c.id === n.parentId)) return true
+      return false
+    })
+    if (node) startRename(node)
+  }, [pendingRenameNodeId, pendingRenameTarget, children])
+
   const handleSelect = (node: TreeNode): void => {
     if (isFolder(node)) {
       selectContainer(folderContainerId(node.id))
+      return
+    }
+    if (node.type === 'entry') {
+      const cat = categories.find((c) => c.id === node.categoryId)
+      if (cat?.mode === 'panel') {
+        selectEntry(node.id, node.categoryId ?? null)
+      } else {
+        setSelectedNodeId(node.id)
+      }
       return
     }
     if (isWikiEntityType(node.type)) {
@@ -308,6 +340,9 @@ export function SidebarTree({
 
   const isNodeSelected = (node: TreeNode): boolean => {
     if (isFolder(node)) return selectedContainerId === folderContainerId(node.id)
+    if (node.type === 'entry') {
+      return selectedEntryId === node.id || selectedNodeId === node.id
+    }
     if (isWikiEntityType(node.type)) return selectedEntityId === node.id
     return selectedNodeId === node.id
   }
@@ -411,7 +446,7 @@ export function SidebarTree({
                         className="group-hover/chapter:opacity-100"
                         onClick={() => onAddScene(node.id)}
                       />
-                    ) : !folderNode && isWikiEntityType(node.type) && isLast && onAddEntity ? (
+                    ) : !folderNode && (isWikiEntityType(node.type) || node.type === 'entry') && isLast && onAddEntity ? (
                       <HoverAddButton className="group-hover/folder:opacity-100" onClick={onAddEntity} />
                     ) : undefined
                   }
@@ -422,6 +457,7 @@ export function SidebarTree({
                     parentId={node.id}
                     depth={depth + 1}
                     disabled={disabled}
+                    categoryId={categoryId}
                     onAddScene={onAddScene}
                     onAddEntity={onAddEntity}
                     onOpenNewWindow={onOpenNewWindow}

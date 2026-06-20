@@ -11,6 +11,7 @@ export function makeCreateNodeCommand(params: {
   type: NodeType
   title: string
   scope?: FolderScope
+  categoryId?: string
 }): StructuralCommand {
   let createdId: string | null = null
 
@@ -21,11 +22,15 @@ export function makeCreateNodeCommand(params: {
 
     execute: async () => {
       try {
+        const options =
+          params.scope || params.categoryId
+            ? { scope: params.scope, categoryId: params.categoryId }
+            : undefined
         const node = await window.electronAPI.tree.create(
           params.parentId,
           params.type,
           params.title,
-          params.scope ? { scope: params.scope } : undefined
+          options
         )
         createdId = node.id
         useAppStore.getState().addNode(node)

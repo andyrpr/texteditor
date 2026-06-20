@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type {
   BackupLocationStatus,
   BookSettings,
+  CategoryDefinition,
   ChapterStructure,
   CreateProjectInput,
   DevicePreviewRequestOptions,
@@ -47,6 +48,7 @@ export interface ElectronAPI {
     createChapter: (structure: ChapterStructure, parentId?: string | null) => Promise<TreeNode>
     updateUiState: (uiState: ProjectUiState) => Promise<ProjectUiState>
     updateBookSettings: (updates: Partial<BookSettings>) => Promise<BookSettings>
+    updateCategories: (categories: CategoryDefinition[]) => Promise<ProjectMeta>
     importCoverImage: (sourcePath: string) => Promise<{ relativePath: string }>
     getSyncState: () => Promise<SyncState>
   }
@@ -70,7 +72,7 @@ export interface ElectronAPI {
       parentId: string | null,
       type: NodeType,
       title: string,
-      options?: { metadata?: string; scope?: FolderScope }
+      options?: { metadata?: string; scope?: FolderScope; categoryId?: string }
     ) => Promise<TreeNode>
     createFolder: (scope: FolderScope, parentId: string | null, title: string) => Promise<TreeNode>
     update: (id: string, updates: Partial<Pick<TreeNode, 'title' | 'content' | 'metadata' | 'parentId' | 'sortOrder'>>) => Promise<TreeNode>
@@ -132,6 +134,7 @@ const api: ElectronAPI = {
     createChapter: (structure, parentId) => ipcRenderer.invoke('tomes:createChapter', { structure, parentId }),
     updateUiState: (uiState) => ipcRenderer.invoke('tomes:updateUiState', uiState),
     updateBookSettings: (updates) => ipcRenderer.invoke('tomes:updateBookSettings', updates),
+    updateCategories: (categories) => ipcRenderer.invoke('tomes:updateCategories', { categories }),
     importCoverImage: (sourcePath) => ipcRenderer.invoke('tomes:importCoverImage', { sourcePath }),
     getSyncState: () => ipcRenderer.invoke('tomes:getSyncState')
   },

@@ -2,11 +2,26 @@ export type EntityType = 'character' | 'location' | 'lore'
 
 export type WikiEntityType = EntityType | 'note'
 
-export type FolderScope = 'manuscript' | 'characters' | 'locations' | 'lore' | 'notes'
+export type FolderScope = 'manuscript' | 'characters' | 'locations' | 'lore' | 'notes' | 'entry'
 
-export type NodeType = 'folder' | 'chapter' | 'scene' | 'character' | 'location' | 'lore' | 'note'
+export type NodeType =
+  | 'folder'
+  | 'chapter'
+  | 'scene'
+  | 'character'
+  | 'location'
+  | 'lore'
+  | 'note'
+  | 'entry'
 
-export type TrashCategory = 'chapters' | 'scenes' | 'characters' | 'locations' | 'lore' | 'notes'
+export type TrashCategory =
+  | 'chapters'
+  | 'scenes'
+  | 'characters'
+  | 'locations'
+  | 'lore'
+  | 'notes'
+  | 'entries'
 
 export type Genre =
   | 'Fantasy'
@@ -116,6 +131,7 @@ export interface ProjectMeta {
   author: string
   genre?: string
   bookSettings: BookSettings
+  categories: CategoryDefinition[]
   createdAt: string
   updatedAt: string
 }
@@ -136,6 +152,7 @@ export interface TreeNode {
   updatedAt: string
   deletedAt?: string | null
   originalParentId?: string | null
+  categoryId?: string | null
 }
 
 export type CharacterRelationshipType =
@@ -162,6 +179,298 @@ export const CHARACTER_RELATIONSHIP_TYPES: CharacterRelationshipType[] = [
 export interface CharacterRelationship {
   characterId: string
   type: CharacterRelationshipType
+}
+
+// ─── Panel block system ───────────────────────────────────────────────────────
+
+export type PanelBlockType =
+  | 'text'
+  | 'textarea'
+  | 'status'
+  | 'tags'
+  | 'relationships'
+
+export interface PanelBlockBase {
+  id: string
+  label: string
+  type: PanelBlockType
+}
+
+export interface PanelBlockText extends PanelBlockBase {
+  type: 'text'
+  placeholder?: string
+}
+
+export interface PanelBlockTextarea extends PanelBlockBase {
+  type: 'textarea'
+  placeholder?: string
+  rows?: number
+}
+
+export interface PanelBlockStatus extends PanelBlockBase {
+  type: 'status'
+  options: string[]
+}
+
+export interface PanelBlockTags extends PanelBlockBase {
+  type: 'tags'
+  placeholder?: string
+}
+
+export interface PanelBlockRelationships extends PanelBlockBase {
+  type: 'relationships'
+  /** Which categoryIds the user can link to. Empty means any category. */
+  allowedCategoryIds?: string[]
+}
+
+export type PanelBlock =
+  | PanelBlockText
+  | PanelBlockTextarea
+  | PanelBlockStatus
+  | PanelBlockTags
+  | PanelBlockRelationships
+
+// ─── Category system ──────────────────────────────────────────────────────────
+
+export type CategoryMode = 'panel' | 'editor'
+
+export interface CategoryDefinition {
+  id: string
+  name: string
+  icon: string
+  mode: CategoryMode
+  sortOrder: number
+  builtIn: boolean
+  /** Panel layout — only used when mode === 'panel' */
+  panelBlocks?: PanelBlock[]
+}
+
+// ─── Built-in category definitions ───────────────────────────────────────────
+
+/** IDs for built-in categories — used to map to existing NodeType for legacy nodes */
+export const BUILTIN_CATEGORY_IDS = {
+  characters: 'builtin-characters',
+  locations: 'builtin-locations',
+  lore: 'builtin-lore',
+  notes: 'builtin-notes'
+} as const
+
+export const BUILTIN_CATEGORIES: CategoryDefinition[] = [
+  {
+    id: BUILTIN_CATEGORY_IDS.characters,
+    name: 'Characters',
+    icon: 'Users',
+    mode: 'panel',
+    sortOrder: 0,
+    builtIn: true,
+    panelBlocks: [
+      { id: 'aliases', label: 'Aliases', type: 'tags' },
+      { id: 'age', label: 'Age', type: 'text' },
+      { id: 'race', label: 'Race', type: 'text' },
+      { id: 'gender', label: 'Gender', type: 'text' },
+      { id: 'physicalDescription', label: 'Physical Description', type: 'textarea', rows: 3 },
+      { id: 'personality', label: 'Personality', type: 'textarea', rows: 3 },
+      { id: 'background', label: 'Background', type: 'textarea', rows: 3 },
+      { id: 'role', label: 'Role', type: 'text' },
+      {
+        id: 'relationships',
+        label: 'Relationships',
+        type: 'relationships',
+        allowedCategoryIds: [BUILTIN_CATEGORY_IDS.characters]
+      },
+      { id: 'notes', label: 'Notes', type: 'textarea', rows: 4 }
+    ]
+  },
+  {
+    id: BUILTIN_CATEGORY_IDS.locations,
+    name: 'Locations',
+    icon: 'MapPin',
+    mode: 'panel',
+    sortOrder: 1,
+    builtIn: true,
+    panelBlocks: [
+      { id: 'locationType', label: 'Type', type: 'text' },
+      { id: 'description', label: 'Description', type: 'textarea', rows: 4 },
+      {
+        id: 'connectedLocations',
+        label: 'Connected Locations',
+        type: 'relationships',
+        allowedCategoryIds: [BUILTIN_CATEGORY_IDS.locations]
+      },
+      {
+        id: 'notableCharacters',
+        label: 'Notable Characters',
+        type: 'relationships',
+        allowedCategoryIds: [BUILTIN_CATEGORY_IDS.characters]
+      },
+      { id: 'notes', label: 'Notes', type: 'textarea', rows: 3 }
+    ]
+  },
+  {
+    id: BUILTIN_CATEGORY_IDS.lore,
+    name: 'Lore',
+    icon: 'Scroll',
+    mode: 'panel',
+    sortOrder: 2,
+    builtIn: true,
+    panelBlocks: [
+      { id: 'category', label: 'Category', type: 'text' },
+      { id: 'description', label: 'Description', type: 'textarea', rows: 4 },
+      {
+        id: 'relatedCharacters',
+        label: 'Related Characters',
+        type: 'relationships',
+        allowedCategoryIds: [BUILTIN_CATEGORY_IDS.characters]
+      },
+      {
+        id: 'relatedLocations',
+        label: 'Related Locations',
+        type: 'relationships',
+        allowedCategoryIds: [BUILTIN_CATEGORY_IDS.locations]
+      },
+      { id: 'notes', label: 'Notes', type: 'textarea', rows: 3 }
+    ]
+  },
+  {
+    id: BUILTIN_CATEGORY_IDS.notes,
+    name: 'Notes',
+    icon: 'StickyNote',
+    mode: 'editor',
+    sortOrder: 3,
+    builtIn: true
+  }
+]
+
+// ─── Template definitions ─────────────────────────────────────────────────────
+
+export type TemplateId = 'blank' | 'fiction' | 'non-fiction'
+
+export interface ProjectTemplate {
+  id: TemplateId
+  name: string
+  description: string
+  categories: CategoryDefinition[]
+}
+
+export const PROJECT_TEMPLATES: ProjectTemplate[] = [
+  {
+    id: 'blank',
+    name: 'Blank',
+    description: 'Just the manuscript. Add categories whenever you need them.',
+    categories: []
+  },
+  {
+    id: 'fiction',
+    name: 'Fiction',
+    description: 'Characters, Locations, Lore, and Notes — the classic setup for novels and short stories.',
+    categories: BUILTIN_CATEGORIES
+  },
+  {
+    id: 'non-fiction',
+    name: 'Non-Fiction',
+    description: 'People, Sources, Concepts, and Notes — built for research-driven writing.',
+    categories: [
+      {
+        id: 'nf-people',
+        name: 'People',
+        icon: 'UserCircle',
+        mode: 'panel',
+        sortOrder: 0,
+        builtIn: false,
+        panelBlocks: [
+          { id: 'knownAs', label: 'Known As', type: 'text' },
+          { id: 'roleTitle', label: 'Role / Title', type: 'text' },
+          { id: 'organization', label: 'Organization', type: 'text' },
+          {
+            id: 'interviewStatus',
+            label: 'Interview Status',
+            type: 'status',
+            options: ['Not contacted', 'Contacted', 'Interviewed', 'Declined']
+          },
+          { id: 'keyQuotes', label: 'Key Quotes', type: 'textarea', rows: 4 },
+          { id: 'relevance', label: 'Relevance', type: 'textarea', rows: 2 },
+          { id: 'notes', label: 'Notes', type: 'textarea', rows: 3 }
+        ]
+      },
+      {
+        id: 'nf-sources',
+        name: 'Sources',
+        icon: 'BookOpen',
+        mode: 'panel',
+        sortOrder: 1,
+        builtIn: false,
+        panelBlocks: [
+          { id: 'authors', label: 'Author(s)', type: 'text' },
+          {
+            id: 'sourceType',
+            label: 'Type',
+            type: 'status',
+            options: ['Book', 'Article', 'Interview', 'Website', 'Podcast', 'Documentary', 'Other']
+          },
+          { id: 'publisher', label: 'Publisher / Publication', type: 'text' },
+          { id: 'year', label: 'Year', type: 'text' },
+          { id: 'url', label: 'URL', type: 'text' },
+          { id: 'keyExcerpts', label: 'Key Excerpts', type: 'textarea', rows: 4 },
+          { id: 'relevance', label: 'Relevance / How Cited', type: 'textarea', rows: 2 },
+          { id: 'notes', label: 'Notes', type: 'textarea', rows: 3 }
+        ]
+      },
+      {
+        id: 'nf-concepts',
+        name: 'Concepts',
+        icon: 'Lightbulb',
+        mode: 'panel',
+        sortOrder: 2,
+        builtIn: false,
+        panelBlocks: [
+          { id: 'definition', label: 'Definition', type: 'textarea', rows: 2 },
+          {
+            id: 'domain',
+            label: 'Domain',
+            type: 'text',
+            placeholder: 'e.g. Economics, Psychology, History'
+          },
+          { id: 'keyThinkers', label: 'Key Thinkers / References', type: 'textarea', rows: 2 },
+          {
+            id: 'relatedConcepts',
+            label: 'Related Concepts',
+            type: 'relationships',
+            allowedCategoryIds: ['nf-concepts']
+          },
+          { id: 'application', label: 'How It Applies', type: 'textarea', rows: 3 },
+          { id: 'notes', label: 'Notes', type: 'textarea', rows: 3 }
+        ]
+      },
+      {
+        id: BUILTIN_CATEGORY_IDS.notes,
+        name: 'Notes',
+        icon: 'StickyNote',
+        mode: 'editor',
+        sortOrder: 3,
+        builtIn: false
+      }
+    ]
+  }
+]
+
+export interface TemplateCategoryGroup {
+  templateId: TemplateId
+  templateName: string
+  categories: CategoryDefinition[]
+}
+
+/** Presets from Fiction / Non-Fiction templates not already in the project. */
+export function getAddableTemplateCategories(
+  current: CategoryDefinition[]
+): TemplateCategoryGroup[] {
+  const currentIds = new Set(current.map((c) => c.id))
+  return PROJECT_TEMPLATES.filter((template) => template.id !== 'blank')
+    .map((template) => ({
+      templateId: template.id,
+      templateName: template.name,
+      categories: template.categories.filter((preset) => !currentIds.has(preset.id))
+    }))
+    .filter((group) => group.categories.length > 0)
 }
 
 export interface CharacterMeta {
@@ -375,6 +684,8 @@ export interface NavigationSyncState {
   selectedContainerId: string | null
   selectedEntityId: string | null
   selectedEntityType: WikiEntityType | null
+  selectedEntryId?: string | null
+  selectedEntryCategoryId?: string | null
   expandedSections: string[]
   expandedFolders: string[]
   rightPanelOpen: boolean
@@ -415,6 +726,8 @@ export interface CreateProjectInput {
   genre: string
   primaryParentDir: string
   backupLocations: string[]
+  templateId: TemplateId
+  categories: CategoryDefinition[]
 }
 
 export interface TomesIndexEntry {
@@ -426,6 +739,7 @@ export interface TomesIndexEntry {
   deletedAt?: string | null
   originalParentId?: string | null
   folderScope?: FolderScope
+  categoryId?: string
 }
 
 export interface TomesManifest {
@@ -438,6 +752,7 @@ export interface TomesManifest {
   lastSavedAt: string
   version: string
   bookSettings?: BookSettings
+  categories?: CategoryDefinition[]
   uiState?: ProjectUiState
   index: {
     folders: TomesIndexEntry[]
@@ -447,6 +762,7 @@ export interface TomesManifest {
     locations: TomesIndexEntry[]
     lore: TomesIndexEntry[]
     notes: TomesIndexEntry[]
+    entries: TomesIndexEntry[]
   }
 }
 
@@ -462,6 +778,7 @@ export interface TxDFile {
   updatedAt: string
   deletedAt?: string | null
   originalParentId?: string | null
+  categoryId?: string | null
 }
 
 export const TOMES_MAGIC = '1.0'
@@ -578,7 +895,8 @@ export const TRASH_CATEGORY_LABELS: Record<TrashCategory, string> = {
   characters: 'Characters',
   locations: 'Locations',
   lore: 'Lore',
-  notes: 'Notes'
+  notes: 'Notes',
+  entries: 'Entries'
 }
 
 export const SIDEBAR_MAX_WIDTH = 280
@@ -587,6 +905,18 @@ export const RIGHT_PANEL_MIN_WIDTH = 320
 export const RIGHT_PANEL_MAX_WIDTH = 640
 
 export const DEFAULT_SECTION_ORDER = ['characters', 'locations', 'lore', 'notes']
+
+export function migrateSectionOrder(order: string[], categories: CategoryDefinition[]): string[] {
+  const legacyMap: Record<string, string> = {
+    characters: BUILTIN_CATEGORY_IDS.characters,
+    locations: BUILTIN_CATEGORY_IDS.locations,
+    lore: BUILTIN_CATEGORY_IDS.lore,
+    notes: BUILTIN_CATEGORY_IDS.notes
+  }
+  return order
+    .map((id) => legacyMap[id] ?? id)
+    .filter((id) => categories.some((c) => c.id === id))
+}
 
 export function parseMetadata<T>(raw: string, fallback: T): T {
   if (!raw) return fallback

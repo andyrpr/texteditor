@@ -1,5 +1,20 @@
 import { useState } from 'react'
-import { Check, FolderOpen, Loader2, Plus, X } from 'lucide-react'
+import {
+  BookMarked,
+  BookOpen,
+  Check,
+  FileText,
+  FolderOpen,
+  Lightbulb,
+  Loader2,
+  MapPin,
+  Plus,
+  Scroll,
+  StickyNote,
+  UserCircle,
+  Users,
+  X
+} from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -11,10 +26,25 @@ import {
 import { Button } from '@/components/UI/button'
 import { Input } from '@/components/UI/input'
 import { Label } from '@/components/UI/label'
+import { cn } from '@/lib/utils'
 import { detectPathLabel } from '@shared/pathUtils'
+import { PROJECT_TEMPLATES, BUILTIN_CATEGORIES } from '@shared/types'
+import type { TemplateId, CategoryDefinition } from '@shared/types'
 import { useProject } from '@/hooks/useProject'
 
 const GENRES = ['Fantasy', 'Sci-Fi', 'Romance', 'Mystery', 'Horror', 'Other'] as const
+
+const ICON_COMPONENTS: Record<string, React.ComponentType<{ className?: string }>> = {
+  Users,
+  MapPin,
+  Scroll,
+  StickyNote,
+  UserCircle,
+  BookOpen,
+  Lightbulb,
+  BookMarked,
+  FileText
+}
 
 interface NewProjectModalProps {
   open: boolean
@@ -38,6 +68,8 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
   const [error, setError] = useState<string | null>(null)
   const [hiddenForPicker, setHiddenForPicker] = useState(false)
   const [pickingFolder, setPickingFolder] = useState(false)
+  const [selectedTemplateId, setSelectedTemplateId] = useState<TemplateId>('fiction')
+  const [selectedCategories, setSelectedCategories] = useState<CategoryDefinition[]>(BUILTIN_CATEGORIES)
 
   const reset = (): void => {
     setStep(1)
@@ -48,6 +80,8 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
     setBackupRows([])
     setCreating(false)
     setError(null)
+    setSelectedTemplateId('fiction')
+    setSelectedCategories(BUILTIN_CATEGORIES)
   }
 
   const handleClose = (value: boolean): void => {
@@ -95,7 +129,7 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
   const handleCreate = async (): Promise<void> => {
     if (!primaryDir || !title.trim() || !author.trim()) return
     setCreating(true)
-    setStep(4)
+    setStep(5)
     setError(null)
     try {
       await createProjectFromInput({
@@ -103,20 +137,22 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
         author: author.trim(),
         genre: genre === 'Other' ? '' : genre,
         primaryParentDir: primaryDir,
-        backupLocations: backupRows.map((r) => r.path)
+        backupLocations: backupRows.map((r) => r.path),
+        templateId: selectedTemplateId,
+        categories: selectedCategories
       })
       reset()
       onOpenChange(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create project')
       setCreating(false)
-      setStep(3)
+      setStep(4)
     }
   }
 
   return (
     <Dialog open={open && !hiddenForPicker} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => creating && e.preventDefault()}>
+      <DialogContent className="sm:max-w-lg" onPointerDownOutside={(e) => creating && e.preventDefault()}>
         {step === 1 && (
           <>
             <DialogHeader>
@@ -170,6 +206,76 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
         {step === 2 && (
           <>
             <DialogHeader>
+              <DialogTitle>Choose a template</DialogTitle>
+              <DialogDescription>
+                Templates set up your wiki categories. You can add or remove categories later.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-2 py-2">
+              {PROJECT_TEMPLATES.map((template) => {
+                const isSelected = selectedTemplateId === template.id
+                return (
+                  <button
+                    key={template.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedTemplateId(template.id)
+                      setSelectedCategories(template.categories)
+                    }}
+                    className={cn(
+                      'w-full rounded-lg border p-4 text-left transition-colors',
+                      isSelected
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-border/80 hover:bg-accent/30'
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">{template.name}</span>
+                      {isSelected && <Check className="h-4 w-4 text-primary" />}
+                    </div>
+
+                    <p className="mt-0.5 text-xs text-muted-foreground">{template.description}</p>
+
+                    {template.categories.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {template.categories.map((cat) => {
+                          const IconComponent = ICON_COMPONENTS[cat.icon]
+                          return (
+                            <span
+                              key={cat.id}
+                              className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+                            >
+                              {IconComponent && <IconComponent className="h-3 w-3" />}
+                              {cat.name}
+                            </span>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    {template.categories.length === 0 && (
+                      <p className="mt-2 text-xs italic text-muted-foreground/60">
+                        No categories — just the manuscript.
+                      </p>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+
+            <DialogFooter className="gap-2">
+              <Button variant="ghost" onClick={() => setStep(1)}>
+                Back
+              </Button>
+              <Button onClick={() => setStep(3)}>Next</Button>
+            </DialogFooter>
+          </>
+        )}
+
+        {step === 3 && (
+          <>
+            <DialogHeader>
               <DialogTitle>Primary Save Location</DialogTitle>
               <DialogDescription>
                 This is your main working copy. Choose a folder you trust — Documents, Desktop, or
@@ -204,17 +310,17 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
               )}
             </div>
             <DialogFooter className="gap-2">
-              <Button variant="ghost" onClick={() => setStep(1)}>
+              <Button variant="ghost" onClick={() => setStep(2)}>
                 Back
               </Button>
-              <Button onClick={() => setStep(3)} disabled={!primaryDir}>
+              <Button onClick={() => setStep(4)} disabled={!primaryDir}>
                 Next
               </Button>
             </DialogFooter>
           </>
         )}
 
-        {step === 3 && (
+        {step === 4 && (
           <>
             <DialogHeader>
               <DialogTitle>Backup Locations</DialogTitle>
@@ -249,7 +355,7 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
               {error && <p className="text-sm text-destructive">{error}</p>}
             </div>
             <DialogFooter className="gap-2">
-              <Button variant="ghost" onClick={() => setStep(2)}>
+              <Button variant="ghost" onClick={() => setStep(3)}>
                 Back
               </Button>
               <Button onClick={handleCreate}>Continue</Button>
@@ -257,7 +363,7 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
           </>
         )}
 
-        {step === 4 && (
+        {step === 5 && (
           <div className="flex flex-col items-center gap-4 py-8">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
             <p className="text-sm text-muted-foreground">Creating your project...</p>

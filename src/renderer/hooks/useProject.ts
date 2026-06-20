@@ -5,9 +5,13 @@ import { useToastStore } from '@/components/UI/toast'
 import { flushAllDirty, flushAndSaveProject, resetPersistenceState } from '@/lib/contentPersistence'
 import { publishNavigationSync } from '@/lib/navigationSync'
 import type { CreateProjectInput } from '@shared/types'
+import { BUILTIN_CATEGORIES, migrateSectionOrder } from '@shared/types'
 
 export function useProject(): {
-  createProjectFromInput: (input: CreateProjectInput) => Promise<void>
+  createProjectFromInput: (
+    input: Omit<CreateProjectInput, 'templateId' | 'categories'> &
+      Partial<Pick<CreateProjectInput, 'templateId' | 'categories'>>
+  ) => Promise<void>
   openProject: () => Promise<void>
   openProjectAtPath: (path: string) => Promise<void>
   saveProject: () => Promise<void>
@@ -74,7 +78,7 @@ export function useProject(): {
       const result = await window.electronAPI.tomes.openProject(path)
       setProject(result.path, result.meta, result.nodes)
       if (result.uiState?.sectionOrder) {
-        setSectionOrder(result.uiState.sectionOrder)
+        setSectionOrder(migrateSectionOrder(result.uiState.sectionOrder, result.meta.categories ?? []))
       }
       selectFirstNode(result.nodes)
       setLastSaved(result.meta.updatedAt)
@@ -88,11 +92,15 @@ export function useProject(): {
     async (input: CreateProjectInput) => {
       await flushAllDirty()
       useHistoryStore.getState().clear()
-      const result = await window.electronAPI.tomes.createProject(input)
+      const result = await window.electronAPI.tomes.createProject({
+        ...input,
+        templateId: input.templateId ?? 'fiction',
+        categories: input.categories ?? BUILTIN_CATEGORIES
+      })
       const openResult = await window.electronAPI.tomes.openProject(result.path)
       setProject(openResult.path, openResult.meta, openResult.nodes)
       if (openResult.uiState?.sectionOrder) {
-        setSectionOrder(openResult.uiState.sectionOrder)
+        setSectionOrder(migrateSectionOrder(openResult.uiState.sectionOrder, openResult.meta.categories ?? []))
       }
       selectFirstNode(openResult.nodes)
       setLastSaved(openResult.meta.updatedAt)

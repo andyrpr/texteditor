@@ -29,6 +29,7 @@ import {
   importCharacterImage,
   importEntityImage,
   updateBookSettings,
+  updateCategories,
   importCoverImage
 } from './tomes/projectStore'
 import { validateTomesFile } from './tomes/validate'
@@ -72,6 +73,7 @@ import { exportDocument } from './export'
 import { generatePreviewEpub } from './tomes/preview/generatePreviewEpub'
 import type {
   BookSettings,
+  CategoryDefinition,
   CreateProjectInput,
   DevicePreviewRequestOptions,
   ExportOptions,
@@ -377,6 +379,12 @@ function registerIpcHandlers(): void {
     return settings
   })
 
+  ipcMain.handle('tomes:updateCategories', async (_, { categories }: { categories: CategoryDefinition[] }) => {
+    const meta = await updateCategories(categories)
+    broadcastSync()
+    return meta
+  })
+
   ipcMain.handle('tomes:importCoverImage', async (_, { sourcePath }: { sourcePath: string }) => {
     const relativePath = await importCoverImage(sourcePath)
     return { relativePath }
@@ -493,8 +501,8 @@ function registerIpcHandlers(): void {
     return getAllNodes()
   })
 
-  ipcMain.handle('tree:create', async (_, { parentId, type, title, metadata, scope }) => {
-    const node = await createNode(parentId, type as NodeType, title, { metadata, scope })
+  ipcMain.handle('tree:create', async (_, { parentId, type, title, metadata, scope, categoryId }) => {
+    const node = await createNode(parentId, type as NodeType, title, { metadata, scope, categoryId })
     broadcastSync()
     return node
   })
