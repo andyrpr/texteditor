@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -19,6 +19,9 @@ import { CSS } from '@dnd-kit/utilities'
 import { Folder, GripVertical } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { countNodeWords, isFolder, stripNodeContentPreview } from '@/lib/treeUtils'
+import { useAppStore } from '@/store/appStore'
+import { useHistoryStore } from '@/store/historyStore'
+import { makeRenameCommand } from '@/lib/commands'
 import { TreeContextMenu, EmptyAreaContextMenu } from '@/components/Tree/TreeContextMenu'
 import { ConfirmDialog } from '@/components/UI/ConfirmDialog'
 import type { TreeNode } from '@shared/types'
@@ -55,6 +58,11 @@ function SortableCard({
   isSelected,
   readOnly,
   menuVariant = 'manuscript',
+  renaming,
+  renameValue,
+  onRenameValueChange,
+  onRenameCommit,
+  onRenameCancel,
   onSelect,
   onRename,
   onMoveTo,
@@ -68,6 +76,11 @@ function SortableCard({
   isSelected: boolean
   readOnly?: boolean
   menuVariant?: 'manuscript' | 'wiki' | 'trash'
+  renaming?: boolean
+  renameValue?: string
+  onRenameValueChange?: (value: string) => void
+  onRenameCommit?: () => void
+  onRenameCancel?: () => void
   onSelect: () => void
   onRename?: () => void
   onMoveTo?: () => void
@@ -96,13 +109,14 @@ function SortableCard({
       ref={setNodeRef}
       style={style}
       className={cn(
-        'no-drag group relative flex flex-col rounded-lg border bg-card p-4 shadow-sm transition-colors cursor-pointer',
+        'no-drag group relative flex flex-col rounded-lg border bg-card p-4 shadow-sm transition-colors',
+        renaming ? 'cursor-default' : 'cursor-pointer',
         isSelected ? 'border-primary ring-1 ring-primary' : 'border-border hover:border-primary/50 hover:bg-accent/30',
         isDragging && 'opacity-50 z-10'
       )}
-      onClick={onSelect}
+      onClick={renaming ? undefined : onSelect}
     >
-      {!readOnly && (
+      {!readOnly && !renaming && (
         <button
           type="button"
           className="absolute right-2 top-2 rounded p-1 opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100 cursor-grab touch-none"
@@ -116,16 +130,37 @@ function SortableCard({
       )}
       <div className="flex items-start gap-2 pr-8">
         {folderNode && <Folder className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />}
-        <h3 className="font-medium leading-snug">{node.title}</h3>
+        {renaming ? (
+          <input
+            autoFocus
+            value={renameValue ?? node.title}
+            onChange={(e) => onRenameValueChange?.(e.target.value)}
+            onBlur={() => onRenameCommit?.()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') onRenameCommit?.()
+              if (e.key === 'Escape') onRenameCancel?.()
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full rounded border border-input bg-background px-2 py-1 text-sm font-medium"
+          />
+        ) : (
+          <h3 className="font-medium leading-snug">{node.title}</h3>
+        )}
       </div>
-      <p className="mt-2 flex-1 text-sm text-muted-foreground line-clamp-3">{preview}</p>
-      {words > 0 && (
-        <p className="mt-3 text-xs text-muted-foreground">
-          {words.toLocaleString()} {words === 1 ? 'word' : 'words'}
-        </p>
+      {!renaming && (
+        <>
+          <p className="mt-2 flex-1 text-sm text-muted-foreground line-clamp-3">{preview}</p>
+          {words > 0 && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              {words.toLocaleString()} {words === 1 ? 'word' : 'words'}
+            </p>
+          )}
+        </>
       )}
     </div>
   )
+
+  if (renaming) return card
 
   if (readOnly && menuVariant === 'trash') {
     return (
@@ -191,6 +226,44 @@ export function ContainerView({
   emptyMenuItems
 }: ContainerViewProps): React.JSX.Element {
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const pendingRenameNodeId = useAppStore((s) => s.pendingRenameNodeId)
+  const pendingRenameTarget = useAppStore((s) => s.pendingRenameTarget)
+  const nodes = useAppStore((s) => s.nodes)
+
+  useEffect(() => {
+    if (pendingRenameTarget !== 'container' || !pendingRenameNodeId) return
+    const node = useAppStore.getState().consumePendingRename('container', (n) =>
+      items.some((item) => item.id === n.id)
+    )
+    if (node) {
+      setRenamingId(node.id)
+      setRenameValue(node.title)
+    }
+  }, [pendingRenameNodeId, pendingRenameTarget, items])
+
+  const startRename = (node: TreeNode): void => {
+    setRenamingId(node.id)
+    setRenameValue(node.title)
+  }
+
+  const handleRenameCommit = async (id: string): Promise<void> => {
+    const trimmed = renameValue.trim()
+    if (!trimmed) {
+      setRenamingId(null)
+      return
+    }
+    const node = nodes.find((n) => n.id === id)
+    if (!node || trimmed === node.title) {
+      setRenamingId(null)
+      return
+    }
+    await useHistoryStore.getState().push(
+      makeRenameCommand({ id, oldTitle: node.title, newTitle: trimmed })
+    )
+    setRenamingId(null)
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -222,8 +295,17 @@ export function ContainerView({
                   isSelected={selectedNodeId === node.id}
                   readOnly={readOnly}
                   menuVariant={menuVariant}
+                  renaming={renamingId === node.id}
+                  renameValue={renameValue}
+                  onRenameValueChange={setRenameValue}
+                  onRenameCommit={() => void handleRenameCommit(node.id)}
+                  onRenameCancel={() => setRenamingId(null)}
                   onSelect={() => onSelect(node)}
-                  onRename={onRename ? () => onRename(node) : undefined}
+                  onRename={
+                    onRename
+                      ? () => onRename(node)
+                      : () => startRename(node)
+                  }
                   onMoveTo={onMoveTo ? () => onMoveTo(node) : undefined}
                   onOpenNewWindow={onOpenNewWindow ? () => onOpenNewWindow(node) : undefined}
                   onMoveToTrash={onMoveToTrash ? () => onMoveToTrash(node) : undefined}

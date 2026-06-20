@@ -7,7 +7,7 @@ import type {
   TreeNode,
   WikiEntityType
 } from '@shared/types'
-import { DEFAULT_CHAPTER_META, DEFAULT_FOLDER_META, parseMetadata } from '@shared/types'
+import { BUILTIN_CATEGORY_IDS, DEFAULT_CHAPTER_META, DEFAULT_FOLDER_META, parseMetadata } from '@shared/types'
 
 export function isSimpleChapter(node: TreeNode): boolean {
   const meta = parseMetadata<ChapterMeta>(node.metadata, DEFAULT_CHAPTER_META)
@@ -74,6 +74,63 @@ export function folderScopeForSection(section: ContainerSectionId): FolderScope 
   return section
 }
 
+const BUILTIN_CATEGORY_TO_SECTION: Record<string, ContainerSectionId> = {
+  [BUILTIN_CATEGORY_IDS.characters]: 'characters',
+  [BUILTIN_CATEGORY_IDS.locations]: 'locations',
+  [BUILTIN_CATEGORY_IDS.lore]: 'lore',
+  [BUILTIN_CATEGORY_IDS.notes]: 'notes'
+}
+
+/** Map sidebar category id or legacy section id to EditorPane container section. */
+export function resolveLegacySectionContainerId(containerId: string): ContainerSectionId | null {
+  if (
+    containerId === 'manuscript' ||
+    containerId === 'characters' ||
+    containerId === 'locations' ||
+    containerId === 'lore' ||
+    containerId === 'notes'
+  ) {
+    return containerId
+  }
+  return BUILTIN_CATEGORY_TO_SECTION[containerId] ?? null
+}
+
+/** Root/folder children for a custom entry category (folders + entries in that category). */
+export function getCategoryScopedChildren(
+  nodes: TreeNode[],
+  parentId: string | null,
+  categoryId: string
+): TreeNode[] {
+  return getChildren(nodes, parentId, 'entry').filter(
+    (n) => n.type === 'folder' || n.categoryId === categoryId
+  )
+}
+
+function isNodeInCategoryTree(nodes: TreeNode[], nodeId: string, categoryId: string): boolean {
+  const node = nodes.find((n) => n.id === nodeId)
+  if (!node || node.deletedAt) return false
+  if (node.type === 'entry') return node.categoryId === categoryId
+  if ((node.parentId ?? null) === null) {
+    return getCategoryScopedChildren(nodes, null, categoryId).some((n) => n.id === nodeId)
+  }
+  return isNodeInCategoryTree(nodes, node.parentId!, categoryId)
+}
+
+/** Resolve which entry category a folder belongs to (for container card views). */
+export function resolveEntryCategoryIdForFolder(
+  nodes: TreeNode[],
+  folderId: string,
+  categoryIds: string[]
+): string | undefined {
+  const entryChild = nodes.find(
+    (n) => !n.deletedAt && n.parentId === folderId && n.type === 'entry' && n.categoryId
+  )
+  if (entryChild?.categoryId && categoryIds.includes(entryChild.categoryId)) {
+    return entryChild.categoryId
+  }
+  return categoryIds.find((id) => isNodeInCategoryTree(nodes, folderId, id))
+}
+
 export function isActiveNode(node: TreeNode): boolean {
   return !node.deletedAt
 }
@@ -89,7 +146,8 @@ export function getTrashNodes(nodes: TreeNode[], category: TrashCategory): TreeN
     characters: 'character',
     locations: 'location',
     lore: 'lore',
-    notes: 'note'
+    notes: 'note',
+    entries: 'entry'
   }
   const type = typeMap[category]
   return nodes
@@ -109,6 +167,7 @@ export function getTrashCategories(nodes: TreeNode[]): TrashCategory[] {
   if (nodes.some((n) => n.deletedAt && n.type === 'location')) categories.push('locations')
   if (nodes.some((n) => n.deletedAt && n.type === 'lore')) categories.push('lore')
   if (nodes.some((n) => n.deletedAt && n.type === 'note')) categories.push('notes')
+  if (nodes.some((n) => n.deletedAt && n.type === 'entry')) categories.push('entries')
   return categories
 }
 
@@ -143,6 +202,7 @@ const WIKI_CHILD_TYPES: NodeType[] = ['folder', 'character', 'location', 'lore',
 
 export function getChildTypesForScope(scope: FolderScope): NodeType[] {
   if (scope === 'manuscript') return MANUSCRIPT_CHILD_TYPES
+  if (scope === 'entry') return ['folder', 'entry']
   return [scope.slice(0, -1) as NodeType, 'folder'].filter(Boolean) as NodeType[]
 }
 
@@ -185,6 +245,8 @@ function scopeToEntityType(scope: FolderScope): NodeType {
       return 'lore'
     case 'notes':
       return 'note'
+    case 'entry':
+      return 'entry'
     default:
       return 'chapter'
   }
@@ -223,6 +285,8 @@ function entityTypeToScope(type: NodeType): FolderScope | null {
       return 'lore'
     case 'note':
       return 'notes'
+    case 'entry':
+      return 'entry'
     default:
       return null
   }

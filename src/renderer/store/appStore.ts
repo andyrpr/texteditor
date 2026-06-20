@@ -1,6 +1,8 @@
 import { create } from 'zustand'
-import type { FolderScope, ProjectMeta, TreeNode, WikiEntityType } from '@shared/types'
-import { DEFAULT_SECTION_ORDER, SIDEBAR_MAX_WIDTH } from '@shared/types'
+import type { CategoryDefinition, FolderScope, ProjectMeta, TreeNode, WikiEntityType } from '@shared/types'
+import { DEFAULT_SECTION_ORDER, migrateSectionOrder, SIDEBAR_MAX_WIDTH } from '@shared/types'
+
+export type PendingRenameTarget = 'sidebar' | 'container'
 
 interface AppState {
   projectPath: string | null
@@ -11,6 +13,7 @@ interface AppState {
   isDirty: boolean
   backupWarningCount: number
 
+  categories: CategoryDefinition[]
   nodes: TreeNode[]
   selectedNodeId: string | null
   selectedContainerId: string | null
@@ -20,6 +23,8 @@ interface AppState {
 
   selectedEntityId: string | null
   selectedEntityType: WikiEntityType | null
+  selectedEntryId: string | null
+  selectedEntryCategoryId: string | null
 
   theme: 'light' | 'dark'
   sidebarWidth: number
@@ -32,12 +37,18 @@ interface AppState {
   showExportDialog: boolean
   showBookSettingsModal: boolean
 
+  pendingRenameNodeId: string | null
+  pendingRenameTarget: PendingRenameTarget | null
+
   setProject: (path: string, meta: ProjectMeta, nodes?: TreeNode[]) => void
   closeProject: () => void
   setProjectMeta: (meta: ProjectMeta) => void
   setLastSaved: (timestamp: string) => void
   setDirty: (dirty: boolean) => void
   setBackupWarningCount: (count: number) => void
+
+  setCategories: (categories: CategoryDefinition[]) => void
+  updateCategories: (categories: CategoryDefinition[]) => Promise<void>
 
   setNodes: (nodes: TreeNode[]) => void
   addNode: (node: TreeNode) => void
@@ -51,6 +62,7 @@ interface AppState {
   setSectionOrder: (order: string[]) => void
 
   setSelectedEntity: (id: string | null, type: WikiEntityType | null) => void
+  selectEntry: (id: string | null, categoryId: string | null) => void
   setTheme: (theme: 'light' | 'dark', options?: { persist?: boolean }) => void
   toggleTheme: () => void
   setRightPanelOpen: (open: boolean) => void
@@ -62,6 +74,13 @@ interface AppState {
   setSidebarDetached: (detached: boolean) => void
   setEntityDetached: (detached: boolean) => void
   applyNavigationSync: (nav: import('@shared/types').NavigationSyncState) => void
+
+  requestRename: (id: string, target: PendingRenameTarget) => void
+  consumePendingRename: (
+    target: PendingRenameTarget,
+    matches: (node: TreeNode) => boolean
+  ) => TreeNode | null
+  clearPendingRename: () => void
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -73,6 +92,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   isDirty: false,
   backupWarningCount: 0,
 
+  categories: [],
   nodes: [],
   selectedNodeId: null,
   selectedContainerId: null,
@@ -82,6 +102,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   selectedEntityId: null,
   selectedEntityType: null,
+  selectedEntryId: null,
+  selectedEntryCategoryId: null,
 
   theme: 'dark',
   sidebarWidth: SIDEBAR_MAX_WIDTH,
@@ -93,6 +115,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   showExportDialog: false,
   showBookSettingsModal: false,
 
+  pendingRenameNodeId: null,
+  pendingRenameTarget: null,
+
   setProject: (path, meta, nodes) =>
     set({
       projectPath: path,
@@ -100,6 +125,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       projectMeta: meta,
       isProjectOpen: true,
       isDirty: false,
+      categories: meta.categories ?? [],
       ...(nodes ? { nodes } : {})
     }),
 
@@ -109,21 +135,34 @@ export const useAppStore = create<AppState>((set, get) => ({
       projectId: null,
       projectMeta: null,
       isProjectOpen: false,
+      categories: [],
       nodes: [],
       selectedNodeId: null,
       selectedContainerId: null,
       selectedEntityId: null,
       selectedEntityType: null,
+      selectedEntryId: null,
+      selectedEntryCategoryId: null,
       expandedFolders: new Set(),
       isDirty: false,
       lastSaved: null,
-      backupWarningCount: 0
+      backupWarningCount: 0,
+      pendingRenameNodeId: null,
+      pendingRenameTarget: null
     }),
 
   setProjectMeta: (meta) => set({ projectMeta: meta }),
   setLastSaved: (timestamp) => set({ lastSaved: timestamp, isDirty: false }),
   setDirty: (dirty) => set({ isDirty: dirty }),
   setBackupWarningCount: (count) => set({ backupWarningCount: count }),
+
+  setCategories: (categories) => set({ categories }),
+
+  updateCategories: async (categories) => {
+    set({ categories })
+    const meta = await window.electronAPI.tomes.updateCategories(categories)
+    set({ projectMeta: meta })
+  },
 
   setNodes: (nodes) => set({ nodes }),
   addNode: (node) => set((s) => ({ nodes: [...s.nodes, node] })),
@@ -137,6 +176,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       selectedNodeId: s.selectedNodeId === id ? null : s.selectedNodeId,
       ...(s.selectedEntityId === id
         ? { selectedEntityId: null, selectedEntityType: null, rightPanelOpen: false }
+        : {}),
+      ...(s.selectedEntryId === id
+        ? { selectedEntryId: null, selectedEntryCategoryId: null, rightPanelOpen: false }
         : {})
     })),
   setSelectedNodeId: (id) =>
@@ -145,6 +187,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       selectedContainerId: null,
       selectedEntityId: null,
       selectedEntityType: null,
+      selectedEntryId: null,
+      selectedEntryCategoryId: null,
       rightPanelOpen: false
     }),
   selectContainer: (id) =>
@@ -153,6 +197,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       selectedNodeId: null,
       selectedEntityId: null,
       selectedEntityType: null,
+      selectedEntryId: null,
+      selectedEntryCategoryId: null,
       rightPanelOpen: false
     }),
   selectWikiEntity: (id, type) => get().setSelectedEntity(id, type),
@@ -171,6 +217,18 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setSectionOrder: (order) => set({ sectionOrder: order }),
 
+  selectEntry: (id, categoryId) => {
+    set({
+      selectedEntryId: id,
+      selectedEntryCategoryId: categoryId,
+      selectedNodeId: null,
+      selectedContainerId: null,
+      selectedEntityId: null,
+      selectedEntityType: null,
+      rightPanelOpen: id !== null
+    })
+  },
+
   setSelectedEntity: (id, type) => {
     const reopenPanel = id !== null
     if (reopenPanel && get().entityDetached) {
@@ -178,6 +236,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({
         selectedEntityId: id,
         selectedEntityType: type,
+        selectedEntryId: null,
+        selectedEntryCategoryId: null,
         rightPanelOpen: true,
         entityDetached: false
       })
@@ -186,6 +246,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({
       selectedEntityId: id,
       selectedEntityType: type,
+      selectedEntryId: null,
+      selectedEntryCategoryId: null,
       rightPanelOpen: reopenPanel
     })
   },
@@ -216,11 +278,28 @@ export const useAppStore = create<AppState>((set, get) => ({
       selectedContainerId: nav.selectedContainerId,
       selectedEntityId: nav.selectedEntityId,
       selectedEntityType: nav.selectedEntityType,
+      selectedEntryId: nav.selectedEntryId ?? null,
+      selectedEntryCategoryId: nav.selectedEntryCategoryId ?? null,
       expandedSections: new Set(nav.expandedSections),
       expandedFolders: new Set(nav.expandedFolders ?? []),
       rightPanelOpen: nav.rightPanelOpen,
-      sectionOrder: nav.sectionOrder
-    })
+      sectionOrder: migrateSectionOrder(nav.sectionOrder, get().categories),
+      pendingRenameNodeId: null,
+      pendingRenameTarget: null
+    }),
+
+  requestRename: (id, target) => set({ pendingRenameNodeId: id, pendingRenameTarget: target }),
+
+  consumePendingRename: (target, matches) => {
+    const { pendingRenameNodeId, pendingRenameTarget, nodes } = get()
+    if (!pendingRenameNodeId || pendingRenameTarget !== target) return null
+    const node = nodes.find((n) => n.id === pendingRenameNodeId)
+    if (!node || !matches(node)) return null
+    set({ pendingRenameNodeId: null, pendingRenameTarget: null })
+    return node
+  },
+
+  clearPendingRename: () => set({ pendingRenameNodeId: null, pendingRenameTarget: null })
 }))
 
 export function getSelectedNode(state: AppState): TreeNode | null {

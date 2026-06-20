@@ -59,6 +59,8 @@ export function getNodeDir(projectRoot: string, type: string, scope?: string): s
       return join(getWikiDir(projectRoot), 'lore')
     case 'note':
       return join(getWikiDir(projectRoot), 'notes')
+    case 'entry':
+      return join(getWikiDir(projectRoot), 'entries')
     default:
       return getWikiDir(projectRoot)
   }
