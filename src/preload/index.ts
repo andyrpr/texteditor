@@ -37,6 +37,7 @@ export interface ElectronAPI {
     getProjectInfo: () => Promise<{ path: string; meta: ProjectMeta } | null>
     getRecentProjects: () => Promise<RecentProjectWithStatus[]>
     removeFromRecent: (id: string) => Promise<{ success: boolean }>
+    deleteProject: (primaryPath: string, projectId: string) => Promise<{ success: boolean; wasOpen: boolean }>
     updateBackupLocations: (projectId: string, paths: string[]) => Promise<{ success: boolean }>
     checkBackupLocations: (paths: string[]) => Promise<BackupLocationStatus[]>
     getConfig: () => Promise<PriamaConfig>
@@ -120,6 +121,8 @@ const api: ElectronAPI = {
     getProjectInfo: () => ipcRenderer.invoke('tomes:getProjectInfo'),
     getRecentProjects: () => ipcRenderer.invoke('tomes:getRecentProjects'),
     removeFromRecent: (id) => ipcRenderer.invoke('tomes:removeFromRecent', { id }),
+    deleteProject: (primaryPath, projectId) =>
+      ipcRenderer.invoke('tomes:deleteProject', { primaryPath, projectId }),
     updateBackupLocations: (projectId, paths) =>
       ipcRenderer.invoke('tomes:updateBackupLocations', { projectId, paths }),
     checkBackupLocations: (paths) => ipcRenderer.invoke('tomes:checkBackupLocations', { paths }),

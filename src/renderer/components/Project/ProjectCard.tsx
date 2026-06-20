@@ -12,6 +12,7 @@ interface ProjectCardProps {
   onStats: () => void
   onShowInFolder: () => void
   onRemove: () => void
+  onDelete: () => void
 }
 
 export function ProjectCard({
@@ -20,7 +21,8 @@ export function ProjectCard({
   onRename,
   onStats,
   onShowInFolder,
-  onRemove
+  onRemove,
+  onDelete
 }: ProjectCardProps): React.JSX.Element {
   const isMac = navigator.platform.toLowerCase().includes('mac')
   const lastOpened = formatDistanceToNow(new Date(project.lastOpened), { addSuffix: true })
@@ -86,6 +88,14 @@ export function ProjectCard({
             onSelect={onShowInFolder}
           >
             {isMac ? 'Show in Finder' : 'Show in Explorer'}
+          </ContextMenu.Item>
+          <ContextMenu.Separator className="my-1 h-px bg-border" />
+          <ContextMenu.Item
+            className="flex cursor-pointer rounded-sm px-2 py-1.5 text-sm text-destructive outline-none hover:bg-accent"
+            onSelect={onDelete}
+            disabled={!project.exists}
+          >
+            Delete Project…
           </ContextMenu.Item>
           <ContextMenu.Separator className="my-1 h-px bg-border" />
           <ContextMenu.Item

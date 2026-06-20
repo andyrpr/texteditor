@@ -1,4 +1,4 @@
-import { join, extname, relative } from 'path'
+import { join, extname, relative, resolve, dirname } from 'path'
 import fse from 'fs-extra'
 import { v4 as uuidv4 } from 'uuid'
 import type {
@@ -418,6 +418,22 @@ export function closeProject(): void {
   tomesPath = null
   manifest = null
   nodeCache.clear()
+}
+
+export async function deleteProject(primaryPath: string): Promise<{ wasOpen: boolean }> {
+  const currentRoot = getProjectRootPath()
+  const normalizedTarget = resolve(dirname(primaryPath))
+  const wasOpen =
+    currentRoot !== null && resolve(currentRoot) === normalizedTarget
+
+  if (wasOpen) {
+    await saveProject()
+    closeProject()
+  }
+
+  await fse.remove(normalizedTarget)
+
+  return { wasOpen }
 }
 
 export function getAllNodes(): TreeNode[] {

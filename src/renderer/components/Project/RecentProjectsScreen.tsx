@@ -12,6 +12,7 @@ import {
 import { Input } from '@/components/UI/input'
 import { Label } from '@/components/UI/label'
 import { NewProjectModal } from '@/components/Project/NewProjectModal'
+import { DeleteProjectModal } from '@/components/Project/DeleteProjectModal'
 import { ProjectCard } from '@/components/Project/ProjectCard'
 import { useProject } from '@/hooks/useProject'
 import type { RecentProjectWithStatus } from '@shared/types'
@@ -28,6 +29,7 @@ export function RecentProjectsScreen(): React.JSX.Element {
   const [recents, setRecents] = useState<RecentProjectWithStatus[]>([])
   const [missingProject, setMissingProject] = useState<RecentProjectWithStatus | null>(null)
   const [renameProject, setRenameProject] = useState<RecentProjectWithStatus | null>(null)
+  const [deleteProject, setDeleteProject] = useState<RecentProjectWithStatus | null>(null)
   const [renameTitle, setRenameTitle] = useState('')
   const [renaming, setRenaming] = useState(false)
 
@@ -93,6 +95,12 @@ export function RecentProjectsScreen(): React.JSX.Element {
     }
   }
 
+  const handleDeleteProject = async (project: RecentProjectWithStatus): Promise<void> => {
+    await window.electronAPI.tomes.deleteProject(project.primaryPath, project.id)
+    setDeleteProject(null)
+    await loadRecents()
+  }
+
   return (
     <div className="flex h-screen flex-col text-[var(--launch-ink)]">
       <header className="flex shrink-0 items-start justify-between gap-6 border-b border-[var(--launch-hairline)] px-12 pb-[22px] pt-12">
@@ -145,6 +153,7 @@ export function RecentProjectsScreen(): React.JSX.Element {
                 await removeFromRecent(project.id)
                 await loadRecents()
               }}
+              onDelete={() => setDeleteProject(project)}
             />
           ))}
 
@@ -172,6 +181,12 @@ export function RecentProjectsScreen(): React.JSX.Element {
       </div>
 
       <NewProjectModal open={showNewProjectModal} onOpenChange={setShowNewProjectModal} />
+
+      <DeleteProjectModal
+        project={deleteProject}
+        onClose={() => setDeleteProject(null)}
+        onConfirm={handleDeleteProject}
+      />
 
       <Dialog open={!!renameProject} onOpenChange={(open) => !open && closeRenameDialog()}>
         <DialogContent>
