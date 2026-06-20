@@ -1,12 +1,125 @@
-import type { ChapterMeta, ExportSection, FolderMeta, ManuscriptChapterRef, TreeNode } from '../types'
+import type {
+  BookSettings,
+  ChapterMeta,
+  ExportSection,
+  FolderMeta,
+  ManuscriptChapterRef,
+  TreeNode
+} from '../types'
 import { DEFAULT_CHAPTER_META, DEFAULT_FOLDER_META, parseMetadata } from '../types'
+
+const NUMBER_WORDS = [
+  'Zero',
+  'One',
+  'Two',
+  'Three',
+  'Four',
+  'Five',
+  'Six',
+  'Seven',
+  'Eight',
+  'Nine',
+  'Ten',
+  'Eleven',
+  'Twelve',
+  'Thirteen',
+  'Fourteen',
+  'Fifteen',
+  'Sixteen',
+  'Seventeen',
+  'Eighteen',
+  'Nineteen',
+  'Twenty',
+  'Twenty-One',
+  'Twenty-Two',
+  'Twenty-Three',
+  'Twenty-Four',
+  'Twenty-Five',
+  'Twenty-Six',
+  'Twenty-Seven',
+  'Twenty-Eight',
+  'Twenty-Nine',
+  'Thirty',
+  'Thirty-One',
+  'Thirty-Two',
+  'Thirty-Three',
+  'Thirty-Four',
+  'Thirty-Five',
+  'Thirty-Six',
+  'Thirty-Seven',
+  'Thirty-Eight',
+  'Thirty-Nine',
+  'Forty',
+  'Forty-One',
+  'Forty-Two',
+  'Forty-Three',
+  'Forty-Four',
+  'Forty-Five',
+  'Forty-Six',
+  'Forty-Seven',
+  'Forty-Eight',
+  'Forty-Nine',
+  'Fifty'
+]
+
+export function numberToWords(n: number): string {
+  if (n >= 0 && n < NUMBER_WORDS.length) return NUMBER_WORDS[n]
+  return String(n)
+}
+
+export function numberToRoman(n: number): string {
+  if (n <= 0 || n > 3999) return String(n)
+
+  const values = [1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1]
+  const symbols = ['M', 'CM', 'D', 'CD', 'C', 'XC', 'L', 'XL', 'X', 'IX', 'V', 'IV', 'I']
+
+  let result = ''
+  let remaining = n
+
+  for (let i = 0; i < values.length; i++) {
+    while (remaining >= values[i]) {
+      result += symbols[i]
+      remaining -= values[i]
+    }
+  }
+
+  return result
+}
+
+export function formatChapterLabel(
+  chapterNumber: number,
+  title: string,
+  settings: BookSettings
+): string | null {
+  if (settings.chapterLabelStyle === 'none') return null
+  if (settings.chapterLabelStyle === 'title-only') return title
+
+  const number =
+    settings.chapterNumberFormat === 'words'
+      ? numberToWords(chapterNumber)
+      : settings.chapterNumberFormat === 'roman'
+        ? numberToRoman(chapterNumber)
+        : String(chapterNumber)
+  const numbered = `${settings.chapterLabelPrefix} ${number}`.trim()
+
+  if (settings.chapterLabelStyle === 'number-only') return numbered
+  return title ? `${numbered}: ${title}` : numbered
+}
+
+export function resolveChapterNumber(
+  ref: ManuscriptChapterRef,
+  allChapters: ManuscriptChapterRef[],
+  exportIndex: number,
+  settings: BookSettings
+): number {
+  if (settings.chapterNumberingScope === 'export-relative') {
+    return exportIndex + 1
+  }
+  return allChapters.findIndex((c) => c.id === ref.id) + 1
+}
 
 function isActive(node: TreeNode): boolean {
   return !node.deletedAt
-}
-
-function isFolder(node: TreeNode): boolean {
-  return node.type === 'folder'
 }
 
 function getFolderScope(node: TreeNode): string | null {
@@ -43,36 +156,70 @@ function getScenes(nodes: TreeNode[], chapterId: string): TreeNode[] {
     .sort((a, b) => a.sortOrder - b.sortOrder)
 }
 
-export function chapterSections(nodes: TreeNode[], chapter: TreeNode): ExportSection[] {
+function chapterHeaderSection(
+  chapter: TreeNode,
+  chapterNumber: number,
+  settings: BookSettings
+): ExportSection {
+  return {
+    id: chapter.id,
+    title: chapter.title,
+    level: 'chapter',
+    html: '',
+    displayHeading: formatChapterLabel(chapterNumber, chapter.title, settings)
+  }
+}
+
+export function chapterSections(
+  nodes: TreeNode[],
+  chapter: TreeNode,
+  chapterNumber: number,
+  settings: BookSettings
+): ExportSection[] {
   if (isSimpleChapter(chapter)) {
     return [
       {
         id: chapter.id,
         title: chapter.title,
         level: 'chapter',
-        html: chapter.content
+        html: chapter.content,
+        displayHeading: formatChapterLabel(chapterNumber, chapter.title, settings)
       }
     ]
   }
 
   if (isChapterFolder(chapter)) {
     const scenes = getScenes(nodes, chapter.id)
+    const header = chapterHeaderSection(chapter, chapterNumber, settings)
+
     if (scenes.length === 0) {
+      return [header]
+    }
+
+    if (settings.showSceneTitles) {
       return [
-        {
-          id: chapter.id,
-          title: chapter.title,
-          level: 'chapter',
-          html: ''
-        }
+        header,
+        ...scenes.map((scene) => ({
+          id: scene.id,
+          title: scene.title,
+          level: 'scene' as const,
+          html: scene.content,
+          displayHeading: scene.title
+        }))
       ]
     }
-    return scenes.map((scene) => ({
-      id: scene.id,
-      title: scene.title,
-      level: 'scene' as const,
-      html: scene.content
-    }))
+
+    return [
+      header,
+      ...scenes.map((scene, index) => ({
+        id: scene.id,
+        title: scene.title,
+        level: 'scene' as const,
+        html: scene.content,
+        displayHeading: null,
+        sceneBreakBefore: index > 0
+      }))
+    ]
   }
 
   return []
@@ -85,7 +232,7 @@ function collectChaptersDepthFirst(
   out: ManuscriptChapterRef[]
 ): void {
   for (const child of getManuscriptChildren(nodes, parentId)) {
-    if (isFolder(child)) {
+    if (child.type === 'folder') {
       const nextPrefix = pathPrefix ? `${pathPrefix} / ${child.title}` : child.title
       collectChaptersDepthFirst(nodes, child.id, nextPrefix, out)
       continue
@@ -115,30 +262,37 @@ export function resolveChapterId(nodes: TreeNode[], nodeId: string | null | unde
   return null
 }
 
-function sectionsForChapterRefs(nodes: TreeNode[], refs: ManuscriptChapterRef[]): ExportSection[] {
+function sectionsForChapterRefs(
+  nodes: TreeNode[],
+  refs: ManuscriptChapterRef[],
+  allChapters: ManuscriptChapterRef[],
+  settings: BookSettings
+): ExportSection[] {
   const sections: ExportSection[] = []
-  for (const ref of refs) {
+  refs.forEach((ref, exportIndex) => {
     const chapter = nodes.find((n) => n.id === ref.id && isActive(n))
-    if (!chapter || chapter.type !== 'chapter') continue
-    sections.push(...chapterSections(nodes, chapter))
-  }
+    if (!chapter || chapter.type !== 'chapter') return
+    const chapterNumber = resolveChapterNumber(ref, allChapters, exportIndex, settings)
+    sections.push(...chapterSections(nodes, chapter, chapterNumber, settings))
+  })
   return sections
 }
 
 export function collectSections(
   nodes: TreeNode[],
   scope: 'chapters' | 'manuscript',
-  chapterIds?: string[]
+  chapterIds: string[] | undefined,
+  settings: BookSettings
 ): ExportSection[] {
   const allChapters = listManuscriptChapters(nodes)
 
   if (scope === 'manuscript') {
-    return sectionsForChapterRefs(nodes, allChapters)
+    return sectionsForChapterRefs(nodes, allChapters, allChapters, settings)
   }
 
   const selected = new Set(chapterIds ?? [])
   const refs = allChapters.filter((ref) => selected.has(ref.id))
-  return sectionsForChapterRefs(nodes, refs)
+  return sectionsForChapterRefs(nodes, refs, allChapters, settings)
 }
 
 export function hasExportableContent(sections: ExportSection[]): boolean {

@@ -5,7 +5,8 @@ import {
   Underline as UnderlineIcon,
   Strikethrough,
   List,
-  ListOrdered
+  ListOrdered,
+  Settings
 } from 'lucide-react'
 import type { Editor } from '@tiptap/react'
 import { Button } from '@/components/UI/button'
@@ -65,7 +66,7 @@ function ToolbarButton({
 }
 
 export function EditorToolbar({ editor, wordCount }: EditorToolbarProps): React.JSX.Element {
-  const { sidebarWidth, sidebarDetached } = useAppStore()
+  const { sidebarWidth, sidebarDetached, setShowBookSettingsModal } = useAppStore()
   const isSidebarContracted = !sidebarDetached && sidebarWidth <= SIDEBAR_ICON_ONLY_THRESHOLD
 
   useEffect(() => {
@@ -144,8 +145,16 @@ export function EditorToolbar({ editor, wordCount }: EditorToolbarProps): React.
           <ListOrdered className="h-4 w-4" />
         </ToolbarButton>
 
-        <div className="ml-auto text-xs text-muted-foreground">
-          {wordCount.toLocaleString()} {wordCount === 1 ? 'word' : 'words'}
+        <div className="ml-auto flex items-center gap-1">
+          <ToolbarButton
+            onClick={() => setShowBookSettingsModal(true)}
+            tooltip="Book Settings"
+          >
+            <Settings className="h-4 w-4" />
+          </ToolbarButton>
+          <div className="text-xs text-muted-foreground">
+            {wordCount.toLocaleString()} {wordCount === 1 ? 'word' : 'words'}
+          </div>
         </div>
       </div>
     </TooltipProvider>

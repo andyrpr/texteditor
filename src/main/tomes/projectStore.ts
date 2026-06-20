@@ -2,6 +2,7 @@ import { join, extname, relative } from 'path'
 import fse from 'fs-extra'
 import { v4 as uuidv4 } from 'uuid'
 import type {
+  BookSettings,
   CreateProjectInput,
   FolderMeta,
   FolderScope,
@@ -16,6 +17,7 @@ import type {
 } from '@shared/types'
 import {
   DEFAULT_CHARACTER_META,
+  DEFAULT_BOOK_SETTINGS,
   DEFAULT_LOCATION_META,
   DEFAULT_LORE_META,
   DEFAULT_NOTE_META,
@@ -27,7 +29,8 @@ import {
   TXD_EXT,
   TRASH_RETENTION_DAYS,
   serializeMetadata,
-  parseMetadata
+  parseMetadata,
+  normalizeBookSettings
 } from '@shared/types'
 import {
   getNodeDir,
@@ -36,6 +39,7 @@ import {
   getBackupsDir,
   getManuscriptDir,
   getWikiDir,
+  getAssetsDir,
   getCharacterImagesDir,
   getLocationImagesDir
 } from './paths'
@@ -45,7 +49,8 @@ import {
   setBackupLocations,
   updateRecentLastOpened,
   getBackupLocations,
-  getConfig
+  getConfig,
+  updateRecentTitle
 } from '../config'
 import { createProjectBackup } from './backup'
 
@@ -273,6 +278,7 @@ export function getProjectMeta(): ProjectMeta | null {
     title: manifest.title,
     author: manifest.author,
     genre: manifest.genre,
+    bookSettings: normalizeBookSettings(manifest.bookSettings ?? {}),
     createdAt: manifest.createdAt,
     updatedAt: manifest.lastSavedAt
   }
@@ -306,6 +312,7 @@ export async function createProject(input: CreateProjectInput): Promise<{
   await fse.ensureDir(join(getWikiDir(root), 'notes'))
   await fse.ensureDir(join(getWikiDir(root), 'notes', 'folders'))
   await fse.ensureDir(getBackupsDir(root))
+  await fse.ensureDir(getAssetsDir(root))
 
   const chapterId = uuidv4()
   const sceneId = uuidv4()
@@ -921,6 +928,35 @@ export async function getRecentProjectsWithStatus(): Promise<
   )
 }
 
+export async function renameRecentProject(
+  projectId: string,
+  title: string
+): Promise<{ success: boolean; title: string }> {
+  const trimmed = title.trim()
+  if (!trimmed) throw new Error('Title cannot be empty')
+
+  const config = await getConfig()
+  const entry = config.recentProjects.find((p) => p.id === projectId)
+  if (!entry) throw new Error('Project not found in recents')
+
+  if (await fse.pathExists(entry.primaryPath)) {
+    const validation = await validateTomesFile(entry.primaryPath)
+    if (validation.valid && validation.manifest) {
+      validation.manifest.title = trimmed
+      validation.manifest.lastSavedAt = now()
+      await fse.writeFile(entry.primaryPath, JSON.stringify(validation.manifest, null, 2), 'utf-8')
+
+      if (manifest && manifest.id === projectId) {
+        manifest.title = trimmed
+        manifest.lastSavedAt = validation.manifest.lastSavedAt
+      }
+    }
+  }
+
+  await updateRecentTitle(projectId, trimmed)
+  return { success: true, title: trimmed }
+}
+
 export function getUiState(): ProjectUiState {
   if (!manifest) {
     return { sectionOrder: [...DEFAULT_SECTION_ORDER] }
@@ -987,4 +1023,24 @@ export async function importEntityImage(
 
 export async function importCharacterImage(nodeId: string, sourcePath: string): Promise<string> {
   return importEntityImage(nodeId, sourcePath, 'character')
+}
+
+export async function updateBookSettings(updates: Partial<BookSettings>): Promise<BookSettings> {
+  if (!manifest) throw new Error('No project open')
+  manifest.bookSettings = normalizeBookSettings({ ...manifest.bookSettings, ...updates })
+  await writeManifest()
+  return manifest.bookSettings
+}
+
+export async function importCoverImage(sourcePath: string): Promise<string> {
+  if (!projectRoot) throw new Error('No project open')
+
+  const ext = extname(sourcePath).toLowerCase() || '.png'
+  const assetsDir = getAssetsDir(projectRoot)
+  await fse.ensureDir(assetsDir)
+
+  const destPath = join(assetsDir, `cover${ext}`)
+  await fse.copy(sourcePath, destPath, { overwrite: true })
+
+  return relative(projectRoot, destPath).split('\\').join('/')
 }

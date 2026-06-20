@@ -3,9 +3,10 @@ import {
   Paragraph,
   TextRun,
   UnderlineType,
+  AlignmentType,
   type IParagraphOptions
 } from 'docx'
-import type { ExportFontFamily } from '@shared/types'
+import type { BookSettings, ExportFontFamily } from '@shared/types'
 import { docxFontName } from './formatting'
 
 type InlineStyle = {
@@ -26,6 +27,21 @@ function decodeEntities(text: string): string {
 
 function stripTags(html: string): string {
   return decodeEntities(html.replace(/<[^>]+>/g, ''))
+}
+
+function paragraphStyleOptions(bookSettings: BookSettings): IParagraphOptions {
+  const alignment =
+    bookSettings.textAlign === 'justify' ? AlignmentType.JUSTIFIED : AlignmentType.LEFT
+  if (bookSettings.paragraphStyle === 'first-line-indent') {
+    return {
+      alignment,
+      indent: { firstLine: 360 }
+    }
+  }
+  return {
+    alignment,
+    spacing: { after: 240 }
+  }
 }
 
 function runsFromHtml(html: string, fontFamily: ExportFontFamily, fontSize: number, style: InlineStyle = {}): TextRun[] {
@@ -77,13 +93,20 @@ function paragraphFromHtml(
   html: string,
   fontFamily: ExportFontFamily,
   fontSize: number,
+  bookSettings: BookSettings,
   options?: IParagraphOptions
 ): Paragraph {
   const runs = runsFromHtml(html, fontFamily, fontSize)
-  return new Paragraph({ children: runs, ...options })
+  return new Paragraph({ children: runs, ...paragraphStyleOptions(bookSettings), ...options })
 }
 
-function listParagraphs(html: string, fontFamily: ExportFontFamily, fontSize: number, ordered: boolean): Paragraph[] {
+function listParagraphs(
+  html: string,
+  fontFamily: ExportFontFamily,
+  fontSize: number,
+  bookSettings: BookSettings,
+  ordered: boolean
+): Paragraph[] {
   const itemRegex = /<li[^>]*>([\s\S]*?)<\/li>/gi
   const items: string[] = []
   let match: RegExpExecArray | null
@@ -96,12 +119,14 @@ function listParagraphs(html: string, fontFamily: ExportFontFamily, fontSize: nu
     const contentRuns = runsFromHtml(item, fontFamily, fontSize)
     if (ordered) {
       return new Paragraph({
-        children: [new TextRun({ text: `${index + 1}. `, font, size }), ...contentRuns]
+        children: [new TextRun({ text: `${index + 1}. `, font, size }), ...contentRuns],
+        ...paragraphStyleOptions(bookSettings)
       })
     }
     return new Paragraph({
       children: contentRuns,
-      bullet: { level: 0 }
+      bullet: { level: 0 },
+      ...paragraphStyleOptions(bookSettings)
     })
   })
 }
@@ -112,7 +137,8 @@ const BLOCK_REGEX =
 export function htmlToDocxParagraphs(
   html: string,
   fontFamily: ExportFontFamily,
-  fontSize: number
+  fontSize: number,
+  bookSettings: BookSettings
 ): Paragraph[] {
   const trimmed = html.trim()
   if (!trimmed) return [new Paragraph({ children: [new TextRun({ text: '' })] })]
@@ -160,31 +186,33 @@ export function htmlToDocxParagraphs(
         )
         break
       case 'blockquote':
-        paragraphs.push(paragraphFromHtml(inner, fontFamily, fontSize, { indent: { left: 720 } }))
+        paragraphs.push(
+          paragraphFromHtml(inner, fontFamily, fontSize, bookSettings, { indent: { left: 720 } })
+        )
         break
       case 'ul':
-        paragraphs.push(...listParagraphs(inner, fontFamily, fontSize, false))
+        paragraphs.push(...listParagraphs(inner, fontFamily, fontSize, bookSettings, false))
         break
       case 'ol':
-        paragraphs.push(...listParagraphs(inner, fontFamily, fontSize, true))
+        paragraphs.push(...listParagraphs(inner, fontFamily, fontSize, bookSettings, true))
         break
       case 'hr':
         paragraphs.push(new Paragraph({ children: [new TextRun({ text: '―'.repeat(20) })] }))
         break
       default:
-        paragraphs.push(paragraphFromHtml(inner || stripTags(html), fontFamily, fontSize))
+        paragraphs.push(paragraphFromHtml(inner || stripTags(html), fontFamily, fontSize, bookSettings))
     }
   }
 
   if (!found) {
-    paragraphs.push(paragraphFromHtml(trimmed, fontFamily, fontSize))
+    paragraphs.push(paragraphFromHtml(trimmed, fontFamily, fontSize, bookSettings))
   }
 
   return paragraphs
 }
 
 export function titleParagraph(
-  title: string,
+  displayHeading: string,
   level: 'chapter' | 'scene',
   fontFamily: ExportFontFamily,
   fontSize: number
@@ -194,7 +222,7 @@ export function titleParagraph(
     heading,
     children: [
       new TextRun({
-        text: title,
+        text: displayHeading,
         font: docxFontName(fontFamily),
         size: (level === 'chapter' ? fontSize + 6 : fontSize + 3) * 2,
         bold: true,
@@ -202,4 +230,43 @@ export function titleParagraph(
       })
     ]
   })
+}
+
+export function sceneBreakParagraph(marker: string, fontFamily: ExportFontFamily, fontSize: number): Paragraph {
+  return new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 240, after: 240 },
+    children: [
+      new TextRun({
+        text: marker,
+        font: docxFontName(fontFamily),
+        size: fontSize * 2
+      })
+    ]
+  })
+}
+
+export function centeredTextParagraph(
+  text: string,
+  fontFamily: ExportFontFamily,
+  fontSize: number,
+  options?: { bold?: boolean; sizeOffset?: number; italics?: boolean }
+): Paragraph {
+  return new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 400 },
+    children: [
+      new TextRun({
+        text,
+        font: docxFontName(fontFamily),
+        size: (fontSize + (options?.sizeOffset ?? 0)) * 2,
+        bold: options?.bold,
+        italics: options?.italics
+      })
+    ]
+  })
+}
+
+export function pageBreakParagraph(): Paragraph {
+  return new Paragraph({ children: [new TextRun({ break: 1 })] })
 }

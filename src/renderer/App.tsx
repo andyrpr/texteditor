@@ -5,6 +5,7 @@ import { EditorPane } from '@/components/Editor/EditorPane'
 import { EntityPanel } from '@/components/Wiki/EntityPanel'
 import { StatusBar } from '@/components/UI/StatusBar'
 import { ExportDialog } from '@/components/Export/ExportDialog'
+import { BookSettingsModal } from '@/components/Settings/BookSettingsModal'
 import { RecentProjectsScreen } from '@/components/Project/RecentProjectsScreen'
 import { QuitWarningModal } from '@/components/Project/QuitWarningModal'
 import { Toaster } from '@/components/UI/toast'
@@ -25,6 +26,8 @@ export function AppLayout(): React.JSX.Element {
     setShowNewProjectModal,
     showExportDialog,
     setShowExportDialog,
+    showBookSettingsModal,
+    setShowBookSettingsModal,
     setSidebarWidth,
     setRightPanelWidth,
     setSidebarDetached,
@@ -33,7 +36,7 @@ export function AppLayout(): React.JSX.Element {
   } = useAppStore()
   const params = useSearchParams()
   const isSecondary = isWorkspaceWindow()
-  const { openProject } = useProject()
+  const { openProject, closeProject } = useProject()
   useContentPersistence(isProjectOpen && !isSecondary)
 
   const [quitWarningPaths, setQuitWarningPaths] = useState<string[]>([])
@@ -75,6 +78,9 @@ export function AppLayout(): React.JSX.Element {
     })
     const unsubExport = window.electronAPI.on('menu:export', () => {
       if (isProjectOpen && !isSecondary) setShowExportDialog(true)
+    })
+    const unsubCloseProject = window.electronAPI.on('menu:closeProject', () => {
+      void closeProject()
     })
     const unsubDevicePreview = window.electronAPI.on('menu:devicePreview', () => {
       if (!isProjectOpen || isSecondary) return
@@ -128,6 +134,7 @@ export function AppLayout(): React.JSX.Element {
       unsubOpen()
       unsubNew()
       unsubExport()
+      unsubCloseProject()
       unsubDevicePreview()
       unsubOpened()
       unsubBeforeQuit()
@@ -136,6 +143,7 @@ export function AppLayout(): React.JSX.Element {
     }
   }, [
     openProject,
+    closeProject,
     isSecondary,
     setShowNewProjectModal,
     setShowExportDialog,
@@ -172,6 +180,7 @@ export function AppLayout(): React.JSX.Element {
       </div>
       <StatusBar />
       <ExportDialog open={showExportDialog} onOpenChange={setShowExportDialog} />
+      <BookSettingsModal open={showBookSettingsModal} onOpenChange={setShowBookSettingsModal} />
       <Toaster />
       {!isSecondary && (
         <QuitWarningModal

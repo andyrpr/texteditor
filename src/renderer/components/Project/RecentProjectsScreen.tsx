@@ -9,6 +9,8 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/UI/dialog'
+import { Input } from '@/components/UI/input'
+import { Label } from '@/components/UI/label'
 import { NewProjectModal } from '@/components/Project/NewProjectModal'
 import { ProjectCard } from '@/components/Project/ProjectCard'
 import { useProject } from '@/hooks/useProject'
@@ -20,10 +22,14 @@ const launchBtnBase =
   'font-sans inline-flex items-center gap-[7px] rounded-[7px] border border-transparent px-4 py-[9px] text-[13.5px] font-semibold transition-[background,border-color,color,transform] duration-100 active:scale-[0.97]'
 
 export function RecentProjectsScreen(): React.JSX.Element {
-  const { openProject, openProjectAtPath, removeFromRecent, locateProject } = useProject()
+  const { openProject, openProjectAtPath, removeFromRecent, renameRecentProject, locateProject } =
+    useProject()
   const { showNewProjectModal, setShowNewProjectModal } = useAppStore()
   const [recents, setRecents] = useState<RecentProjectWithStatus[]>([])
   const [missingProject, setMissingProject] = useState<RecentProjectWithStatus | null>(null)
+  const [renameProject, setRenameProject] = useState<RecentProjectWithStatus | null>(null)
+  const [renameTitle, setRenameTitle] = useState('')
+  const [renaming, setRenaming] = useState(false)
 
   const loadRecents = async (): Promise<void> => {
     const projects = await window.electronAPI.tomes.getRecentProjects()
@@ -61,6 +67,30 @@ export function RecentProjectsScreen(): React.JSX.Element {
     await removeFromRecent(missingProject.id)
     setMissingProject(null)
     await loadRecents()
+  }
+
+  const openRenameDialog = (project: RecentProjectWithStatus): void => {
+    setRenameProject(project)
+    setRenameTitle(project.title)
+  }
+
+  const closeRenameDialog = (): void => {
+    if (renaming) return
+    setRenameProject(null)
+    setRenameTitle('')
+  }
+
+  const handleRename = async (): Promise<void> => {
+    if (!renameProject || !renameTitle.trim()) return
+    setRenaming(true)
+    try {
+      await renameRecentProject(renameProject.id, renameTitle.trim())
+      setRenameProject(null)
+      setRenameTitle('')
+      await loadRecents()
+    } finally {
+      setRenaming(false)
+    }
   }
 
   return (
@@ -108,6 +138,8 @@ export function RecentProjectsScreen(): React.JSX.Element {
               key={project.id}
               project={project}
               onOpen={() => handleOpen(project)}
+              onRename={() => openRenameDialog(project)}
+              onStats={() => {}}
               onShowInFolder={() => window.electronAPI.tomes.showInFolder(project.primaryPath)}
               onRemove={async () => {
                 await removeFromRecent(project.id)
@@ -140,6 +172,35 @@ export function RecentProjectsScreen(): React.JSX.Element {
       </div>
 
       <NewProjectModal open={showNewProjectModal} onOpenChange={setShowNewProjectModal} />
+
+      <Dialog open={!!renameProject} onOpenChange={(open) => !open && closeRenameDialog()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename Project</DialogTitle>
+            <DialogDescription>Update the project title shown here and in the project file.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 py-2">
+            <Label htmlFor="rename-project-title">Title</Label>
+            <Input
+              id="rename-project-title"
+              value={renameTitle}
+              onChange={(e) => setRenameTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void handleRename()
+              }}
+              autoFocus
+            />
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={closeRenameDialog} disabled={renaming}>
+              Cancel
+            </Button>
+            <Button onClick={() => void handleRename()} disabled={renaming || !renameTitle.trim()}>
+              Rename
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!missingProject} onOpenChange={() => setMissingProject(null)}>
         <DialogContent>

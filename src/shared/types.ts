@@ -17,11 +17,105 @@ export type Genre =
   | 'Other'
   | ''
 
+export type ChapterLabelStyle = 'number-and-title' | 'number-only' | 'title-only' | 'none'
+export type ChapterNumberFormat = 'digits' | 'words' | 'roman'
+export type ChapterNumberingScope = 'manuscript-global' | 'export-relative'
+export type ParagraphStyle = 'first-line-indent' | 'spaced'
+export type TextAlignStyle = 'justify' | 'left'
+
+export interface BookSettings {
+  coverImagePath: string | null
+  chapterLabelStyle: ChapterLabelStyle
+  chapterNumberFormat: ChapterNumberFormat
+  chapterNumberingScope: ChapterNumberingScope
+  chapterLabelPrefix: string
+  showSceneTitles: boolean
+  sceneBreakMarker: string
+  includeTitlePage: boolean
+  dedication: string
+  copyrightText: string
+  paragraphStyle: ParagraphStyle
+  textAlign: TextAlignStyle
+}
+
+export const DEFAULT_BOOK_SETTINGS: BookSettings = {
+  coverImagePath: null,
+  chapterLabelStyle: 'number-and-title',
+  chapterNumberFormat: 'digits',
+  chapterNumberingScope: 'manuscript-global',
+  chapterLabelPrefix: 'Chapter',
+  showSceneTitles: false,
+  sceneBreakMarker: '* * *',
+  includeTitlePage: true,
+  dedication: '',
+  copyrightText: '',
+  paragraphStyle: 'first-line-indent',
+  textAlign: 'justify'
+}
+
+const CHAPTER_LABEL_STYLES: ChapterLabelStyle[] = [
+  'number-and-title',
+  'number-only',
+  'title-only',
+  'none'
+]
+const CHAPTER_NUMBER_FORMATS: ChapterNumberFormat[] = ['digits', 'words', 'roman']
+const CHAPTER_NUMBERING_SCOPES: ChapterNumberingScope[] = ['manuscript-global', 'export-relative']
+const PARAGRAPH_STYLES: ParagraphStyle[] = ['first-line-indent', 'spaced']
+const TEXT_ALIGN_STYLES: TextAlignStyle[] = ['justify', 'left']
+
+export function normalizeBookSettings(raw: Partial<BookSettings> & Record<string, unknown>): BookSettings {
+  const chapterLabelStyle = CHAPTER_LABEL_STYLES.includes(raw.chapterLabelStyle as ChapterLabelStyle)
+    ? (raw.chapterLabelStyle as ChapterLabelStyle)
+    : DEFAULT_BOOK_SETTINGS.chapterLabelStyle
+  const chapterNumberFormat = CHAPTER_NUMBER_FORMATS.includes(raw.chapterNumberFormat as ChapterNumberFormat)
+    ? (raw.chapterNumberFormat as ChapterNumberFormat)
+    : DEFAULT_BOOK_SETTINGS.chapterNumberFormat
+  const chapterNumberingScope = CHAPTER_NUMBERING_SCOPES.includes(
+    raw.chapterNumberingScope as ChapterNumberingScope
+  )
+    ? (raw.chapterNumberingScope as ChapterNumberingScope)
+    : DEFAULT_BOOK_SETTINGS.chapterNumberingScope
+  const paragraphStyle = PARAGRAPH_STYLES.includes(raw.paragraphStyle as ParagraphStyle)
+    ? (raw.paragraphStyle as ParagraphStyle)
+    : DEFAULT_BOOK_SETTINGS.paragraphStyle
+  const textAlign = TEXT_ALIGN_STYLES.includes(raw.textAlign as TextAlignStyle)
+    ? (raw.textAlign as TextAlignStyle)
+    : DEFAULT_BOOK_SETTINGS.textAlign
+
+  const sceneBreakMarker =
+    typeof raw.sceneBreakMarker === 'string'
+      ? raw.sceneBreakMarker.trim()
+      : DEFAULT_BOOK_SETTINGS.sceneBreakMarker
+
+  return {
+    coverImagePath:
+      typeof raw.coverImagePath === 'string' && raw.coverImagePath.trim()
+        ? raw.coverImagePath.trim()
+        : null,
+    chapterLabelStyle,
+    chapterNumberFormat,
+    chapterNumberingScope,
+    chapterLabelPrefix:
+      typeof raw.chapterLabelPrefix === 'string'
+        ? raw.chapterLabelPrefix.trim()
+        : DEFAULT_BOOK_SETTINGS.chapterLabelPrefix,
+    showSceneTitles: raw.showSceneTitles === true,
+    sceneBreakMarker,
+    includeTitlePage: raw.includeTitlePage !== false,
+    dedication: typeof raw.dedication === 'string' ? raw.dedication : '',
+    copyrightText: typeof raw.copyrightText === 'string' ? raw.copyrightText : '',
+    paragraphStyle,
+    textAlign
+  }
+}
+
 export interface ProjectMeta {
   id: string
   title: string
   author: string
   genre?: string
+  bookSettings: BookSettings
   createdAt: string
   updatedAt: string
 }
@@ -148,6 +242,8 @@ export interface ExportSection {
   title: string
   level: 'chapter' | 'scene'
   html: string
+  displayHeading: string | null
+  sceneBreakBefore?: boolean
 }
 
 export interface DevicePreviewRequestOptions {
@@ -341,6 +437,7 @@ export interface TomesManifest {
   createdAt: string
   lastSavedAt: string
   version: string
+  bookSettings?: BookSettings
   uiState?: ProjectUiState
   index: {
     folders: TomesIndexEntry[]
