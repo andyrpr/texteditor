@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import { useAppStore } from '@/store/appStore'
+import { useHistoryStore } from '@/store/historyStore'
 import { useToastStore } from '@/components/UI/toast'
 import { flushAllDirty, flushAndSaveProject, resetPersistenceState } from '@/lib/contentPersistence'
 import { publishNavigationSync } from '@/lib/navigationSync'
@@ -69,6 +70,7 @@ export function useProject(): {
   const openProjectAtPath = useCallback(
     async (path: string) => {
       await flushAllDirty()
+      useHistoryStore.getState().clear()
       const result = await window.electronAPI.tomes.openProject(path)
       setProject(result.path, result.meta, result.nodes)
       if (result.uiState?.sectionOrder) {
@@ -85,6 +87,7 @@ export function useProject(): {
   const createProjectFromInput = useCallback(
     async (input: CreateProjectInput) => {
       await flushAllDirty()
+      useHistoryStore.getState().clear()
       const result = await window.electronAPI.tomes.createProject(input)
       const openResult = await window.electronAPI.tomes.openProject(result.path)
       setProject(openResult.path, openResult.meta, openResult.nodes)
@@ -120,6 +123,7 @@ export function useProject(): {
 
     resetPersistenceState()
     closeProjectStore()
+    useHistoryStore.getState().clear()
 
     try {
       const result = await window.electronAPI.tomes.saveProject()

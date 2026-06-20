@@ -235,8 +235,22 @@ function buildMenu(): void {
     {
       label: 'Edit',
       submenu: [
-        { role: 'undo' },
-        { role: 'redo' },
+        {
+          label: 'Undo',
+          accelerator: 'CmdOrCtrl+Z',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow() ?? mainWindow
+            win?.webContents.send('menu:undo')
+          }
+        },
+        {
+          label: 'Redo',
+          accelerator: 'Shift+CmdOrCtrl+Z',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow() ?? mainWindow
+            win?.webContents.send('menu:redo')
+          }
+        },
         { type: 'separator' },
         { role: 'cut' },
         { role: 'copy' },

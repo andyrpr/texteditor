@@ -10,6 +10,8 @@ import { RecentProjectsScreen } from '@/components/Project/RecentProjectsScreen'
 import { QuitWarningModal } from '@/components/Project/QuitWarningModal'
 import { Toaster } from '@/components/UI/toast'
 import { useProject } from '@/hooks/useProject'
+import { useStructuralUndoShortcuts } from '@/hooks/useStructuralUndoShortcuts'
+import { useHistoryStore } from '@/store/historyStore'
 import { useContentPersistence } from '@/hooks/useContentPersistence'
 import { useNavigationSync, useNavigationSyncPublisher, hydrateNavigationFromMain } from '@/hooks/useNavigationSync'
 import { useSyncFromMain, hydrateFromMain } from '@/hooks/useSync'
@@ -37,6 +39,7 @@ export function AppLayout(): React.JSX.Element {
   const params = useSearchParams()
   const isSecondary = isWorkspaceWindow()
   const { openProject, closeProject } = useProject()
+  useStructuralUndoShortcuts()
   useContentPersistence(isProjectOpen && !isSecondary)
 
   const [quitWarningPaths, setQuitWarningPaths] = useState<string[]>([])
@@ -94,6 +97,7 @@ export function AppLayout(): React.JSX.Element {
         nodes: import('@shared/types').TreeNode[]
         uiState?: import('@shared/types').ProjectUiState
       }
+      useHistoryStore.getState().clear()
       useAppStore.getState().setProject(result.path, result.meta, result.nodes)
       if (result.uiState?.sectionOrder) {
         useAppStore.getState().setSectionOrder(result.uiState.sectionOrder)
