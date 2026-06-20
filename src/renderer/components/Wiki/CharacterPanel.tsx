@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import { Input } from '@/components/UI/input'
+import { ComboField } from '@/components/UI/ComboField'
 import { AutoGrowTextarea } from '@/components/UI/auto-grow-textarea'
 import { Button } from '@/components/UI/button'
 import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
 import { useAppStore } from '@/store/appStore'
+import { useFieldSuggestions } from '@/hooks/useFieldSuggestions'
 import { cn } from '@/lib/utils'
 import {
   CHARACTER_RELATIONSHIP_TYPES,
@@ -126,6 +128,8 @@ export function CharacterPanel({
     () => nodes.filter((n) => n.type === 'character' && !n.deletedAt && n.id !== nodeId),
     [nodes, nodeId]
   )
+  const raceSuggestions = useFieldSuggestions('character', 'race', nodeId)
+  const genderSuggestions = useFieldSuggestions('character', 'gender', nodeId)
 
   useEffect(() => {
     setMeta(metadata)
@@ -205,10 +209,20 @@ export function CharacterPanel({
           <Input value={meta.age} onChange={(e) => setMeta({ ...meta, age: e.target.value })} onBlur={save} />
         </Field>
         <Field label="Race">
-          <Input value={meta.race} onChange={(e) => setMeta({ ...meta, race: e.target.value })} onBlur={save} />
+          <ComboField
+            value={meta.race}
+            suggestions={raceSuggestions}
+            onChange={(v) => setMeta({ ...meta, race: v })}
+            onBlur={save}
+          />
         </Field>
         <Field label="Gender">
-          <Input value={meta.gender} onChange={(e) => setMeta({ ...meta, gender: e.target.value })} onBlur={save} />
+          <ComboField
+            value={meta.gender}
+            suggestions={genderSuggestions}
+            onChange={(v) => setMeta({ ...meta, gender: v })}
+            onBlur={save}
+          />
         </Field>
       </div>
       <Field label="Physical Description">
