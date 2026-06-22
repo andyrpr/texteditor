@@ -41,8 +41,11 @@ export function NotePanel({
   useEffect(() => {
     setMeta(metadata)
     setName(title)
+  }, [nodeId, metadata, title])
+
+  useEffect(() => {
     setBody(content)
-  }, [nodeId, metadata, title, content])
+  }, [nodeId])
 
   useEffect(() => {
     registerActiveNoteContent(() => ({ nodeId, content: body }))

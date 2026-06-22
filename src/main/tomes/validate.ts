@@ -4,6 +4,7 @@ import { join } from 'path'
 import type { TomesManifest } from '@shared/types'
 import { TOMES_MAGIC, PROJECT_FILENAME } from '@shared/types'
 import { getProjectRoot } from './paths'
+import { restoreProjectTomesFromLatestBackup } from './backup'
 
 export interface ValidationResult {
   valid: boolean
@@ -22,11 +23,22 @@ export async function validateTomesFile(tomesPath: string): Promise<ValidationRe
   }
 
   let manifest: TomesManifest
+  const projectRoot = getProjectRoot(tomesPath)
   try {
     const raw = await readFile(tomesPath, 'utf-8')
+    if (!raw.trim()) throw new Error('empty manifest')
     manifest = JSON.parse(raw) as TomesManifest
   } catch {
-    return { valid: false, error: 'Project file is corrupted or invalid JSON' }
+    const restored = await restoreProjectTomesFromLatestBackup(projectRoot)
+    if (!restored) {
+      return { valid: false, error: 'Project file is corrupted or invalid JSON' }
+    }
+    try {
+      const raw = await readFile(tomesPath, 'utf-8')
+      manifest = JSON.parse(raw) as TomesManifest
+    } catch {
+      return { valid: false, error: 'Project file is corrupted or invalid JSON' }
+    }
   }
 
   if (manifest.__tomes !== TOMES_MAGIC) {
@@ -37,7 +49,6 @@ export async function validateTomesFile(tomesPath: string): Promise<ValidationRe
     return { valid: false, error: 'Project file is missing required fields' }
   }
 
-  const projectRoot = getProjectRoot(tomesPath)
   const requiredDirs = [
     join(projectRoot, 'manuscript'),
     join(projectRoot, 'wiki')

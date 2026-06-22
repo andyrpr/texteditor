@@ -504,6 +504,7 @@ export interface LoreMeta {
   relatedCharacters: string[]
   relatedLocations: string[]
   notes: string
+  imagePath: string | null
 }
 
 export interface NoteMeta {
@@ -867,7 +868,15 @@ export const DEFAULT_LORE_META: LoreMeta = {
   description: '',
   relatedCharacters: [],
   relatedLocations: [],
-  notes: ''
+  notes: '',
+  imagePath: null
+}
+
+export function normalizeLoreMeta(meta: LoreMeta): LoreMeta {
+  return {
+    ...meta,
+    imagePath: meta.imagePath ?? null
+  }
 }
 
 export const DEFAULT_NOTE_META: NoteMeta = {
@@ -905,6 +914,29 @@ export const RIGHT_PANEL_MIN_WIDTH = 320
 export const RIGHT_PANEL_MAX_WIDTH = 640
 
 export const DEFAULT_SECTION_ORDER = ['characters', 'locations', 'lore', 'notes']
+
+const LEGACY_SECTION_TO_CATEGORY: Record<string, string> = {
+  characters: BUILTIN_CATEGORY_IDS.characters,
+  locations: BUILTIN_CATEGORY_IDS.locations,
+  lore: BUILTIN_CATEGORY_IDS.lore,
+  notes: BUILTIN_CATEGORY_IDS.notes
+}
+
+export const DEFAULT_EXPANDED_SECTIONS = [
+  'manuscript',
+  BUILTIN_CATEGORY_IDS.characters,
+  BUILTIN_CATEGORY_IDS.locations,
+  BUILTIN_CATEGORY_IDS.lore,
+  BUILTIN_CATEGORY_IDS.notes
+] as const
+
+export function migrateExpandedSections(sections: Iterable<string>): Set<string> {
+  const migrated = new Set<string>()
+  for (const section of sections) {
+    migrated.add(LEGACY_SECTION_TO_CATEGORY[section] ?? section)
+  }
+  return migrated
+}
 
 export function migrateSectionOrder(order: string[], categories: CategoryDefinition[]): string[] {
   const legacyMap: Record<string, string> = {

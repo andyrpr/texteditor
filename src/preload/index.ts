@@ -90,7 +90,7 @@ export interface ElectronAPI {
     importEntityImage: (
       nodeId: string,
       sourcePath: string,
-      entityType: 'character' | 'location'
+      entityType: 'character' | 'location' | 'lore'
     ) => Promise<{ relativePath: string }>
   }
   backup: {

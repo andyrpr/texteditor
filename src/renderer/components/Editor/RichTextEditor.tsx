@@ -139,13 +139,15 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
 
   useEffect(() => {
     if (editor && node) {
-      const current = editor.getHTML()
-      if (current !== node.content) {
-        editor.commands.setContent(node.content, false)
-      }
+      editor.commands.setContent(node.content, false)
+    }
+  }, [editor, node?.id])
+
+  useEffect(() => {
+    if (editor) {
       editor.setEditable(!!isEditable)
     }
-  }, [editor, node?.id, node?.content, isEditable])
+  }, [editor, isEditable])
 
   useEffect(() => {
     setSearchOpen(false)

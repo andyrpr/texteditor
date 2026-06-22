@@ -2,7 +2,7 @@ import { Camera } from 'lucide-react'
 import { toAssetUrl } from '@/lib/assetUrl'
 import { cn } from '@/lib/utils'
 
-type EntityImageType = 'character' | 'location'
+type EntityImageType = 'character' | 'location' | 'lore'
 
 export function EntityImageBanner({
   nodeId,
@@ -17,7 +17,8 @@ export function EntityImageBanner({
   entityType: EntityImageType
   onImageChange: (imagePath: string | null) => void
 }): React.JSX.Element {
-  const entityLabel = entityType === 'character' ? 'character' : 'location'
+  const entityLabel =
+    entityType === 'character' ? 'character' : entityType === 'location' ? 'location' : 'lore'
 
   const handleClick = async (): Promise<void> => {
     if (imagePath) {

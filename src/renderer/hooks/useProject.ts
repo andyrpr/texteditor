@@ -73,19 +73,25 @@ export function useProject(): {
 
   const openProjectAtPath = useCallback(
     async (path: string) => {
-      await flushAllDirty()
-      useHistoryStore.getState().clear()
-      const result = await window.electronAPI.tomes.openProject(path)
-      setProject(result.path, result.meta, result.nodes)
-      if (result.uiState?.sectionOrder) {
-        setSectionOrder(migrateSectionOrder(result.uiState.sectionOrder, result.meta.categories ?? []))
+      try {
+        await flushAllDirty()
+        useHistoryStore.getState().clear()
+        const result = await window.electronAPI.tomes.openProject(path)
+        setProject(result.path, result.meta, result.nodes)
+        if (result.uiState?.sectionOrder) {
+          setSectionOrder(migrateSectionOrder(result.uiState.sectionOrder, result.meta.categories ?? []))
+        }
+        selectFirstNode(result.nodes)
+        setLastSaved(result.meta.updatedAt)
+        setBackupWarningCount(0)
+        publishNavigationSync()
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Could not open project'
+        addToast(message, 'warning')
+        throw err
       }
-      selectFirstNode(result.nodes)
-      setLastSaved(result.meta.updatedAt)
-      setBackupWarningCount(0)
-      publishNavigationSync()
     },
-    [setProject, selectFirstNode, setLastSaved, setBackupWarningCount, setSectionOrder]
+    [setProject, selectFirstNode, setLastSaved, setBackupWarningCount, setSectionOrder, addToast]
   )
 
   const createProjectFromInput = useCallback(

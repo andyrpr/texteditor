@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { CategoryDefinition, FolderScope, ProjectMeta, TreeNode, WikiEntityType } from '@shared/types'
-import { DEFAULT_SECTION_ORDER, migrateSectionOrder, SIDEBAR_MAX_WIDTH } from '@shared/types'
+import { DEFAULT_SECTION_ORDER, DEFAULT_EXPANDED_SECTIONS, migrateExpandedSections, migrateSectionOrder, SIDEBAR_MAX_WIDTH } from '@shared/types'
 
 export type PendingRenameTarget = 'sidebar' | 'container'
 
@@ -96,7 +96,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   nodes: [],
   selectedNodeId: null,
   selectedContainerId: null,
-  expandedSections: new Set(['manuscript', 'characters', 'locations', 'lore', 'notes']),
+  expandedSections: new Set(DEFAULT_EXPANDED_SECTIONS),
   expandedFolders: new Set<string>(),
   sectionOrder: [...DEFAULT_SECTION_ORDER],
 
@@ -203,9 +203,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     }),
   selectWikiEntity: (id, type) => get().setSelectedEntity(id, type),
   toggleSection: (section) => {
-    const expanded = new Set(get().expandedSections)
-    if (expanded.has(section)) expanded.delete(section)
-    else expanded.add(section)
+    const normalized = migrateExpandedSections([section])
+    const expanded = migrateExpandedSections(get().expandedSections)
+    const key = [...normalized][0]
+    if (expanded.has(key)) expanded.delete(key)
+    else expanded.add(key)
     set({ expandedSections: expanded })
   },
   toggleFolder: (folderId) => {
@@ -280,7 +282,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       selectedEntityType: nav.selectedEntityType,
       selectedEntryId: nav.selectedEntryId ?? null,
       selectedEntryCategoryId: nav.selectedEntryCategoryId ?? null,
-      expandedSections: new Set(nav.expandedSections),
+      expandedSections: migrateExpandedSections(nav.expandedSections),
       expandedFolders: new Set(nav.expandedFolders ?? []),
       rightPanelOpen: nav.rightPanelOpen,
       sectionOrder: migrateSectionOrder(nav.sectionOrder, get().categories),

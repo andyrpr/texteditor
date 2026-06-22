@@ -65,9 +65,12 @@ export function expandSidebarToNode(nodeId: string): void {
 
   const legacySection = WIKI_TYPE_TO_LEGACY_SECTION[node.type]
   const categoryId = WIKI_TYPE_TO_CATEGORY_ID[node.type]
+  if (categoryId) {
+    ensureSectionExpanded(categoryId)
+    return
+  }
   if (legacySection) {
     ensureSectionExpanded(legacySection)
-    if (categoryId) ensureSectionExpanded(categoryId)
     return
   }
 

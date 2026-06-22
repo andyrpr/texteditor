@@ -1,10 +1,75 @@
 import { createWriteStream } from 'fs'
+import { pipeline } from 'stream/promises'
 import { join, basename } from 'path'
 import fse from 'fs-extra'
 import archiver from 'archiver'
+import yauzl from 'yauzl'
 import type { BackupLocationStatus, BackupWarning } from '@shared/types'
-import { detectPathLabel, formatBackupZipName, getBackupsDir, getProjectFolderName } from './paths'
+import { detectPathLabel, formatBackupZipName, getBackupsDir, getProjectFolderName, getTomesPath } from './paths'
 import { getConfig } from '../config'
+
+const PROJECT_TOMES_ENTRY = 'project.tomes'
+
+async function extractProjectTomesFromZip(zipPath: string, destPath: string): Promise<boolean> {
+  const zipfile = await new Promise<yauzl.ZipFile>((resolve, reject) => {
+    yauzl.open(zipPath, { lazyEntries: true }, (err, file) => {
+      if (err || !file) reject(err ?? new Error('Failed to open backup archive'))
+      else resolve(file)
+    })
+  })
+
+  try {
+    const entry = await new Promise<yauzl.Entry | null>((resolve, reject) => {
+      const onEntry = (entry: yauzl.Entry): void => {
+        if (entry.fileName === PROJECT_TOMES_ENTRY) {
+          zipfile.removeListener('entry', onEntry)
+          zipfile.removeListener('end', onEnd)
+          resolve(entry)
+          return
+        }
+        zipfile.readEntry()
+      }
+      const onEnd = (): void => {
+        zipfile.removeListener('entry', onEntry)
+        resolve(null)
+      }
+      zipfile.on('entry', onEntry)
+      zipfile.on('end', onEnd)
+      zipfile.on('error', reject)
+      zipfile.readEntry()
+    })
+
+    if (!entry) return false
+
+    const readStream = await new Promise<NodeJS.ReadableStream>((resolve, reject) => {
+      zipfile.openReadStream(entry, (err, stream) => {
+        if (err || !stream) reject(err ?? new Error('Failed to read project file from backup'))
+        else resolve(stream)
+      })
+    })
+
+    const tempPath = `${destPath}.${process.pid}.tmp`
+    await pipeline(readStream, createWriteStream(tempPath))
+    await fse.rename(tempPath, destPath)
+    return true
+  } finally {
+    zipfile.close()
+  }
+}
+
+export async function restoreProjectTomesFromLatestBackup(projectRoot: string): Promise<boolean> {
+  const backups = await listLocalBackups(projectRoot)
+  for (const backup of backups) {
+    try {
+      if (await extractProjectTomesFromZip(backup.path, getTomesPath(projectRoot))) {
+        return true
+      }
+    } catch {
+      // Try the next backup if this archive is unreadable.
+    }
+  }
+  return false
+}
 
 export async function checkPathReachable(targetPath: string): Promise<BackupLocationStatus> {
   const label = detectPathLabel(targetPath)

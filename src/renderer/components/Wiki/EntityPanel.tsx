@@ -21,6 +21,7 @@ import {
   DEFAULT_NOTE_META,
   normalizeCharacterMeta,
   normalizeLocationMeta,
+  normalizeLoreMeta,
   normalizeNoteMeta,
   parseMetadata,
   serializeMetadata,
@@ -132,8 +133,24 @@ function LorePanel({
     onUpdate(meta, name !== title ? name : undefined)
   }, [meta, name, title, onUpdate])
 
+  const saveMeta = useCallback(
+    (next: LoreMeta) => {
+      setMeta(next)
+      onUpdate(next, name !== title ? name : undefined)
+    },
+    [name, title, onUpdate]
+  )
+
   return (
     <div className="space-y-4">
+      <EntityImageBanner
+        nodeId={nodeId}
+        title={name}
+        imagePath={meta.imagePath}
+        entityType="lore"
+        onImageChange={(imagePath) => saveMeta({ ...meta, imagePath })}
+      />
+
       <Field label="Name">
         <Input value={name} onChange={(e) => setName(e.target.value)} onBlur={save} />
       </Field>
@@ -340,7 +357,9 @@ export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.E
             <LorePanel
               nodeId={node.id}
               title={node.title}
-              metadata={parseMetadata(node.metadata, DEFAULT_LORE_META)}
+              metadata={normalizeLoreMeta(
+                parseMetadata<LoreMeta>(node.metadata, DEFAULT_LORE_META)
+              )}
               onUpdate={handleUpdate}
             />
           )}
