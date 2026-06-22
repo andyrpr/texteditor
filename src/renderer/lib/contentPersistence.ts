@@ -1,4 +1,4 @@
-import type { SaveResult } from '@shared/types'
+import type { SaveResult, TreeNode } from '@shared/types'
 import { useAppStore } from '@/store/appStore'
 
 const DEBOUNCE_MS = 400
@@ -96,6 +96,34 @@ export function markContentDirty(nodeId: string, content: string): void {
 
 export function hasUnpersistedChanges(): boolean {
   return dirtyNodes.size > 0 || debounceTimers.size > 0 || persisting.size > 0
+}
+
+/** Prefer local in-progress content over incoming sync for dirty/active/persisting nodes. */
+export function mergeIncomingNodes(incoming: TreeNode[]): TreeNode[] {
+  const activeEditor = getActiveEditorContent?.()
+  const activeNote = getActiveNoteContent?.()
+
+  return incoming.map((n) => {
+    if (activeEditor?.nodeId === n.id) {
+      return { ...n, content: activeEditor.content }
+    }
+    if (activeNote?.nodeId === n.id) {
+      return { ...n, content: activeNote.content }
+    }
+    const dirty = dirtyNodes.get(n.id)
+    if (dirty) {
+      return { ...n, content: dirty.content }
+    }
+    if (persisting.has(n.id)) {
+      if (activeEditor?.nodeId === n.id) {
+        return { ...n, content: activeEditor.content }
+      }
+      if (activeNote?.nodeId === n.id) {
+        return { ...n, content: activeNote.content }
+      }
+    }
+    return n
+  })
 }
 
 export async function flushNode(nodeId: string): Promise<void> {

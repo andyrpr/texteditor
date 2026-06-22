@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useAppStore } from '@/store/appStore'
-import { resetPersistenceState } from '@/lib/contentPersistence'
+import { mergeIncomingNodes, resetPersistenceState } from '@/lib/contentPersistence'
 
 export function useSyncFromMain(): void {
   useEffect(() => {
@@ -12,7 +12,9 @@ export function useSyncFromMain(): void {
         uiState: import('@shared/types').ProjectUiState
       }
       if (state.meta && state.path) {
-        useAppStore.getState().setProject(state.path, state.meta, state.nodes)
+        useAppStore
+          .getState()
+          .setProject(state.path, state.meta, mergeIncomingNodes(state.nodes))
         useAppStore.getState().setSectionOrder(state.uiState.sectionOrder)
       } else if (useAppStore.getState().isProjectOpen) {
         useAppStore.getState().closeProject()
@@ -26,6 +28,7 @@ export function useSyncFromMain(): void {
 export async function hydrateFromMain(): Promise<void> {
   const state = await window.electronAPI.tomes.getSyncState()
   if (state.meta && state.path) {
+    // No merge here: runs at window startup before any local edits exist.
     useAppStore.getState().setProject(state.path, state.meta, state.nodes)
     useAppStore.getState().setSectionOrder(state.uiState.sectionOrder)
     useAppStore.getState().setLastSaved(state.meta.updatedAt)
