@@ -43,7 +43,8 @@ import {
   getWikiDir,
   getAssetsDir,
   getCharacterImagesDir,
-  getLocationImagesDir
+  getLocationImagesDir,
+  getLoreImagesDir
 } from './paths'
 import { validateTomesFile } from './validate'
 import {
@@ -215,10 +216,16 @@ function getTxdPathForNode(node: TreeNode, filename: string): string {
   return getTxdPath(filename, node.type, scope)
 }
 
+async function writeFileAtomic(filePath: string, content: string): Promise<void> {
+  const tempPath = `${filePath}.${process.pid}.tmp`
+  await fse.writeFile(tempPath, content, 'utf-8')
+  await fse.rename(tempPath, filePath)
+}
+
 async function writeManifest(): Promise<void> {
   if (!manifest || !tomesPath) throw new Error('No project open')
   manifest.lastSavedAt = now()
-  await fse.writeFile(tomesPath, JSON.stringify(manifest, null, 2), 'utf-8')
+  await writeFileAtomic(tomesPath, JSON.stringify(manifest, null, 2))
 }
 
 async function loadAllNodes(): Promise<TreeNode[]> {
@@ -326,8 +333,10 @@ export async function createProject(input: CreateProjectInput): Promise<{
   await fse.ensureDir(getCharacterImagesDir(root))
   await fse.ensureDir(join(getWikiDir(root), 'locations'))
   await fse.ensureDir(join(getWikiDir(root), 'locations', 'folders'))
+  await fse.ensureDir(getLocationImagesDir(root))
   await fse.ensureDir(join(getWikiDir(root), 'lore'))
   await fse.ensureDir(join(getWikiDir(root), 'lore', 'folders'))
+  await fse.ensureDir(getLoreImagesDir(root))
   await fse.ensureDir(join(getWikiDir(root), 'notes'))
   await fse.ensureDir(join(getWikiDir(root), 'notes', 'folders'))
   await fse.ensureDir(join(getWikiDir(root), 'entries'))
@@ -363,7 +372,7 @@ export async function createProject(input: CreateProjectInput): Promise<{
   tomesPath = tomes
   nodeCache.clear()
 
-  await fse.writeFile(tomes, JSON.stringify(manifest, null, 2), 'utf-8')
+  await writeFileAtomic(tomes, JSON.stringify(manifest, null, 2))
 
   await addRecentProject({
     id,
@@ -953,7 +962,7 @@ export async function renameRecentProject(
     if (validation.valid && validation.manifest) {
       validation.manifest.title = trimmed
       validation.manifest.lastSavedAt = now()
-      await fse.writeFile(entry.primaryPath, JSON.stringify(validation.manifest, null, 2), 'utf-8')
+      await writeFileAtomic(entry.primaryPath, JSON.stringify(validation.manifest, null, 2))
 
       if (manifest && manifest.id === projectId) {
         manifest.title = trimmed
@@ -1012,7 +1021,7 @@ export function getSyncState(): {
 export async function importEntityImage(
   nodeId: string,
   sourcePath: string,
-  entityType: 'character' | 'location'
+  entityType: 'character' | 'location' | 'lore'
 ): Promise<string> {
   if (!projectRoot) throw new Error('No project open')
 
@@ -1020,7 +1029,9 @@ export async function importEntityImage(
   const imagesDir =
     entityType === 'character'
       ? getCharacterImagesDir(projectRoot)
-      : getLocationImagesDir(projectRoot)
+      : entityType === 'location'
+        ? getLocationImagesDir(projectRoot)
+        : getLoreImagesDir(projectRoot)
   await fse.ensureDir(imagesDir)
 
   const filename = `${nodeId}${ext}`

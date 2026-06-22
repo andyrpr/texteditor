@@ -1,7 +1,7 @@
 import type { NavigationSyncState } from '@shared/types'
-import { DEFAULT_SECTION_ORDER } from '@shared/types'
+import { DEFAULT_SECTION_ORDER, DEFAULT_EXPANDED_SECTIONS, migrateExpandedSections } from '@shared/types'
 
-const DEFAULT_EXPANDED = ['manuscript', 'characters', 'locations', 'lore', 'notes']
+const DEFAULT_EXPANDED = [...DEFAULT_EXPANDED_SECTIONS]
 
 const DEFAULT: NavigationSyncState = {
   selectedNodeId: null,
@@ -21,7 +21,10 @@ export function getNavigationState(): NavigationSyncState {
 }
 
 export function setNavigationState(next: NavigationSyncState): NavigationSyncState {
-  state = next
+  state = {
+    ...next,
+    expandedSections: [...migrateExpandedSections(next.expandedSections)]
+  }
   return state
 }
 

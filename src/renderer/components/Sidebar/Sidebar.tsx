@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import {
-  ChevronDown,
   ChevronRight,
   BookOpen,
   Plus,
@@ -102,6 +101,32 @@ function SortableSection({
   )
 }
 
+function SidebarSectionBody({
+  open,
+  children
+}: {
+  open: boolean
+  children: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <div
+      className={cn(
+        'grid transition-[grid-template-rows] duration-200 ease-in-out',
+        open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+      )}
+    >
+      <div
+        className={cn(
+          'overflow-hidden transition-opacity duration-200 ease-in-out',
+          open ? 'opacity-100' : 'pointer-events-none opacity-0'
+        )}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
+
 function SectionHeader({
   label,
   icon: Icon,
@@ -147,7 +172,7 @@ function SectionHeader({
   return (
     <div className={cn('mx-1 flex min-w-0 items-center gap-1 rounded-md px-2 py-1.5', isContainerSelected && 'bg-accent text-accent-foreground')}>
       <button type="button" onClick={(e) => { e.stopPropagation(); onToggle() }} className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground">
-        {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        <ChevronRight className={cn('h-3 w-3 transition-transform duration-200 ease-in-out', isExpanded && 'rotate-90')} />
       </button>
       <button
         type="button"
@@ -233,11 +258,7 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
     return ordered
   }, [categories, sectionOrder])
 
-  const isCategoryExpanded = (categoryId: string): boolean => {
-    if (expandedSections.has(categoryId)) return true
-    const legacyScope = BUILTIN_TO_SCOPE[categoryId]
-    return legacyScope ? expandedSections.has(legacyScope) : false
-  }
+  const isCategoryExpanded = (categoryId: string): boolean => expandedSections.has(categoryId)
 
   const handleAddScene = async (chapterId: string): Promise<void> => {
     const createdId = await useHistoryStore.getState().push(
@@ -388,7 +409,7 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
           )}
 
           <div className={cn('relative flex min-h-0 flex-1 flex-col', !detached && 'border-r border-sidebar-border')}>
-            <div className={cn('flex-1 overflow-x-hidden overflow-y-auto', iconOnly ? 'py-1' : 'py-2')}>
+            <div className={cn('sidebar-scroll flex-1 overflow-x-hidden overflow-y-auto', iconOnly ? 'py-1' : 'py-2')}>
               {!iconOnly && projectMeta && (
                 <div className="mb-1 flex min-w-0 items-center gap-2 px-2">
                   <div className="min-w-0 flex-1">
@@ -415,14 +436,16 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
                   }}
                   onAdd={handleAddChapterClick}
                 />
-                {expandedSections.has('manuscript') && !iconOnly && (
-                  <SidebarTree
-                    scope="manuscript"
-                    parentId={null}
-                    disabled={showChapterModal}
-                    onAddScene={handleAddScene}
-                    onOpenNewWindow={openInNewWindow}
-                  />
+                {!iconOnly && (
+                  <SidebarSectionBody open={expandedSections.has('manuscript')}>
+                    <SidebarTree
+                      scope="manuscript"
+                      parentId={null}
+                      disabled={showChapterModal}
+                      onAddScene={handleAddScene}
+                      onOpenNewWindow={openInNewWindow}
+                    />
+                  </SidebarSectionBody>
                 )}
               </div>
 
@@ -454,18 +477,20 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
                           }
                           addOnHover
                         />
-                        {isCategoryExpanded(category.id) && !iconOnly && (
-                          <SidebarTree
-                            scope={isBuiltIn ? legacyScope! : 'entry'}
-                            parentId={null}
-                            categoryId={isBuiltIn ? undefined : category.id}
-                            onAddEntity={
-                              isBuiltIn
-                                ? () => void handleAddEntity(legacyNodeType!)
-                                : () => void handleAddEntry(category.id)
-                            }
-                            onOpenNewWindow={openInNewWindow}
-                          />
+                        {!iconOnly && (
+                          <SidebarSectionBody open={isCategoryExpanded(category.id)}>
+                            <SidebarTree
+                              scope={isBuiltIn ? legacyScope! : 'entry'}
+                              parentId={null}
+                              categoryId={isBuiltIn ? undefined : category.id}
+                              onAddEntity={
+                                isBuiltIn
+                                  ? () => void handleAddEntity(legacyNodeType!)
+                                  : () => void handleAddEntry(category.id)
+                              }
+                              onOpenNewWindow={openInNewWindow}
+                            />
+                          </SidebarSectionBody>
                         )}
                       </SortableSection>
                     )
@@ -483,7 +508,11 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
                   onToggle={handleTrashHeaderClick}
                   onSelectContainer={handleTrashHeaderClick}
                 />
-                {expandedSections.has('trash') && !iconOnly && trashCategories.map(renderTrashCategory)}
+                {!iconOnly && (
+                  <SidebarSectionBody open={expandedSections.has('trash')}>
+                    <div>{trashCategories.map(renderTrashCategory)}</div>
+                  </SidebarSectionBody>
+                )}
               </div>
 
               {!iconOnly && (
