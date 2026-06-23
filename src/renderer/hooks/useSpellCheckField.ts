@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { addCustomWord, check, type SpellMatch } from '@/lib/spellCheck'
 
 const DEBOUNCE_MS = 300
+const BLUR_MENU_DELAY_MS = 150
 
 export interface SpellCheckMenuState {
   x: number
@@ -37,6 +38,8 @@ export function useSpellCheckField(
   const generationRef = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const blurMenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const activeMenuRef = useRef<SpellCheckMenuState | null>(null)
 
   const runCheck = useCallback(
     async (text: string, gen: number) => {
@@ -65,6 +68,15 @@ export function useSpellCheckField(
     [enabled, debounceMs, runCheck]
   )
 
+  const closeMenu = useCallback(() => {
+    if (blurMenuTimerRef.current) {
+      clearTimeout(blurMenuTimerRef.current)
+      blurMenuTimerRef.current = null
+    }
+    activeMenuRef.current = null
+    setMenu(null)
+  }, [])
+
   useEffect(() => {
     if (!enabled) {
       setMatches([])
@@ -77,25 +89,30 @@ export function useSpellCheckField(
   useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
+      if (blurMenuTimerRef.current) clearTimeout(blurMenuTimerRef.current)
       abortRef.current?.abort()
     }
   }, [])
 
   const onFocus = useCallback(() => {
+    if (blurMenuTimerRef.current) {
+      clearTimeout(blurMenuTimerRef.current)
+      blurMenuTimerRef.current = null
+    }
     setFocused(true)
   }, [])
 
   const onBlur = useCallback(() => {
     setFocused(false)
-    setMenu(null)
-  }, [])
+    if (blurMenuTimerRef.current) clearTimeout(blurMenuTimerRef.current)
+    blurMenuTimerRef.current = setTimeout(() => {
+      closeMenu()
+      blurMenuTimerRef.current = null
+    }, BLUR_MENU_DELAY_MS)
+  }, [closeMenu])
 
   const markDirty = useCallback(() => {
     setDirty(true)
-  }, [])
-
-  const closeMenu = useCallback(() => {
-    setMenu(null)
   }, [])
 
   const handleContextMenu = useCallback(
@@ -107,32 +124,36 @@ export function useSpellCheckField(
       if (!match) return
 
       e.preventDefault()
-      setMenu({ x: e.clientX, y: e.clientY, match })
+      const nextMenu = { x: e.clientX, y: e.clientY, match }
+      activeMenuRef.current = nextMenu
+      setMenu(nextMenu)
     },
     [enabled, matches]
   )
 
   const applySuggestion = useCallback(
     (replacement: string): string | null => {
-      if (!menu) return null
-      const { from, to } = menu.match
+      const active = activeMenuRef.current
+      if (!active) return null
+      const { from, to } = active.match
       const next = value.slice(0, from) + replacement + value.slice(to)
-      setMenu(null)
+      closeMenu()
       setDirty(true)
       return next
     },
-    [menu, value]
+    [value, closeMenu]
   )
 
   const addToDictionary = useCallback(() => {
-    if (!menu) return
-    addCustomWord(menu.match.word)
-    setMenu(null)
+    const active = activeMenuRef.current
+    if (!active) return
+    addCustomWord(active.match.word)
+    closeMenu()
     setDirty(true)
     if (enabled && (focused || dirty)) {
       scheduleCheck(value)
     }
-  }, [menu, enabled, focused, dirty, value, scheduleCheck])
+  }, [enabled, focused, dirty, value, scheduleCheck, closeMenu])
 
   return {
     matches,
