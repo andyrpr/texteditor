@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, X } from 'lucide-react'
-import { Input } from '@/components/UI/input'
+import { SpellCheckedInput, SpellCheckedTextarea } from '@/components/UI/spell-checked-field'
 import { ComboField } from '@/components/UI/ComboField'
-import { AutoGrowTextarea } from '@/components/UI/auto-grow-textarea'
+import { Input } from '@/components/UI/input'
 import { Button } from '@/components/UI/button'
 import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
 import { useAppStore } from '@/store/appStore'
@@ -186,10 +186,10 @@ export function CharacterPanel({
       />
 
       <Field label="Name">
-        <Input value={name} onChange={(e) => setName(e.target.value)} onBlur={save} />
+        <SpellCheckedInput value={name} onChange={(e) => setName(e.target.value)} onBlur={save} />
       </Field>
       <Field label="Also known as">
-        <Input
+        <SpellCheckedInput
           value={meta.aliases.join(', ')}
           placeholder="separate with ,"
           onChange={(e) =>
@@ -206,7 +206,7 @@ export function CharacterPanel({
       </Field>
       <div className="grid grid-cols-3 gap-2">
         <Field label="Age">
-          <Input value={meta.age} onChange={(e) => setMeta({ ...meta, age: e.target.value })} onBlur={save} />
+          <SpellCheckedInput value={meta.age} onChange={(e) => setMeta({ ...meta, age: e.target.value })} onBlur={save} />
         </Field>
         <Field label="Race">
           <ComboField
@@ -226,7 +226,7 @@ export function CharacterPanel({
         </Field>
       </div>
       <Field label="Physical Description">
-        <AutoGrowTextarea
+        <SpellCheckedTextarea
           measureKey={nodeId}
           value={meta.physicalDescription}
           onChange={(e) => setMeta({ ...meta, physicalDescription: e.target.value })}
@@ -235,7 +235,7 @@ export function CharacterPanel({
         />
       </Field>
       <Field label="Personality">
-        <AutoGrowTextarea
+        <SpellCheckedTextarea
           measureKey={nodeId}
           value={meta.personality}
           onChange={(e) => setMeta({ ...meta, personality: e.target.value })}
@@ -244,7 +244,7 @@ export function CharacterPanel({
         />
       </Field>
       <Field label="Background">
-        <AutoGrowTextarea
+        <SpellCheckedTextarea
           measureKey={nodeId}
           value={meta.background}
           onChange={(e) => setMeta({ ...meta, background: e.target.value })}
@@ -253,7 +253,7 @@ export function CharacterPanel({
         />
       </Field>
       <Field label="Role in Story">
-        <AutoGrowTextarea
+        <SpellCheckedTextarea
           measureKey={nodeId}
           value={meta.role}
           onChange={(e) => setMeta({ ...meta, role: e.target.value })}
@@ -262,7 +262,7 @@ export function CharacterPanel({
         />
       </Field>
       <Field label="Notes">
-        <AutoGrowTextarea
+        <SpellCheckedTextarea
           measureKey={nodeId}
           value={meta.notes}
           onChange={(e) => setMeta({ ...meta, notes: e.target.value })}
@@ -321,7 +321,7 @@ export function CharacterPanel({
       </div>
 
       <Field label="Starts as">
-        <AutoGrowTextarea
+        <SpellCheckedTextarea
           measureKey={nodeId}
           value={meta.startsAs}
           onChange={(e) => setMeta({ ...meta, startsAs: e.target.value })}
@@ -330,7 +330,7 @@ export function CharacterPanel({
         />
       </Field>
       <Field label="Ends as">
-        <AutoGrowTextarea
+        <SpellCheckedTextarea
           measureKey={nodeId}
           value={meta.endsAs}
           onChange={(e) => setMeta({ ...meta, endsAs: e.target.value })}

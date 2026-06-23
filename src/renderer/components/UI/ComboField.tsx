@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Input } from '@/components/UI/input'
+import { SpellCheckedInput } from '@/components/UI/spell-checked-field'
 import { cn } from '@/lib/utils'
 
 interface ComboFieldProps {
@@ -78,10 +78,11 @@ export function ComboField({
 
   return (
     <div ref={containerRef} className="relative">
-      <Input
+      <SpellCheckedInput
         value={query}
         placeholder={placeholder}
         className={className}
+        spellCheckEnabled={!open}
         onChange={handleChange}
         onFocus={handleFocus}
         onBlur={handleBlur}

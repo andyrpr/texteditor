@@ -166,6 +166,12 @@
   cursor: context-menu;
 }
 
+.spell-error-mirror {
+  text-decoration: underline wavy;
+  text-decoration-color: hsl(var(--destructive));
+  text-decoration-skip-ink: none;
+}
+
 .search-result .spell-error,
 .search-result-current .spell-error {
   text-decoration: none;

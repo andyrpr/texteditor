@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { X } from 'lucide-react'
-import { Input } from '@/components/UI/input'
-import { AutoGrowTextarea } from '@/components/UI/auto-grow-textarea'
+import { SpellCheckedInput, SpellCheckedTextarea } from '@/components/UI/spell-checked-field'
 import { useAppStore } from '@/store/appStore'
 import type {
   CategoryDefinition,
@@ -41,7 +40,7 @@ function TextBlock({
 }): React.JSX.Element {
   return (
     <Field label={block.label}>
-      <Input
+      <SpellCheckedInput
         value={value}
         placeholder={block.placeholder}
         onChange={(e) => onChange(e.target.value)}
@@ -66,7 +65,7 @@ function TextareaBlock({
 }): React.JSX.Element {
   return (
     <Field label={block.label}>
-      <AutoGrowTextarea
+      <SpellCheckedTextarea
         measureKey={`${measureKey}-${block.id}`}
         value={value}
         placeholder={block.placeholder}
@@ -133,7 +132,7 @@ function TagsBlock({
 
   return (
     <Field label={block.label}>
-      <Input
+      <SpellCheckedInput
         value={raw}
         placeholder={block.placeholder ?? 'separate with ,'}
         onChange={(e) => setRaw(e.target.value)}
@@ -298,7 +297,7 @@ export function EntryPanel({
   return (
     <div className="space-y-4">
       <Field label="Name">
-        <Input
+        <SpellCheckedInput
           value={name}
           onChange={(e) => setName(e.target.value)}
           onBlur={() => save(undefined, name)}
