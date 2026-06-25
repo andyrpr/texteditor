@@ -6,6 +6,7 @@ import { SpellCheckedInput, SpellCheckedTextarea } from '@/components/UI/spell-c
 import { ComboField } from '@/components/UI/ComboField'
 import { ScrollArea } from '@/components/UI/scroll-area'
 import { CharacterPanel } from '@/components/Wiki/CharacterPanel'
+import { PeoplePanel } from '@/components/Wiki/PeoplePanel'
 import { EntryPanel } from '@/components/Wiki/EntryPanel'
 import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
 import { NotePanel } from '@/components/Wiki/NotePanel'
@@ -18,16 +19,19 @@ import {
   DEFAULT_LOCATION_META,
   DEFAULT_LORE_META,
   DEFAULT_NOTE_META,
+  DEFAULT_PEOPLE_META,
+  NF_PEOPLE_CATEGORY_ID,
   normalizeCharacterMeta,
   normalizeLocationMeta,
   normalizeLoreMeta,
   normalizeNoteMeta,
+  normalizePeopleMeta,
   parseMetadata,
   serializeMetadata,
   RIGHT_PANEL_MIN_WIDTH,
   RIGHT_PANEL_MAX_WIDTH
 } from '@shared/types'
-import type { CharacterMeta, LocationMeta, LoreMeta, NoteMeta, TreeNode } from '@shared/types'
+import type { CharacterMeta, LocationMeta, LoreMeta, NoteMeta, PeopleMeta, TreeNode } from '@shared/types'
 
 function Field({
   label,
@@ -244,6 +248,18 @@ export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.E
     setDirty(true)
   }
 
+  const handlePeopleUpdate = async (metadata: PeopleMeta, title?: string): Promise<void> => {
+    if (!node) return
+    const updates: { metadata: string; title?: string } = {
+      metadata: serializeMetadata(metadata)
+    }
+    if (title) updates.title = title
+
+    const updated = await window.electronAPI.tree.update(node.id, updates)
+    updateNodeInStore(node.id, { metadata: updated.metadata, title: updated.title })
+    setDirty(true)
+  }
+
   const handleEntryUpdate = async (updates: {
     title?: string
     metadata?: string
@@ -373,7 +389,18 @@ export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.E
               onUpdate={handleNoteUpdate}
             />
           )}
-          {panelType === 'entry' && entryCategory && (
+          {panelType === 'entry' && entryCategory?.id === NF_PEOPLE_CATEGORY_ID && (
+            <PeoplePanel
+              nodeId={node.id}
+              title={node.title}
+              metadata={normalizePeopleMeta(
+                parseMetadata<PeopleMeta>(node.metadata, DEFAULT_PEOPLE_META) as Partial<PeopleMeta> &
+                  Record<string, unknown>
+              )}
+              onUpdate={handlePeopleUpdate}
+            />
+          )}
+          {panelType === 'entry' && entryCategory && entryCategory.id !== NF_PEOPLE_CATEGORY_ID && (
             <EntryPanel
               nodeId={node.id}
               title={node.title}

@@ -44,7 +44,8 @@ import {
   getAssetsDir,
   getCharacterImagesDir,
   getLocationImagesDir,
-  getLoreImagesDir
+  getLoreImagesDir,
+  getEntryImagesDir
 } from './paths'
 import { validateTomesFile } from './validate'
 import {
@@ -341,6 +342,7 @@ export async function createProject(input: CreateProjectInput): Promise<{
   await fse.ensureDir(join(getWikiDir(root), 'notes', 'folders'))
   await fse.ensureDir(join(getWikiDir(root), 'entries'))
   await fse.ensureDir(join(getWikiDir(root), 'entries', 'folders'))
+  await fse.ensureDir(getEntryImagesDir(root))
   await fse.ensureDir(join(getWikiDir(root), 'entry', 'folders'))
   await fse.ensureDir(getBackupsDir(root))
   await fse.ensureDir(getAssetsDir(root))
@@ -1021,7 +1023,7 @@ export function getSyncState(): {
 export async function importEntityImage(
   nodeId: string,
   sourcePath: string,
-  entityType: 'character' | 'location' | 'lore'
+  entityType: 'character' | 'location' | 'lore' | 'entry'
 ): Promise<string> {
   if (!projectRoot) throw new Error('No project open')
 
@@ -1031,7 +1033,9 @@ export async function importEntityImage(
       ? getCharacterImagesDir(projectRoot)
       : entityType === 'location'
         ? getLocationImagesDir(projectRoot)
-        : getLoreImagesDir(projectRoot)
+        : entityType === 'lore'
+          ? getLoreImagesDir(projectRoot)
+          : getEntryImagesDir(projectRoot)
   await fse.ensureDir(imagesDir)
 
   const filename = `${nodeId}${ext}`

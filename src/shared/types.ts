@@ -181,6 +181,42 @@ export interface CharacterRelationship {
   type: CharacterRelationshipType
 }
 
+export type PeopleRelationshipType =
+  | 'Colleague'
+  | 'Source'
+  | 'Interview Subject'
+  | 'Family'
+  | 'Friend'
+  | 'Mentor'
+  | 'Other'
+  | 'Unknown'
+
+export const PEOPLE_RELATIONSHIP_TYPES: PeopleRelationshipType[] = [
+  'Colleague',
+  'Source',
+  'Interview Subject',
+  'Family',
+  'Friend',
+  'Mentor',
+  'Other',
+  'Unknown'
+]
+
+export interface PeopleRelationship {
+  personId: string
+  type: PeopleRelationshipType
+}
+
+export const NF_PEOPLE_CATEGORY_ID = 'nf-people'
+
+export const PEOPLE_INTERVIEW_STATUS_OPTIONS = [
+  'Not contacted',
+  'Requested',
+  'Scheduled',
+  'Completed',
+  'Declined'
+] as const
+
 // ─── Panel block system ───────────────────────────────────────────────────────
 
 export type PanelBlockType =
@@ -265,9 +301,11 @@ export const BUILTIN_CATEGORIES: CategoryDefinition[] = [
     builtIn: true,
     panelBlocks: [
       { id: 'aliases', label: 'Aliases', type: 'tags' },
+      { id: 'general', label: 'General', type: 'text' },
       { id: 'age', label: 'Age', type: 'text' },
       { id: 'race', label: 'Race', type: 'text' },
       { id: 'gender', label: 'Gender', type: 'text' },
+      { id: 'professions', label: 'Profession', type: 'tags' },
       { id: 'physicalDescription', label: 'Physical Description', type: 'textarea', rows: 3 },
       { id: 'personality', label: 'Personality', type: 'textarea', rows: 3 },
       { id: 'background', label: 'Background', type: 'textarea', rows: 3 },
@@ -371,7 +409,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     description: 'People, Sources, Concepts, and Notes — built for research-driven writing.',
     categories: [
       {
-        id: 'nf-people',
+        id: NF_PEOPLE_CATEGORY_ID,
         name: 'People',
         icon: 'UserCircle',
         mode: 'panel',
@@ -379,16 +417,26 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         builtIn: false,
         panelBlocks: [
           { id: 'knownAs', label: 'Known As', type: 'text' },
+          { id: 'ethnicity', label: 'Ethnicity', type: 'text' },
+          { id: 'gender', label: 'Gender', type: 'text' },
+          { id: 'age', label: 'Age', type: 'text' },
+          { id: 'general', label: 'General', type: 'text' },
           { id: 'roleTitle', label: 'Role / Title', type: 'text' },
           { id: 'organization', label: 'Organization', type: 'text' },
           {
             id: 'interviewStatus',
             label: 'Interview Status',
             type: 'status',
-            options: ['Not contacted', 'Contacted', 'Interviewed', 'Declined']
+            options: [...PEOPLE_INTERVIEW_STATUS_OPTIONS]
           },
           { id: 'keyQuotes', label: 'Key Quotes', type: 'textarea', rows: 4 },
           { id: 'relevance', label: 'Relevance', type: 'textarea', rows: 2 },
+          {
+            id: 'relationships',
+            label: 'Relationships',
+            type: 'relationships',
+            allowedCategoryIds: [NF_PEOPLE_CATEGORY_ID]
+          },
           { id: 'notes', label: 'Notes', type: 'textarea', rows: 3 }
         ]
       },
@@ -475,9 +523,11 @@ export function getAddableTemplateCategories(
 
 export interface CharacterMeta {
   aliases: string[]
+  general: string
   age: string
   race: string
   gender: string
+  professions: string[]
   physicalDescription: string
   personality: string
   background: string
@@ -511,7 +561,23 @@ export interface NoteMeta {
   tags: string[]
 }
 
-export type EntityMeta = CharacterMeta | LocationMeta | LoreMeta | NoteMeta
+export interface PeopleMeta {
+  imagePath: string | null
+  knownAs: string
+  ethnicity: string
+  gender: string
+  age: string
+  general: string
+  roleTitle: string
+  organization: string
+  interviewStatus: string
+  keyQuotes: string
+  relevance: string
+  relationships: PeopleRelationship[]
+  notes: string
+}
+
+export type EntityMeta = CharacterMeta | LocationMeta | LoreMeta | NoteMeta | PeopleMeta
 
 export interface EntityMention {
   entityId: string
@@ -799,9 +865,11 @@ export const COVER_COLORS = [
 
 export const DEFAULT_CHARACTER_META: CharacterMeta = {
   aliases: [],
+  general: '',
   age: '',
   race: '',
   gender: '',
+  professions: [],
   physicalDescription: '',
   personality: '',
   background: '',
@@ -832,6 +900,10 @@ export function normalizeCharacterMeta(raw: Partial<CharacterMeta> & Record<stri
     ...DEFAULT_CHARACTER_META,
     ...raw,
     aliases: Array.isArray(raw.aliases) ? raw.aliases.map(String) : DEFAULT_CHARACTER_META.aliases,
+    general: typeof raw.general === 'string' ? raw.general : DEFAULT_CHARACTER_META.general,
+    professions: Array.isArray(raw.professions)
+      ? raw.professions.map(String).filter(Boolean)
+      : DEFAULT_CHARACTER_META.professions,
     relationships,
     startsAs: typeof raw.startsAs === 'string' ? raw.startsAs : DEFAULT_CHARACTER_META.startsAs,
     endsAs: typeof raw.endsAs === 'string' ? raw.endsAs : DEFAULT_CHARACTER_META.endsAs,
@@ -881,6 +953,65 @@ export function normalizeLoreMeta(meta: LoreMeta): LoreMeta {
 
 export const DEFAULT_NOTE_META: NoteMeta = {
   tags: []
+}
+
+export const DEFAULT_PEOPLE_META: PeopleMeta = {
+  imagePath: null,
+  knownAs: '',
+  ethnicity: '',
+  gender: '',
+  age: '',
+  general: '',
+  roleTitle: '',
+  organization: '',
+  interviewStatus: '',
+  keyQuotes: '',
+  relevance: '',
+  relationships: [],
+  notes: ''
+}
+
+export function normalizePeopleMeta(raw: Partial<PeopleMeta> & Record<string, unknown>): PeopleMeta {
+  const relationships: PeopleRelationship[] = Array.isArray(raw.relationships)
+    ? raw.relationships.map((entry) => {
+        const rel = entry as Partial<PeopleRelationship>
+        const type =
+          rel.type && PEOPLE_RELATIONSHIP_TYPES.includes(rel.type as PeopleRelationshipType)
+            ? (rel.type as PeopleRelationshipType)
+            : 'Unknown'
+        return {
+          personId: typeof rel.personId === 'string' ? rel.personId : '',
+          type
+        }
+      })
+    : []
+
+  return {
+    ...DEFAULT_PEOPLE_META,
+    ...raw,
+    knownAs: typeof raw.knownAs === 'string' ? raw.knownAs : DEFAULT_PEOPLE_META.knownAs,
+    ethnicity: typeof raw.ethnicity === 'string' ? raw.ethnicity : DEFAULT_PEOPLE_META.ethnicity,
+    gender: typeof raw.gender === 'string' ? raw.gender : DEFAULT_PEOPLE_META.gender,
+    age: typeof raw.age === 'string' ? raw.age : DEFAULT_PEOPLE_META.age,
+    general: typeof raw.general === 'string' ? raw.general : DEFAULT_PEOPLE_META.general,
+    roleTitle: typeof raw.roleTitle === 'string' ? raw.roleTitle : DEFAULT_PEOPLE_META.roleTitle,
+    organization:
+      typeof raw.organization === 'string' ? raw.organization : DEFAULT_PEOPLE_META.organization,
+    interviewStatus:
+      typeof raw.interviewStatus === 'string'
+        ? raw.interviewStatus
+        : DEFAULT_PEOPLE_META.interviewStatus,
+    keyQuotes: typeof raw.keyQuotes === 'string' ? raw.keyQuotes : DEFAULT_PEOPLE_META.keyQuotes,
+    relevance: typeof raw.relevance === 'string' ? raw.relevance : DEFAULT_PEOPLE_META.relevance,
+    notes: typeof raw.notes === 'string' ? raw.notes : DEFAULT_PEOPLE_META.notes,
+    relationships,
+    imagePath:
+      typeof raw.imagePath === 'string'
+        ? raw.imagePath
+        : raw.imagePath === null
+          ? null
+          : DEFAULT_PEOPLE_META.imagePath
+  }
 }
 
 export function normalizeNoteMeta(raw: Partial<NoteMeta> & Record<string, unknown>): NoteMeta {
