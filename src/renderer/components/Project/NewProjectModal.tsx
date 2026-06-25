@@ -28,7 +28,8 @@ import { Input } from '@/components/UI/input'
 import { Label } from '@/components/UI/label'
 import { cn } from '@/lib/utils'
 import { detectPathLabel } from '@shared/pathUtils'
-import { PROJECT_TEMPLATES, BUILTIN_CATEGORIES } from '@shared/types'
+import { PROJECT_TEMPLATES } from '@shared/types'
+import { FICTION_PRESET_IDS, resolveCategoriesFromPresetIds } from '@shared/categoryPresets'
 import type { TemplateId, CategoryDefinition } from '@shared/types'
 import { useProject } from '@/hooks/useProject'
 
@@ -69,7 +70,9 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
   const [hiddenForPicker, setHiddenForPicker] = useState(false)
   const [pickingFolder, setPickingFolder] = useState(false)
   const [selectedTemplateId, setSelectedTemplateId] = useState<TemplateId>('fiction')
-  const [selectedCategories, setSelectedCategories] = useState<CategoryDefinition[]>(BUILTIN_CATEGORIES)
+  const [selectedCategories, setSelectedCategories] = useState<CategoryDefinition[]>(() =>
+    resolveCategoriesFromPresetIds([...FICTION_PRESET_IDS])
+  )
 
   const reset = (): void => {
     setStep(1)
@@ -81,7 +84,7 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
     setCreating(false)
     setError(null)
     setSelectedTemplateId('fiction')
-    setSelectedCategories(BUILTIN_CATEGORIES)
+    setSelectedCategories(resolveCategoriesFromPresetIds([...FICTION_PRESET_IDS]))
   }
 
   const handleClose = (value: boolean): void => {
@@ -215,13 +218,14 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
             <div className="space-y-2 py-2">
               {PROJECT_TEMPLATES.map((template) => {
                 const isSelected = selectedTemplateId === template.id
+                const templateCategories = resolveCategoriesFromPresetIds(template.presetIds)
                 return (
                   <button
                     key={template.id}
                     type="button"
                     onClick={() => {
                       setSelectedTemplateId(template.id)
-                      setSelectedCategories(template.categories)
+                      setSelectedCategories(templateCategories)
                     }}
                     className={cn(
                       'w-full rounded-lg border p-4 text-left transition-colors',
@@ -237,9 +241,9 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
 
                     <p className="mt-0.5 text-xs text-muted-foreground">{template.description}</p>
 
-                    {template.categories.length > 0 && (
+                    {templateCategories.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1.5">
-                        {template.categories.map((cat) => {
+                        {templateCategories.map((cat) => {
                           const IconComponent = ICON_COMPONENTS[cat.icon]
                           return (
                             <span
@@ -254,7 +258,7 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
                       </div>
                     )}
 
-                    {template.categories.length === 0 && (
+                    {templateCategories.length === 0 && (
                       <p className="mt-2 text-xs italic text-muted-foreground/60">
                         No categories — just the manuscript.
                       </p>

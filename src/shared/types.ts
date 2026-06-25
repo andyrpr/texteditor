@@ -1,3 +1,8 @@
+import {
+  BUILTIN_CATEGORY_IDS,
+  NF_PEOPLE_CATEGORY_ID
+} from './categoryIds'
+
 export type EntityType = 'character' | 'location' | 'lore'
 
 export type WikiEntityType = EntityType | 'note'
@@ -207,15 +212,12 @@ export interface PeopleRelationship {
   type: PeopleRelationshipType
 }
 
-export const NF_PEOPLE_CATEGORY_ID = 'nf-people'
-
-export const PEOPLE_INTERVIEW_STATUS_OPTIONS = [
-  'Not contacted',
-  'Requested',
-  'Scheduled',
-  'Completed',
-  'Declined'
-] as const
+export {
+  BUILTIN_CATEGORY_IDS,
+  NF_PEOPLE_CATEGORY_ID,
+  OPTIONAL_BESTIARY_CATEGORY_ID,
+  PEOPLE_INTERVIEW_STATUS_OPTIONS
+} from './categoryIds'
 
 // ─── Panel block system ───────────────────────────────────────────────────────
 
@@ -279,105 +281,12 @@ export interface CategoryDefinition {
   builtIn: boolean
   /** Panel layout — only used when mode === 'panel' */
   panelBlocks?: PanelBlock[]
+  /**
+   * How nodes are stored on disk — always set by normalizeCategoryDefinition after load.
+   * Never read directly; use nodeKindForCategory(cat).
+   */
+  nodeKind?: 'character' | 'location' | 'lore' | 'note' | 'entry'
 }
-
-// ─── Built-in category definitions ───────────────────────────────────────────
-
-/** IDs for built-in categories — used to map to existing NodeType for legacy nodes */
-export const BUILTIN_CATEGORY_IDS = {
-  characters: 'builtin-characters',
-  locations: 'builtin-locations',
-  lore: 'builtin-lore',
-  notes: 'builtin-notes'
-} as const
-
-export const BUILTIN_CATEGORIES: CategoryDefinition[] = [
-  {
-    id: BUILTIN_CATEGORY_IDS.characters,
-    name: 'Characters',
-    icon: 'Users',
-    mode: 'panel',
-    sortOrder: 0,
-    builtIn: true,
-    panelBlocks: [
-      { id: 'aliases', label: 'Aliases', type: 'tags' },
-      { id: 'general', label: 'General', type: 'textarea', rows: 3 },
-      { id: 'age', label: 'Age', type: 'text' },
-      { id: 'race', label: 'Race', type: 'text' },
-      { id: 'gender', label: 'Gender', type: 'text' },
-      { id: 'professions', label: 'Profession', type: 'tags' },
-      { id: 'physicalDescription', label: 'Physical Description', type: 'textarea', rows: 3 },
-      { id: 'personality', label: 'Personality', type: 'textarea', rows: 3 },
-      { id: 'background', label: 'Background', type: 'textarea', rows: 3 },
-      { id: 'role', label: 'Role', type: 'text' },
-      {
-        id: 'relationships',
-        label: 'Relationships',
-        type: 'relationships',
-        allowedCategoryIds: [BUILTIN_CATEGORY_IDS.characters]
-      },
-      { id: 'notes', label: 'Notes', type: 'textarea', rows: 4 }
-    ]
-  },
-  {
-    id: BUILTIN_CATEGORY_IDS.locations,
-    name: 'Locations',
-    icon: 'MapPin',
-    mode: 'panel',
-    sortOrder: 1,
-    builtIn: true,
-    panelBlocks: [
-      { id: 'locationType', label: 'Type', type: 'text' },
-      { id: 'description', label: 'Description', type: 'textarea', rows: 4 },
-      {
-        id: 'connectedLocations',
-        label: 'Connected Locations',
-        type: 'relationships',
-        allowedCategoryIds: [BUILTIN_CATEGORY_IDS.locations]
-      },
-      {
-        id: 'notableCharacters',
-        label: 'Notable Characters',
-        type: 'relationships',
-        allowedCategoryIds: [BUILTIN_CATEGORY_IDS.characters]
-      },
-      { id: 'notes', label: 'Notes', type: 'textarea', rows: 3 }
-    ]
-  },
-  {
-    id: BUILTIN_CATEGORY_IDS.lore,
-    name: 'Lore',
-    icon: 'Scroll',
-    mode: 'panel',
-    sortOrder: 2,
-    builtIn: true,
-    panelBlocks: [
-      { id: 'category', label: 'Category', type: 'text' },
-      { id: 'description', label: 'Description', type: 'textarea', rows: 4 },
-      {
-        id: 'relatedCharacters',
-        label: 'Related Characters',
-        type: 'relationships',
-        allowedCategoryIds: [BUILTIN_CATEGORY_IDS.characters]
-      },
-      {
-        id: 'relatedLocations',
-        label: 'Related Locations',
-        type: 'relationships',
-        allowedCategoryIds: [BUILTIN_CATEGORY_IDS.locations]
-      },
-      { id: 'notes', label: 'Notes', type: 'textarea', rows: 3 }
-    ]
-  },
-  {
-    id: BUILTIN_CATEGORY_IDS.notes,
-    name: 'Notes',
-    icon: 'StickyNote',
-    mode: 'editor',
-    sortOrder: 3,
-    builtIn: true
-  }
-]
 
 // ─── Template definitions ─────────────────────────────────────────────────────
 
@@ -387,7 +296,8 @@ export interface ProjectTemplate {
   id: TemplateId
   name: string
   description: string
-  categories: CategoryDefinition[]
+  /** ids into CATEGORY_PRESET_CATALOG */
+  presetIds: string[]
 }
 
 export const PROJECT_TEMPLATES: ProjectTemplate[] = [
@@ -395,108 +305,28 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     id: 'blank',
     name: 'Blank',
     description: 'Just the manuscript. Add categories whenever you need them.',
-    categories: []
+    presetIds: []
   },
   {
     id: 'fiction',
     name: 'Fiction',
     description: 'Characters, Locations, Lore, and Notes — the classic setup for novels and short stories.',
-    categories: BUILTIN_CATEGORIES
+    presetIds: [
+      BUILTIN_CATEGORY_IDS.characters,
+      BUILTIN_CATEGORY_IDS.locations,
+      BUILTIN_CATEGORY_IDS.lore,
+      BUILTIN_CATEGORY_IDS.notes
+    ]
   },
   {
     id: 'non-fiction',
     name: 'Non-Fiction',
     description: 'People, Sources, Concepts, and Notes — built for research-driven writing.',
-    categories: [
-      {
-        id: NF_PEOPLE_CATEGORY_ID,
-        name: 'People',
-        icon: 'UserCircle',
-        mode: 'panel',
-        sortOrder: 0,
-        builtIn: false,
-        panelBlocks: [
-          { id: 'knownAs', label: 'Known As', type: 'text' },
-          { id: 'ethnicity', label: 'Ethnicity', type: 'text' },
-          { id: 'gender', label: 'Gender', type: 'text' },
-          { id: 'age', label: 'Age', type: 'text' },
-          { id: 'general', label: 'General', type: 'textarea', rows: 3 },
-          { id: 'roleTitle', label: 'Role / Title', type: 'text' },
-          { id: 'organization', label: 'Organization', type: 'text' },
-          {
-            id: 'interviewStatus',
-            label: 'Interview Status',
-            type: 'status',
-            options: [...PEOPLE_INTERVIEW_STATUS_OPTIONS]
-          },
-          { id: 'keyQuotes', label: 'Key Quotes', type: 'textarea', rows: 4 },
-          { id: 'relevance', label: 'Relevance', type: 'textarea', rows: 2 },
-          {
-            id: 'relationships',
-            label: 'Relationships',
-            type: 'relationships',
-            allowedCategoryIds: [NF_PEOPLE_CATEGORY_ID]
-          },
-          { id: 'notes', label: 'Notes', type: 'textarea', rows: 3 }
-        ]
-      },
-      {
-        id: 'nf-sources',
-        name: 'Sources',
-        icon: 'BookOpen',
-        mode: 'panel',
-        sortOrder: 1,
-        builtIn: false,
-        panelBlocks: [
-          { id: 'authors', label: 'Author(s)', type: 'text' },
-          {
-            id: 'sourceType',
-            label: 'Type',
-            type: 'status',
-            options: ['Book', 'Article', 'Interview', 'Website', 'Podcast', 'Documentary', 'Other']
-          },
-          { id: 'publisher', label: 'Publisher / Publication', type: 'text' },
-          { id: 'year', label: 'Year', type: 'text' },
-          { id: 'url', label: 'URL', type: 'text' },
-          { id: 'keyExcerpts', label: 'Key Excerpts', type: 'textarea', rows: 4 },
-          { id: 'relevance', label: 'Relevance / How Cited', type: 'textarea', rows: 2 },
-          { id: 'notes', label: 'Notes', type: 'textarea', rows: 3 }
-        ]
-      },
-      {
-        id: 'nf-concepts',
-        name: 'Concepts',
-        icon: 'Lightbulb',
-        mode: 'panel',
-        sortOrder: 2,
-        builtIn: false,
-        panelBlocks: [
-          { id: 'definition', label: 'Definition', type: 'textarea', rows: 2 },
-          {
-            id: 'domain',
-            label: 'Domain',
-            type: 'text',
-            placeholder: 'e.g. Economics, Psychology, History'
-          },
-          { id: 'keyThinkers', label: 'Key Thinkers / References', type: 'textarea', rows: 2 },
-          {
-            id: 'relatedConcepts',
-            label: 'Related Concepts',
-            type: 'relationships',
-            allowedCategoryIds: ['nf-concepts']
-          },
-          { id: 'application', label: 'How It Applies', type: 'textarea', rows: 3 },
-          { id: 'notes', label: 'Notes', type: 'textarea', rows: 3 }
-        ]
-      },
-      {
-        id: BUILTIN_CATEGORY_IDS.notes,
-        name: 'Notes',
-        icon: 'StickyNote',
-        mode: 'editor',
-        sortOrder: 3,
-        builtIn: false
-      }
+    presetIds: [
+      NF_PEOPLE_CATEGORY_ID,
+      'nf-sources',
+      'nf-concepts',
+      BUILTIN_CATEGORY_IDS.notes
     ]
   }
 ]
@@ -507,38 +337,22 @@ export interface TemplateCategoryGroup {
   categories: CategoryDefinition[]
 }
 
-/** Presets from Fiction / Non-Fiction templates not already in the project. */
-export function getAddableTemplateCategories(
-  current: CategoryDefinition[]
-): TemplateCategoryGroup[] {
-  const currentIds = new Set(current.map((c) => c.id))
-  return PROJECT_TEMPLATES.filter((template) => template.id !== 'blank')
-    .map((template) => ({
-      templateId: template.id,
-      templateName: template.name,
-      categories: template.categories.filter((preset) => !currentIds.has(preset.id))
-    }))
-    .filter((group) => group.categories.length > 0)
-}
-
-export const OPTIONAL_BESTIARY_CATEGORY_ID = 'optional-bestiary'
-
-export const BESTIARY_CATEGORY_PRESET: CategoryDefinition = {
-  id: OPTIONAL_BESTIARY_CATEGORY_ID,
-  name: 'Bestiary',
-  icon: 'PawPrint',
-  mode: 'panel',
-  sortOrder: 0,
-  builtIn: false
-}
-
-export const OPTIONAL_CATEGORY_PRESETS: CategoryDefinition[] = [BESTIARY_CATEGORY_PRESET]
-
-/** Optional category presets not tied to project templates. */
-export function getAddableOptionalCategories(current: CategoryDefinition[]): CategoryDefinition[] {
-  const currentIds = new Set(current.map((c) => c.id))
-  return OPTIONAL_CATEGORY_PRESETS.filter((p) => !currentIds.has(p.id))
-}
+export {
+  BUILTIN_CATEGORIES,
+  CATEGORY_PRESET_CATALOG,
+  FICTION_PRESET_IDS,
+  NON_FICTION_PRESET_IDS,
+  cloneCategoryPreset,
+  countCategoryEntries,
+  defaultFictionCategories,
+  getAddableCategoryPresets,
+  getAddableOptionalCategories,
+  getAddableTemplateCategories,
+  getCategoryPresetById,
+  nodeKindForCategory,
+  normalizeCategoryDefinition,
+  resolveCategoriesFromPresetIds
+} from './categoryPresets'
 
 export const MAX_ENTITY_GALLERY_IMAGES = 30
 

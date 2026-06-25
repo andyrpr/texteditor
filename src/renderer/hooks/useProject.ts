@@ -6,7 +6,7 @@ import { flushAllDirty, flushAndSaveProject, resetPersistenceState } from '@/lib
 import { applyOpenProjectResult } from '@/lib/applyOpenProject'
 import { captureProjectUiState } from '@/lib/projectUiState'
 import type { CreateProjectInput } from '@shared/types'
-import { BUILTIN_CATEGORIES } from '@shared/types'
+import { defaultFictionCategories } from '@shared/categoryPresets'
 
 export function useProject(): {
   createProjectFromInput: (
@@ -95,7 +95,7 @@ export function useProject(): {
       const result = await window.electronAPI.tomes.createProject({
         ...input,
         templateId: input.templateId ?? 'fiction',
-        categories: input.categories ?? BUILTIN_CATEGORIES
+        categories: input.categories ?? defaultFictionCategories()
       })
       const openResult = await window.electronAPI.tomes.openProject(result.path)
       applyOpenProjectResult(openResult)

@@ -17,7 +17,10 @@ import type {
   ChapterStructure
 } from '@shared/types'
 import {
-  BUILTIN_CATEGORIES,
+  defaultFictionCategories,
+  normalizeCategoryDefinition
+} from '@shared/categoryPresets'
+import {
   DEFAULT_CHARACTER_META,
   DEFAULT_BOOK_SETTINGS,
   DEFAULT_LOCATION_META,
@@ -114,8 +117,9 @@ function normalizeManifest(m: TomesManifest): TomesManifest {
     m.index.entries = []
   }
   if (!m.categories) {
-    m.categories = [...BUILTIN_CATEGORIES]
+    m.categories = defaultFictionCategories()
   }
+  m.categories = m.categories.map(normalizeCategoryDefinition)
   m.uiState = normalizeProjectUiState(m.uiState, m.categories)
   return m
 }
@@ -307,7 +311,7 @@ export function getProjectMeta(): ProjectMeta | null {
     author: manifest.author,
     genre: manifest.genre,
     bookSettings: normalizeBookSettings(manifest.bookSettings ?? {}),
-    categories: manifest.categories ?? [...BUILTIN_CATEGORIES],
+    categories: (manifest.categories ?? defaultFictionCategories()).map(normalizeCategoryDefinition),
     createdAt: manifest.createdAt,
     updatedAt: manifest.lastSavedAt
   }
@@ -349,6 +353,9 @@ export async function createProject(input: CreateProjectInput): Promise<{
   await fse.ensureDir(getBackupsDir(root))
   await fse.ensureDir(getAssetsDir(root))
 
+  const categories =
+    input.categories?.map(normalizeCategoryDefinition) ?? defaultFictionCategories()
+
   manifest = {
     __tomes: TOMES_MAGIC,
     id,
@@ -358,8 +365,8 @@ export async function createProject(input: CreateProjectInput): Promise<{
     createdAt: timestamp,
     lastSavedAt: timestamp,
     version: '1.0',
-    categories: input.categories,
-    uiState: defaultProjectUiState(input.categories),
+    categories,
+    uiState: defaultProjectUiState(categories),
     index: {
       folders: [],
       chapters: [],
@@ -980,7 +987,7 @@ export async function renameRecentProject(
 }
 
 export function getUiState(): ProjectUiState {
-  const categories = manifest?.categories ?? [...BUILTIN_CATEGORIES]
+  const categories = manifest?.categories ?? defaultFictionCategories()
   if (!manifest) {
     return defaultProjectUiState(categories)
   }
@@ -989,7 +996,7 @@ export function getUiState(): ProjectUiState {
 
 export async function updateUiState(uiState: ProjectUiState): Promise<ProjectUiState> {
   if (!manifest) throw new Error('No project open')
-  const categories = manifest.categories ?? [...BUILTIN_CATEGORIES]
+  const categories = manifest.categories ?? defaultFictionCategories()
   manifest.uiState = normalizeProjectUiState(uiState, categories)
   await writeManifest()
   return getUiState()

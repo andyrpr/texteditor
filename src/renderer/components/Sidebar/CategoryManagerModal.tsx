@@ -32,6 +32,7 @@ import { cn } from '@/lib/utils'
 import { useAppStore } from '@/store/appStore'
 import { captureProjectUiState } from '@/lib/projectUiState'
 import { CATEGORY_ICON_MAP } from '@/components/Sidebar/categoryIcons'
+import { cloneCategoryPreset } from '@shared/categoryPresets'
 import { getAddableOptionalCategories, getAddableTemplateCategories, PROJECT_TEMPLATES } from '@shared/types'
 import type { CategoryDefinition, CategoryMode, TemplateCategoryGroup } from '@shared/types'
 
@@ -297,8 +298,9 @@ export function CategoryManagerModal({
     .filter((c): c is CategoryDefinition => !!c)
 
   const addCategoryToProject = async (cat: CategoryDefinition): Promise<void> => {
-    const updated = [...categories, { ...cat, sortOrder: categories.length }]
-    const nextOrder = [...sectionOrder, cat.id]
+    const cloned = cloneCategoryPreset(cat)
+    const updated = [...categories, { ...cloned, sortOrder: categories.length }]
+    const nextOrder = [...sectionOrder, cloned.id]
     setSectionOrder(nextOrder)
     await updateCategories(updated)
     await window.electronAPI.tomes.updateUiState(captureProjectUiState())
@@ -345,7 +347,7 @@ export function CategoryManagerModal({
   }
 
   const handleAddTemplateCategory = async (preset: CategoryDefinition): Promise<void> => {
-    await addCategoryToProject({ ...preset })
+    await addCategoryToProject(preset)
   }
 
   return (
