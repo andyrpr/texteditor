@@ -301,7 +301,7 @@ export const BUILTIN_CATEGORIES: CategoryDefinition[] = [
     builtIn: true,
     panelBlocks: [
       { id: 'aliases', label: 'Aliases', type: 'tags' },
-      { id: 'general', label: 'General', type: 'text' },
+      { id: 'general', label: 'General', type: 'textarea', rows: 3 },
       { id: 'age', label: 'Age', type: 'text' },
       { id: 'race', label: 'Race', type: 'text' },
       { id: 'gender', label: 'Gender', type: 'text' },
@@ -420,7 +420,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
           { id: 'ethnicity', label: 'Ethnicity', type: 'text' },
           { id: 'gender', label: 'Gender', type: 'text' },
           { id: 'age', label: 'Age', type: 'text' },
-          { id: 'general', label: 'General', type: 'text' },
+          { id: 'general', label: 'General', type: 'textarea', rows: 3 },
           { id: 'roleTitle', label: 'Role / Title', type: 'text' },
           { id: 'organization', label: 'Organization', type: 'text' },
           {

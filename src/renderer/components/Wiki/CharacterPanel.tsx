@@ -200,10 +200,12 @@ export function CharacterPanel({
         />
       </Field>
       <Field label="General">
-        <SpellCheckedInput
+        <SpellCheckedTextarea
+          measureKey={`${nodeId}-general`}
           value={meta.general}
           onChange={(e) => setMeta({ ...meta, general: e.target.value })}
           onBlur={save}
+          rows={3}
         />
       </Field>
       <div className="grid grid-cols-3 gap-2">

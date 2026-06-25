@@ -230,10 +230,12 @@ export function PeoplePanel({
         </Field>
       </div>
       <Field label="General">
-        <SpellCheckedInput
+        <SpellCheckedTextarea
+          measureKey={`${nodeId}-general`}
           value={meta.general}
           onChange={(e) => setMeta({ ...meta, general: e.target.value })}
           onBlur={save}
+          rows={3}
         />
       </Field>
       <Field label="Role / Title">
