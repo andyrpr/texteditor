@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Input } from '@/components/UI/input'
-import { AutoGrowTextarea } from '@/components/UI/auto-grow-textarea'
+import { SpellCheckedInput, SpellCheckedTextarea } from '@/components/UI/spell-checked-field'
 import { useAppStore } from '@/store/appStore'
 import { markContentDirty, registerActiveNoteContent } from '@/lib/contentPersistence'
 import type { NoteMeta } from '@shared/types'
@@ -68,10 +67,10 @@ export function NotePanel({
   return (
     <div className="space-y-4">
       <Field label="Title">
-        <Input value={name} onChange={(e) => setName(e.target.value)} onBlur={saveFields} />
+        <SpellCheckedInput value={name} onChange={(e) => setName(e.target.value)} onBlur={saveFields} />
       </Field>
       <Field label="Tags">
-        <Input
+        <SpellCheckedInput
           value={meta.tags.join(', ')}
           onChange={(e) =>
             setMeta({
@@ -87,7 +86,7 @@ export function NotePanel({
         />
       </Field>
       <Field label="Content">
-        <AutoGrowTextarea
+        <SpellCheckedTextarea
           measureKey={nodeId}
           value={body}
           onChange={(e) => handleBodyChange(e.target.value)}

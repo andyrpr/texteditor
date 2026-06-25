@@ -69,7 +69,10 @@ export function SpellSuggestions({
           <button
             key={s}
             type="button"
-            onClick={() => onSelect(s)}
+            onMouseDown={(e) => {
+              e.preventDefault()
+              onSelect(s)
+            }}
             className={cn(
               'w-full px-3 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground',
               'focus:bg-accent focus:text-accent-foreground focus:outline-none'
@@ -85,7 +88,10 @@ export function SpellSuggestions({
       <div className="my-1 border-t border-border" />
       <button
         type="button"
-        onClick={onAddToDictionary}
+        onMouseDown={(e) => {
+          e.preventDefault()
+          onAddToDictionary()
+        }}
         className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground focus:outline-none text-muted-foreground"
       >
         Add to dictionary

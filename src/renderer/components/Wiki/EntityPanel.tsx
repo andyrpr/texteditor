@@ -2,9 +2,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { X, PanelRightOpen } from 'lucide-react'
 import { useAppStore } from '@/store/appStore'
 import { Button } from '@/components/UI/button'
-import { Input } from '@/components/UI/input'
+import { SpellCheckedInput, SpellCheckedTextarea } from '@/components/UI/spell-checked-field'
 import { ComboField } from '@/components/UI/ComboField'
-import { AutoGrowTextarea } from '@/components/UI/auto-grow-textarea'
 import { ScrollArea } from '@/components/UI/scroll-area'
 import { CharacterPanel } from '@/components/Wiki/CharacterPanel'
 import { EntryPanel } from '@/components/Wiki/EntryPanel'
@@ -88,7 +87,7 @@ function LocationPanel({
       />
 
       <Field label="Name">
-        <Input value={name} onChange={(e) => setName(e.target.value)} onBlur={save} />
+        <SpellCheckedInput value={name} onChange={(e) => setName(e.target.value)} onBlur={save} />
       </Field>
       <Field label="Type">
         <ComboField
@@ -100,10 +99,10 @@ function LocationPanel({
         />
       </Field>
       <Field label="Description">
-        <AutoGrowTextarea measureKey={nodeId} value={meta.description} onChange={(e) => setMeta({ ...meta, description: e.target.value })} onBlur={save} rows={4} />
+        <SpellCheckedTextarea measureKey={nodeId} value={meta.description} onChange={(e) => setMeta({ ...meta, description: e.target.value })} onBlur={save} rows={4} />
       </Field>
       <Field label="Notes">
-        <AutoGrowTextarea measureKey={nodeId} value={meta.notes} onChange={(e) => setMeta({ ...meta, notes: e.target.value })} onBlur={save} rows={3} />
+        <SpellCheckedTextarea measureKey={nodeId} value={meta.notes} onChange={(e) => setMeta({ ...meta, notes: e.target.value })} onBlur={save} rows={3} />
       </Field>
     </div>
   )
@@ -152,7 +151,7 @@ function LorePanel({
       />
 
       <Field label="Name">
-        <Input value={name} onChange={(e) => setName(e.target.value)} onBlur={save} />
+        <SpellCheckedInput value={name} onChange={(e) => setName(e.target.value)} onBlur={save} />
       </Field>
       <Field label="Category">
         <ComboField
@@ -164,10 +163,10 @@ function LorePanel({
         />
       </Field>
       <Field label="Description">
-        <AutoGrowTextarea measureKey={nodeId} value={meta.description} onChange={(e) => setMeta({ ...meta, description: e.target.value })} onBlur={save} rows={4} />
+        <SpellCheckedTextarea measureKey={nodeId} value={meta.description} onChange={(e) => setMeta({ ...meta, description: e.target.value })} onBlur={save} rows={4} />
       </Field>
       <Field label="Notes">
-        <AutoGrowTextarea measureKey={nodeId} value={meta.notes} onChange={(e) => setMeta({ ...meta, notes: e.target.value })} onBlur={save} rows={3} />
+        <SpellCheckedTextarea measureKey={nodeId} value={meta.notes} onChange={(e) => setMeta({ ...meta, notes: e.target.value })} onBlur={save} rows={3} />
       </Field>
     </div>
   )
