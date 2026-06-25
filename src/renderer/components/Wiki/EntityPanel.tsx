@@ -86,8 +86,11 @@ function LocationPanel({
         nodeId={nodeId}
         title={name}
         imagePath={meta.imagePath}
+        secondaryImagePaths={meta.secondaryImagePaths}
         entityType="location"
-        onImageChange={(imagePath) => saveMeta({ ...meta, imagePath })}
+        onImagesChange={({ imagePath, secondaryImagePaths }) =>
+          saveMeta({ ...meta, imagePath, secondaryImagePaths })
+        }
       />
 
       <Field label="Name">
@@ -150,8 +153,11 @@ function LorePanel({
         nodeId={nodeId}
         title={name}
         imagePath={meta.imagePath}
+        secondaryImagePaths={meta.secondaryImagePaths}
         entityType="lore"
-        onImageChange={(imagePath) => saveMeta({ ...meta, imagePath })}
+        onImagesChange={({ imagePath, secondaryImagePaths }) =>
+          saveMeta({ ...meta, imagePath, secondaryImagePaths })
+        }
       />
 
       <Field label="Name">

@@ -28,6 +28,8 @@ import {
   getSyncState,
   importCharacterImage,
   importEntityImage,
+  importEntityGalleryImage,
+  deleteEntityImage,
   updateBookSettings,
   updateCategories,
   importCoverImage,
@@ -578,6 +580,15 @@ function registerIpcHandlers(): void {
   ipcMain.handle('entity:importEntityImage', async (_, { nodeId, sourcePath, entityType }) => {
     const relativePath = await importEntityImage(nodeId, sourcePath, entityType)
     return { relativePath }
+  })
+
+  ipcMain.handle('entity:importEntityGalleryImage', async (_, { nodeId, sourcePath, entityType }) => {
+    const relativePath = await importEntityGalleryImage(nodeId, sourcePath, entityType)
+    return { relativePath }
+  })
+
+  ipcMain.handle('entity:deleteEntityImage', async (_, { relativePath }) => {
+    await deleteEntityImage(relativePath)
   })
 
   ipcMain.handle('backup:list', async () => {

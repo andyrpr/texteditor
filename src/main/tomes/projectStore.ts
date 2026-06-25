@@ -1032,14 +1032,7 @@ export async function importEntityImage(
   if (!projectRoot) throw new Error('No project open')
 
   const ext = extname(sourcePath).toLowerCase() || '.png'
-  const imagesDir =
-    entityType === 'character'
-      ? getCharacterImagesDir(projectRoot)
-      : entityType === 'location'
-        ? getLocationImagesDir(projectRoot)
-        : entityType === 'lore'
-          ? getLoreImagesDir(projectRoot)
-          : getEntryImagesDir(projectRoot)
+  const imagesDir = getEntityImagesDir(projectRoot, entityType)
   await fse.ensureDir(imagesDir)
 
   const filename = `${nodeId}${ext}`
@@ -1047,6 +1040,63 @@ export async function importEntityImage(
   await fse.copy(sourcePath, destPath, { overwrite: true })
 
   return relative(projectRoot, destPath).split('\\').join('/')
+}
+
+export async function importEntityGalleryImage(
+  nodeId: string,
+  sourcePath: string,
+  entityType: 'character' | 'location' | 'lore' | 'entry'
+): Promise<string> {
+  if (!projectRoot) throw new Error('No project open')
+
+  const ext = extname(sourcePath).toLowerCase() || '.png'
+  const imagesDir = getEntityImagesDir(projectRoot, entityType)
+  await fse.ensureDir(imagesDir)
+
+  const filename = `${nodeId}-gallery-${uuidv4()}${ext}`
+  const destPath = join(imagesDir, filename)
+  await fse.copy(sourcePath, destPath, { overwrite: false })
+
+  return relative(projectRoot, destPath).split('\\').join('/')
+}
+
+export async function deleteEntityImage(relativePath: string): Promise<void> {
+  if (!projectRoot) throw new Error('No project open')
+
+  const filePath = resolve(projectRoot, relativePath)
+  if (!isPathInEntityImagesDir(projectRoot, filePath)) {
+    throw new Error('Invalid image path')
+  }
+
+  await fse.remove(filePath).catch(() => {})
+}
+
+function getEntityImagesDir(
+  root: string,
+  entityType: 'character' | 'location' | 'lore' | 'entry'
+): string {
+  switch (entityType) {
+    case 'character':
+      return getCharacterImagesDir(root)
+    case 'location':
+      return getLocationImagesDir(root)
+    case 'lore':
+      return getLoreImagesDir(root)
+    case 'entry':
+      return getEntryImagesDir(root)
+  }
+}
+
+function isPathInEntityImagesDir(root: string, filePath: string): boolean {
+  const resolved = resolve(filePath)
+  const dirs = [
+    getCharacterImagesDir(root),
+    getLocationImagesDir(root),
+    getLoreImagesDir(root),
+    getEntryImagesDir(root)
+  ].map((dir) => resolve(dir))
+
+  return dirs.some((dir) => resolved === dir || resolved.startsWith(`${dir}/`) || resolved.startsWith(`${dir}\\`))
 }
 
 export async function importCharacterImage(nodeId: string, sourcePath: string): Promise<string> {

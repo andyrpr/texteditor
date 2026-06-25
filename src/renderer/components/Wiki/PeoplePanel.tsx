@@ -190,8 +190,11 @@ export function PeoplePanel({
         nodeId={nodeId}
         title={name}
         imagePath={meta.imagePath}
+        secondaryImagePaths={meta.secondaryImagePaths}
         entityType="entry"
-        onImageChange={(imagePath) => saveMeta({ ...meta, imagePath })}
+        onImagesChange={({ imagePath, secondaryImagePaths }) =>
+          saveMeta({ ...meta, imagePath, secondaryImagePaths })
+        }
       />
 
       <Field label="Name">

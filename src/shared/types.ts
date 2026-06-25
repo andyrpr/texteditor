@@ -521,6 +521,24 @@ export function getAddableTemplateCategories(
     .filter((group) => group.categories.length > 0)
 }
 
+export const MAX_ENTITY_GALLERY_IMAGES = 30
+
+export function normalizeSecondaryImagePaths(
+  raw: unknown,
+  imagePath: string | null
+): string[] {
+  if (!Array.isArray(raw)) return []
+  const seen = new Set<string>()
+  const paths: string[] = []
+  for (const entry of raw) {
+    if (typeof entry !== 'string' || !entry || entry === imagePath || seen.has(entry)) continue
+    seen.add(entry)
+    paths.push(entry)
+    if (paths.length >= MAX_ENTITY_GALLERY_IMAGES) break
+  }
+  return paths
+}
+
 export interface CharacterMeta {
   aliases: string[]
   general: string
@@ -537,6 +555,7 @@ export interface CharacterMeta {
   endsAs: string
   notes: string
   imagePath: string | null
+  secondaryImagePaths: string[]
 }
 
 export interface LocationMeta {
@@ -546,6 +565,7 @@ export interface LocationMeta {
   notableCharacters: string[]
   notes: string
   imagePath: string | null
+  secondaryImagePaths: string[]
 }
 
 export interface LoreMeta {
@@ -555,6 +575,7 @@ export interface LoreMeta {
   relatedLocations: string[]
   notes: string
   imagePath: string | null
+  secondaryImagePaths: string[]
 }
 
 export interface NoteMeta {
@@ -563,6 +584,7 @@ export interface NoteMeta {
 
 export interface PeopleMeta {
   imagePath: string | null
+  secondaryImagePaths: string[]
   knownAs: string
   ethnicity: string
   gender: string
@@ -887,7 +909,8 @@ export const DEFAULT_CHARACTER_META: CharacterMeta = {
   startsAs: '',
   endsAs: '',
   notes: '',
-  imagePath: null
+  imagePath: null,
+  secondaryImagePaths: []
 }
 
 export function normalizeCharacterMeta(raw: Partial<CharacterMeta> & Record<string, unknown>): CharacterMeta {
@@ -905,6 +928,13 @@ export function normalizeCharacterMeta(raw: Partial<CharacterMeta> & Record<stri
       })
     : []
 
+  const imagePath =
+    typeof raw.imagePath === 'string'
+      ? raw.imagePath
+      : raw.imagePath === null
+        ? null
+        : DEFAULT_CHARACTER_META.imagePath
+
   return {
     ...DEFAULT_CHARACTER_META,
     ...raw,
@@ -916,7 +946,8 @@ export function normalizeCharacterMeta(raw: Partial<CharacterMeta> & Record<stri
     relationships,
     startsAs: typeof raw.startsAs === 'string' ? raw.startsAs : DEFAULT_CHARACTER_META.startsAs,
     endsAs: typeof raw.endsAs === 'string' ? raw.endsAs : DEFAULT_CHARACTER_META.endsAs,
-    imagePath: typeof raw.imagePath === 'string' ? raw.imagePath : raw.imagePath === null ? null : DEFAULT_CHARACTER_META.imagePath
+    imagePath,
+    secondaryImagePaths: normalizeSecondaryImagePaths(raw.secondaryImagePaths, imagePath)
   }
 }
 
@@ -926,21 +957,24 @@ export const DEFAULT_LOCATION_META: LocationMeta = {
   connectedLocations: [],
   notableCharacters: [],
   notes: '',
-  imagePath: null
+  imagePath: null,
+  secondaryImagePaths: []
 }
 
 export function normalizeLocationMeta(raw: Partial<LocationMeta> & Record<string, unknown>): LocationMeta {
   const parsed = { ...DEFAULT_LOCATION_META, ...raw }
+  const imagePath =
+    typeof raw.imagePath === 'string'
+      ? raw.imagePath
+      : raw.imagePath === null
+        ? null
+        : DEFAULT_LOCATION_META.imagePath
   return {
     ...parsed,
     connectedLocations: Array.isArray(parsed.connectedLocations) ? parsed.connectedLocations : [],
     notableCharacters: Array.isArray(parsed.notableCharacters) ? parsed.notableCharacters : [],
-    imagePath:
-      typeof raw.imagePath === 'string'
-        ? raw.imagePath
-        : raw.imagePath === null
-          ? null
-          : DEFAULT_LOCATION_META.imagePath
+    imagePath,
+    secondaryImagePaths: normalizeSecondaryImagePaths(raw.secondaryImagePaths, imagePath)
   }
 }
 
@@ -950,13 +984,24 @@ export const DEFAULT_LORE_META: LoreMeta = {
   relatedCharacters: [],
   relatedLocations: [],
   notes: '',
-  imagePath: null
+  imagePath: null,
+  secondaryImagePaths: []
 }
 
-export function normalizeLoreMeta(meta: LoreMeta): LoreMeta {
+export function normalizeLoreMeta(raw: Partial<LoreMeta> & Record<string, unknown>): LoreMeta {
+  const imagePath =
+    typeof raw.imagePath === 'string'
+      ? raw.imagePath
+      : raw.imagePath === null
+        ? null
+        : DEFAULT_LORE_META.imagePath
   return {
-    ...meta,
-    imagePath: meta.imagePath ?? null
+    ...DEFAULT_LORE_META,
+    ...raw,
+    relatedCharacters: Array.isArray(raw.relatedCharacters) ? raw.relatedCharacters.map(String) : [],
+    relatedLocations: Array.isArray(raw.relatedLocations) ? raw.relatedLocations.map(String) : [],
+    imagePath,
+    secondaryImagePaths: normalizeSecondaryImagePaths(raw.secondaryImagePaths, imagePath)
   }
 }
 
@@ -966,6 +1011,7 @@ export const DEFAULT_NOTE_META: NoteMeta = {
 
 export const DEFAULT_PEOPLE_META: PeopleMeta = {
   imagePath: null,
+  secondaryImagePaths: [],
   knownAs: '',
   ethnicity: '',
   gender: '',
@@ -995,6 +1041,13 @@ export function normalizePeopleMeta(raw: Partial<PeopleMeta> & Record<string, un
       })
     : []
 
+  const imagePath =
+    typeof raw.imagePath === 'string'
+      ? raw.imagePath
+      : raw.imagePath === null
+        ? null
+        : DEFAULT_PEOPLE_META.imagePath
+
   return {
     ...DEFAULT_PEOPLE_META,
     ...raw,
@@ -1014,12 +1067,8 @@ export function normalizePeopleMeta(raw: Partial<PeopleMeta> & Record<string, un
     relevance: typeof raw.relevance === 'string' ? raw.relevance : DEFAULT_PEOPLE_META.relevance,
     notes: typeof raw.notes === 'string' ? raw.notes : DEFAULT_PEOPLE_META.notes,
     relationships,
-    imagePath:
-      typeof raw.imagePath === 'string'
-        ? raw.imagePath
-        : raw.imagePath === null
-          ? null
-          : DEFAULT_PEOPLE_META.imagePath
+    imagePath,
+    secondaryImagePaths: normalizeSecondaryImagePaths(raw.secondaryImagePaths, imagePath)
   }
 }
 

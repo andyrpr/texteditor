@@ -185,8 +185,11 @@ export function CharacterPanel({
         nodeId={nodeId}
         title={name}
         imagePath={meta.imagePath}
+        secondaryImagePaths={meta.secondaryImagePaths}
         entityType="character"
-        onImageChange={(imagePath) => saveMeta({ ...meta, imagePath })}
+        onImagesChange={({ imagePath, secondaryImagePaths }) =>
+          saveMeta({ ...meta, imagePath, secondaryImagePaths })
+        }
       />
 
       <Field label="Name">
