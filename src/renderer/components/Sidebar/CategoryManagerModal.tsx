@@ -30,6 +30,7 @@ import { Label } from '@/components/UI/label'
 import { ScrollArea } from '@/components/UI/scroll-area'
 import { cn } from '@/lib/utils'
 import { useAppStore } from '@/store/appStore'
+import { captureProjectUiState } from '@/lib/projectUiState'
 import { CATEGORY_ICON_MAP } from '@/components/Sidebar/categoryIcons'
 import { getAddableTemplateCategories, PROJECT_TEMPLATES } from '@shared/types'
 import type { CategoryDefinition, CategoryMode, TemplateCategoryGroup } from '@shared/types'
@@ -295,7 +296,7 @@ export function CategoryManagerModal({
     const nextOrder = [...sectionOrder, cat.id]
     setSectionOrder(nextOrder)
     await updateCategories(updated)
-    await window.electronAPI.tomes.updateUiState({ sectionOrder: nextOrder })
+    await window.electronAPI.tomes.updateUiState(captureProjectUiState())
   }
 
   const handleDragEnd = async (event: DragEndEvent): Promise<void> => {
@@ -315,7 +316,7 @@ export function CategoryManagerModal({
 
     setSectionOrder(nextIds)
     await updateCategories(reordered)
-    await window.electronAPI.tomes.updateUiState({ sectionOrder: nextIds })
+    await window.electronAPI.tomes.updateUiState(captureProjectUiState())
   }
 
   const handleRemove = async (categoryId: string): Promise<void> => {
@@ -323,7 +324,7 @@ export function CategoryManagerModal({
     const nextOrder = sectionOrder.filter((id) => id !== categoryId)
     setSectionOrder(nextOrder)
     await updateCategories(updated)
-    await window.electronAPI.tomes.updateUiState({ sectionOrder: nextOrder })
+    await window.electronAPI.tomes.updateUiState(captureProjectUiState())
   }
 
   const handleAdd = async (

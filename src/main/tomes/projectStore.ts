@@ -34,6 +34,7 @@ import {
   parseMetadata,
   normalizeBookSettings
 } from '@shared/types'
+import { defaultProjectUiState, normalizeProjectUiState } from '@shared/projectUiState'
 import {
   getNodeDir,
   getTomesPath,
@@ -115,6 +116,7 @@ function normalizeManifest(m: TomesManifest): TomesManifest {
   if (!m.categories) {
     m.categories = [...BUILTIN_CATEGORIES]
   }
+  m.uiState = normalizeProjectUiState(m.uiState, m.categories)
   return m
 }
 
@@ -357,7 +359,7 @@ export async function createProject(input: CreateProjectInput): Promise<{
     lastSavedAt: timestamp,
     version: '1.0',
     categories: input.categories,
-    uiState: { sectionOrder: input.categories.map((c) => c.id) },
+    uiState: defaultProjectUiState(input.categories),
     index: {
       folders: [],
       chapters: [],
@@ -978,15 +980,17 @@ export async function renameRecentProject(
 }
 
 export function getUiState(): ProjectUiState {
+  const categories = manifest?.categories ?? [...BUILTIN_CATEGORIES]
   if (!manifest) {
-    return { sectionOrder: [...DEFAULT_SECTION_ORDER] }
+    return defaultProjectUiState(categories)
   }
-  return manifest.uiState ?? { sectionOrder: [...DEFAULT_SECTION_ORDER] }
+  return normalizeProjectUiState(manifest.uiState, categories)
 }
 
 export async function updateUiState(uiState: ProjectUiState): Promise<ProjectUiState> {
   if (!manifest) throw new Error('No project open')
-  manifest.uiState = uiState
+  const categories = manifest.categories ?? [...BUILTIN_CATEGORIES]
+  manifest.uiState = normalizeProjectUiState(uiState, categories)
   await writeManifest()
   return getUiState()
 }

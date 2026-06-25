@@ -46,6 +46,7 @@ import { makeCreateChapterCommand, makeCreateNodeCommand } from '@/lib/commands'
 import { requestSidebarRenameAfterCreate } from '@/lib/pendingRename'
 import { useResizeHandle, usePersistLayout } from '@/hooks/useResize'
 import { publishNavigationSyncAsync } from '@/lib/navigationSync'
+import { captureProjectUiState } from '@/lib/projectUiState'
 import { cn } from '@/lib/utils'
 import {
   getTrashCategories,
@@ -358,7 +359,7 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
     const merged = [...reorderedCategories, ...remaining]
 
     await updateCategories(merged)
-    await window.electronAPI.tomes.updateUiState({ sectionOrder: nextOrder })
+    await window.electronAPI.tomes.updateUiState(captureProjectUiState())
   }
 
   const handleDetach = (): void => {

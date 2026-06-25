@@ -14,7 +14,9 @@ import { useStructuralUndoShortcuts } from '@/hooks/useStructuralUndoShortcuts'
 import { useHistoryStore } from '@/store/historyStore'
 import { useContentPersistence } from '@/hooks/useContentPersistence'
 import { useNavigationSync, useNavigationSyncPublisher, hydrateNavigationFromMain } from '@/hooks/useNavigationSync'
+import { useProjectUiPersistence } from '@/hooks/useProjectUiPersistence'
 import { useSyncFromMain, hydrateFromMain } from '@/hooks/useSync'
+import { applyOpenProjectResult } from '@/lib/applyOpenProject'
 import { useThemeSync } from '@/hooks/useThemeSync'
 import { isWorkspaceWindow } from '@/lib/hashParams'
 import { useSearchParams } from '@/lib/hashParams'
@@ -41,6 +43,7 @@ export function AppLayout(): React.JSX.Element {
   const { openProject, closeProject } = useProject()
   useStructuralUndoShortcuts()
   useContentPersistence(isProjectOpen && !isSecondary)
+  useProjectUiPersistence(isProjectOpen && !isSecondary)
 
   const [quitWarningPaths, setQuitWarningPaths] = useState<string[]>([])
   const [secondaryHydrated, setSecondaryHydrated] = useState(!isSecondary)
@@ -91,25 +94,15 @@ export function AppLayout(): React.JSX.Element {
     })
     const unsubOpened = window.electronAPI.on('tomes:projectOpened', (data: unknown) => {
       if (isSecondary) return
-      const result = data as {
-        path: string
-        meta: import('@shared/types').ProjectMeta
-        nodes: import('@shared/types').TreeNode[]
-        uiState?: import('@shared/types').ProjectUiState
-      }
       useHistoryStore.getState().clear()
-      useAppStore.getState().setProject(result.path, result.meta, result.nodes)
-      if (result.uiState?.sectionOrder) {
-        useAppStore.getState().setSectionOrder(result.uiState.sectionOrder)
-      }
-      const chapters = result.nodes.filter((n) => n.type === 'chapter').sort((a, b) => a.sortOrder - b.sortOrder)
-      if (chapters.length > 0) {
-        const scenes = result.nodes
-          .filter((n) => n.parentId === chapters[0].id && n.type === 'scene')
-          .sort((a, b) => a.sortOrder - b.sortOrder)
-        useAppStore.getState().setSelectedNodeId(scenes[0]?.id ?? chapters[0].id)
-      }
-      useAppStore.getState().setLastSaved(result.meta.updatedAt)
+      applyOpenProjectResult(
+        data as {
+          path: string
+          meta: import('@shared/types').ProjectMeta
+          nodes: import('@shared/types').TreeNode[]
+          uiState: import('@shared/types').ProjectUiState
+        }
+      )
     })
     const unsubBeforeQuit = window.electronAPI.on('tomes:beforeQuit', (data: unknown) => {
       const { unreachableBackupPaths } = data as { unreachableBackupPaths: string[] }

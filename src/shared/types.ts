@@ -744,6 +744,15 @@ export interface ChapterMeta {
 
 export interface ProjectUiState {
   sectionOrder: string[]
+  selectedNodeId: string | null
+  selectedContainerId: string | null
+  selectedEntityId: string | null
+  selectedEntityType: WikiEntityType | null
+  selectedEntryId: string | null
+  selectedEntryCategoryId: string | null
+  expandedSections: string[]
+  expandedFolders: string[]
+  rightPanelOpen: boolean
 }
 
 export interface NavigationSyncState {

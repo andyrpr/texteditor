@@ -1,0 +1,80 @@
+import { useAppStore } from '@/store/appStore'
+import type { CategoryDefinition, NavigationSyncState, ProjectUiState, TreeNode } from '@shared/types'
+import {
+  normalizeProjectUiState,
+  sanitizeProjectUiState
+} from '@shared/projectUiState'
+
+let uiRestoreInProgress = false
+
+export function beginUiRestore(): void {
+  uiRestoreInProgress = true
+}
+
+export function markUiRestoreComplete(): void {
+  uiRestoreInProgress = false
+}
+
+export function isUiRestoreInProgress(): boolean {
+  return uiRestoreInProgress
+}
+
+export function captureProjectUiState(): ProjectUiState {
+  const s = useAppStore.getState()
+  const categories = s.categories
+
+  let rightPanelOpen = s.rightPanelOpen
+  const hasSelection = Boolean(s.selectedEntityId || s.selectedEntryId)
+
+  if (s.entityDetached) {
+    rightPanelOpen = hasSelection
+  }
+
+  return {
+    sectionOrder: [...s.sectionOrder],
+    selectedNodeId: s.selectedNodeId,
+    selectedContainerId: s.selectedContainerId,
+    selectedEntityId: s.selectedEntityId,
+    selectedEntityType: s.selectedEntityType,
+    selectedEntryId: s.selectedEntryId,
+    selectedEntryCategoryId: s.selectedEntryCategoryId,
+    expandedSections: [...s.expandedSections],
+    expandedFolders: [...s.expandedFolders],
+    rightPanelOpen
+  }
+}
+
+function toNavigationSyncState(ui: ProjectUiState): NavigationSyncState {
+  return {
+    selectedNodeId: ui.selectedNodeId,
+    selectedContainerId: ui.selectedContainerId,
+    selectedEntityId: ui.selectedEntityId,
+    selectedEntityType: ui.selectedEntityType,
+    selectedEntryId: ui.selectedEntryId,
+    selectedEntryCategoryId: ui.selectedEntryCategoryId,
+    expandedSections: ui.expandedSections,
+    expandedFolders: ui.expandedFolders,
+    rightPanelOpen: ui.rightPanelOpen,
+    sectionOrder: ui.sectionOrder
+  }
+}
+
+export function applyProjectUiState(
+  ui: ProjectUiState,
+  nodes: TreeNode[],
+  categories: CategoryDefinition[]
+): ProjectUiState {
+  const normalized = normalizeProjectUiState(ui, categories)
+  const sanitized = sanitizeProjectUiState(normalized, nodes, categories)
+  useAppStore.getState().applyNavigationSync(toNavigationSyncState(sanitized))
+  return sanitized
+}
+
+export function resolveProjectUiOnOpen(
+  ui: Partial<ProjectUiState> | undefined,
+  nodes: TreeNode[],
+  categories: CategoryDefinition[]
+): ProjectUiState {
+  const normalized = normalizeProjectUiState(ui, categories)
+  return applyProjectUiState(normalized, nodes, categories)
+}
