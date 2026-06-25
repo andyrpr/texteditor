@@ -91,6 +91,7 @@ function TreeItemRow({
   depth,
   isSelected,
   isFolderNode,
+  isExpandable,
   isExpanded,
   onToggleExpand,
   trailingAction,
@@ -101,6 +102,7 @@ function TreeItemRow({
   depth: number
   isSelected?: boolean
   isFolderNode?: boolean
+  isExpandable?: boolean
   isExpanded?: boolean
   onToggleExpand?: () => void
   trailingAction?: React.ReactNode
@@ -120,7 +122,7 @@ function TreeItemRow({
       )}
       style={{ paddingLeft: `${depth * 12 + 8}px` }}
     >
-      {isFolderNode ? (
+      {isExpandable ? (
         <button
           type="button"
           className="shrink-0 rounded p-0.5"
@@ -158,6 +160,7 @@ function SortableTreeItem({
   depth,
   isSelected,
   isFolderNode,
+  isExpandable,
   isExpanded,
   onToggleExpand,
   onSelect,
@@ -173,6 +176,7 @@ function SortableTreeItem({
   depth: number
   isSelected: boolean
   isFolderNode?: boolean
+  isExpandable?: boolean
   isExpanded?: boolean
   onToggleExpand?: () => void
   onSelect: () => void
@@ -216,6 +220,7 @@ function SortableTreeItem({
           depth={depth}
           isSelected={isSelected}
           isFolderNode={isFolderNode}
+          isExpandable={isExpandable}
           isExpanded={isExpanded}
           onToggleExpand={onToggleExpand}
           trailingAction={trailingAction}
@@ -404,8 +409,10 @@ export function SidebarTree({
           {children.map((node, index) => {
             const isLast = index === children.length - 1
             const folderNode = isFolder(node)
+            const sceneChapter = node.type === 'chapter' && isChapterFolder(node)
+            const isExpandable = folderNode || sceneChapter
             const expanded = expandedFolders.has(node.id)
-            const scenes = node.type === 'chapter' && isChapterFolder(node) ? getScenes(nodes, node.id) : []
+            const scenes = sceneChapter ? getScenes(nodes, node.id) : []
 
             if (renamingId === node.id) {
               return <div key={node.id}>{renderRenameInput(node.id)}</div>
@@ -418,6 +425,7 @@ export function SidebarTree({
                   depth={depth}
                   isSelected={isNodeSelected(node)}
                   isFolderNode={folderNode}
+                  isExpandable={isExpandable}
                   isExpanded={expanded}
                   onToggleExpand={() => toggleFolder(node.id)}
                   onSelect={() => handleSelect(node)}
@@ -431,7 +439,7 @@ export function SidebarTree({
                   onDoubleClick={() => startRename(node)}
                   className={isLast && scenes.length === 0 ? 'mb-1' : undefined}
                   trailingAction={
-                    folderNode ? undefined : scenes.length === 0 && isChapterFolder(node) && onAddScene ? (
+                    folderNode ? undefined : scenes.length === 0 && sceneChapter && onAddScene ? (
                       <HoverAddButton
                         className="group-hover/chapter:opacity-100"
                         onClick={() => onAddScene(node.id)}
@@ -453,7 +461,7 @@ export function SidebarTree({
                     onOpenNewWindow={onOpenNewWindow}
                   />
                 )}
-                {scenes.length > 0 && (
+                {sceneChapter && expanded && scenes.length > 0 && (
                   <SceneList
                     chapterId={node.id}
                     scenes={scenes}
