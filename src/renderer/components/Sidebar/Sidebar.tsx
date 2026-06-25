@@ -43,6 +43,7 @@ import {
 import { useAppStore } from '@/store/appStore'
 import { useHistoryStore } from '@/store/historyStore'
 import { makeCreateChapterCommand, makeCreateNodeCommand } from '@/lib/commands'
+import { createCategoryItem } from '@/lib/categoryNavigation'
 import { requestSidebarRenameAfterCreate } from '@/lib/pendingRename'
 import { useResizeHandle, usePersistLayout } from '@/hooks/useResize'
 import { publishNavigationSyncAsync } from '@/lib/navigationSync'
@@ -215,7 +216,6 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
     selectContainer,
     selectWikiEntity,
     setSelectedNodeId,
-    selectEntry,
     toggleSection,
     setSectionOrder,
     updateCategories,
@@ -291,19 +291,7 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
 
   /** Creates a new entry node in a custom category. */
   const handleAddEntry = async (categoryId: string): Promise<void> => {
-    const category = categories.find((c) => c.id === categoryId)
-    const title = category ? `New ${category.name.replace(/s$/, '')}` : 'New Entry'
-    const createdId = await useHistoryStore.getState().push(
-      makeCreateNodeCommand({ parentId: null, type: 'entry', title, categoryId })
-    )
-    if (createdId) {
-      if (category?.mode === 'panel') {
-        selectEntry(createdId, categoryId)
-      } else {
-        setSelectedNodeId(createdId)
-      }
-      requestSidebarRenameAfterCreate(createdId)
-    }
+    await createCategoryItem(categoryId, null, 'sidebar')
   }
 
   const handleAddChapterClick = (): void => {

@@ -52,6 +52,7 @@ interface AppState {
 
   setNodes: (nodes: TreeNode[]) => void
   addNode: (node: TreeNode) => void
+  upsertNode: (node: TreeNode) => void
   updateNodeInStore: (id: string, updates: Partial<TreeNode>) => void
   removeNode: (id: string) => void
   setSelectedNodeId: (id: string | null) => void
@@ -62,6 +63,7 @@ interface AppState {
   setSectionOrder: (order: string[]) => void
 
   setSelectedEntity: (id: string | null, type: WikiEntityType | null) => void
+  /** Panel entry selection — preserves center view when opening/closing (same as wiki entities). */
   selectEntry: (id: string | null, categoryId: string | null) => void
   setTheme: (theme: 'light' | 'dark', options?: { persist?: boolean }) => void
   toggleTheme: () => void
@@ -166,6 +168,14 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setNodes: (nodes) => set({ nodes }),
   addNode: (node) => set((s) => ({ nodes: [...s.nodes, node] })),
+  upsertNode: (node) =>
+    set((s) => {
+      const idx = s.nodes.findIndex((n) => n.id === node.id)
+      if (idx >= 0) {
+        return { nodes: s.nodes.map((n, i) => (i === idx ? node : n)) }
+      }
+      return { nodes: [...s.nodes, node] }
+    }),
   updateNodeInStore: (id, updates) =>
     set((s) => ({
       nodes: s.nodes.map((n) => (n.id === id ? { ...n, ...updates } : n))
@@ -181,7 +191,19 @@ export const useAppStore = create<AppState>((set, get) => ({
         ? { selectedEntryId: null, selectedEntryCategoryId: null, rightPanelOpen: false }
         : {})
     })),
-  setSelectedNodeId: (id) =>
+  setSelectedNodeId: (id) => {
+    const state = get()
+    const hasPanel = Boolean(state.selectedEntityId || state.selectedEntryId)
+    const node = id ? state.nodes.find((n) => n.id === id) : null
+    const isManuscriptFocus =
+      id === null || node?.type === 'chapter' || node?.type === 'scene'
+    const preservePanel = hasPanel && isManuscriptFocus
+
+    if (preservePanel) {
+      set({ selectedNodeId: id, selectedContainerId: null })
+      return
+    }
+
     set({
       selectedNodeId: id,
       selectedContainerId: null,
@@ -190,16 +212,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       selectedEntryId: null,
       selectedEntryCategoryId: null,
       rightPanelOpen: false
-    }),
+    })
+  },
+  /** Switch center container list — does not affect right panel selection. */
   selectContainer: (id) =>
     set({
       selectedContainerId: id,
-      selectedNodeId: null,
-      selectedEntityId: null,
-      selectedEntityType: null,
-      selectedEntryId: null,
-      selectedEntryCategoryId: null,
-      rightPanelOpen: false
+      selectedNodeId: null
     }),
   selectWikiEntity: (id, type) => get().setSelectedEntity(id, type),
   toggleSection: (section) => {
@@ -219,15 +238,15 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setSectionOrder: (order) => set({ sectionOrder: order }),
 
+  /** Panel entry selection — preserves center view like setSelectedEntity for wiki items. */
   selectEntry: (id, categoryId) => {
+    const reopenPanel = !!id
     set({
       selectedEntryId: id,
       selectedEntryCategoryId: categoryId,
-      selectedNodeId: null,
-      selectedContainerId: null,
       selectedEntityId: null,
       selectedEntityType: null,
-      rightPanelOpen: id !== null
+      rightPanelOpen: reopenPanel
     })
   },
 

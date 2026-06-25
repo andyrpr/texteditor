@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useAppStore } from '@/store/appStore'
-import { DEFAULT_PEOPLE_META, normalizePeopleMeta, parseMetadata } from '@shared/types'
+import { parseMetadata } from '@shared/types'
 
 /**
  * Returns a sorted, deduplicated list of string values that other entries in the
@@ -9,7 +9,8 @@ import { DEFAULT_PEOPLE_META, normalizePeopleMeta, parseMetadata } from '@shared
 export function useEntryFieldSuggestions(
   categoryId: string,
   field: string,
-  currentNodeId: string
+  currentNodeId: string,
+  defaultMeta: Record<string, unknown>
 ): string[] {
   const nodes = useAppStore((s) => s.nodes)
 
@@ -22,16 +23,13 @@ export function useEntryFieldSuggestions(
       if (node.deletedAt) continue
       if (node.id === currentNodeId) continue
 
-      const meta = normalizePeopleMeta(
-        parseMetadata(node.metadata, DEFAULT_PEOPLE_META) as Partial<typeof DEFAULT_PEOPLE_META> &
-          Record<string, unknown>
-      )
-      const val = meta[field as keyof typeof meta]
+      const meta = parseMetadata(node.metadata, defaultMeta) as Record<string, unknown>
+      const val = meta[field]
       if (typeof val === 'string' && val.trim()) {
         values.push(val.trim())
       }
     }
 
     return [...new Set(values)].sort((a, b) => a.localeCompare(b))
-  }, [nodes, categoryId, field, currentNodeId])
+  }, [nodes, categoryId, field, currentNodeId, defaultMeta])
 }

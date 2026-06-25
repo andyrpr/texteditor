@@ -9,6 +9,7 @@ import { useAppStore } from '@/store/appStore'
 import { useEntryFieldSuggestions } from '@/hooks/useEntryFieldSuggestions'
 import { cn } from '@/lib/utils'
 import {
+  DEFAULT_PEOPLE_META,
   NF_PEOPLE_CATEGORY_ID,
   PEOPLE_INTERVIEW_STATUS_OPTIONS,
   PEOPLE_RELATIONSHIP_TYPES,
@@ -137,8 +138,18 @@ export function PeoplePanel({
       ),
     [nodes, nodeId]
   )
-  const ethnicitySuggestions = useEntryFieldSuggestions(NF_PEOPLE_CATEGORY_ID, 'ethnicity', nodeId)
-  const genderSuggestions = useEntryFieldSuggestions(NF_PEOPLE_CATEGORY_ID, 'gender', nodeId)
+  const ethnicitySuggestions = useEntryFieldSuggestions(
+    NF_PEOPLE_CATEGORY_ID,
+    'ethnicity',
+    nodeId,
+    DEFAULT_PEOPLE_META
+  )
+  const genderSuggestions = useEntryFieldSuggestions(
+    NF_PEOPLE_CATEGORY_ID,
+    'gender',
+    nodeId,
+    DEFAULT_PEOPLE_META
+  )
 
   useEffect(() => {
     setMeta(metadata)

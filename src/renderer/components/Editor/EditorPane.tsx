@@ -9,6 +9,7 @@ import {
   makeReorderCommand,
   makeReparentCommand
 } from '@/lib/commands'
+import { createCategoryItem, openCategoryItem } from '@/lib/categoryNavigation'
 import { requestRenameAfterCreate } from '@/lib/pendingRename'
 import { RichTextEditor } from '@/components/Editor/RichTextEditor'
 import { ContainerView } from '@/components/Editor/ContainerView'
@@ -89,7 +90,6 @@ export function EditorPane(): React.JSX.Element {
     setSelectedNodeId,
     selectWikiEntity,
     setSelectedEntity,
-    selectEntry,
     selectContainer,
     setNodes
   } = useAppStore()
@@ -183,19 +183,7 @@ export function EditorPane(): React.JSX.Element {
   }
 
   const createEntry = async (categoryId: string, parentId: string | null): Promise<void> => {
-    const category = categories.find((c) => c.id === categoryId)
-    const title = category ? `New ${category.name.replace(/s$/, '')}` : 'New Entry'
-    const createdId = await useHistoryStore.getState().push(
-      makeCreateNodeCommand({ parentId, type: 'entry', title, categoryId })
-    )
-    if (createdId) {
-      if (category?.mode === 'panel') {
-        selectEntry(createdId, categoryId)
-      } else {
-        setSelectedNodeId(createdId)
-      }
-      requestRenameAfterCreate(createdId, 'container')
-    }
+    await createCategoryItem(categoryId, parentId, 'container')
   }
 
   const createChapter = async (structure: ChapterStructure, parentId: string | null): Promise<void> => {
@@ -255,18 +243,7 @@ export function EditorPane(): React.JSX.Element {
       setSelectedNodeId(node.id)
       return
     }
-    if (node.type === 'entry' && entryCategoryId) {
-      const category = categories.find((c) => c.id === entryCategoryId)
-      if (category?.mode === 'panel') {
-        selectEntry(node.id, entryCategoryId)
-      } else {
-        setSelectedNodeId(node.id)
-      }
-      return
-    }
-    if (isWikiEntityType(node.type)) {
-      setSelectedEntity(node.id, node.type)
-    }
+    void openCategoryItem(node.id)
   }
 
   const buildEmptyMenu = (

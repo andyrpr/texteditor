@@ -32,7 +32,7 @@ import { cn } from '@/lib/utils'
 import { useAppStore } from '@/store/appStore'
 import { captureProjectUiState } from '@/lib/projectUiState'
 import { CATEGORY_ICON_MAP } from '@/components/Sidebar/categoryIcons'
-import { getAddableTemplateCategories, PROJECT_TEMPLATES } from '@shared/types'
+import { getAddableOptionalCategories, getAddableTemplateCategories, PROJECT_TEMPLATES } from '@shared/types'
 import type { CategoryDefinition, CategoryMode, TemplateCategoryGroup } from '@shared/types'
 
 const ICON_NAMES = Object.keys(CATEGORY_ICON_MAP)
@@ -278,6 +278,11 @@ export function CategoryManagerModal({
     [categories]
   )
 
+  const addableOptionalCategories = useMemo(
+    () => getAddableOptionalCategories(categories),
+    [categories]
+  )
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -371,7 +376,7 @@ export function CategoryManagerModal({
             <>
               <DialogTitle>Manage categories</DialogTitle>
               <DialogDescription>
-                Reorder your categories, add presets from templates, or create a custom one.
+                Reorder your categories, add presets from templates or optional categories, or create a custom one.
               </DialogDescription>
             </>
           )}
@@ -432,6 +437,27 @@ export function CategoryManagerModal({
                         key={group.templateId}
                         group={group}
                         onAdd={(preset) => void handleAddTemplateCategory(preset)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Add optional categories
+                </p>
+                {addableOptionalCategories.length === 0 ? (
+                  <p className="text-sm italic text-muted-foreground/80">
+                    All optional categories are already in this project.
+                  </p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {addableOptionalCategories.map((cat) => (
+                      <TemplateCategoryRow
+                        key={cat.id}
+                        category={cat}
+                        onAdd={() => void handleAddTemplateCategory(cat)}
                       />
                     ))}
                   </div>

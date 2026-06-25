@@ -521,6 +521,25 @@ export function getAddableTemplateCategories(
     .filter((group) => group.categories.length > 0)
 }
 
+export const OPTIONAL_BESTIARY_CATEGORY_ID = 'optional-bestiary'
+
+export const BESTIARY_CATEGORY_PRESET: CategoryDefinition = {
+  id: OPTIONAL_BESTIARY_CATEGORY_ID,
+  name: 'Bestiary',
+  icon: 'PawPrint',
+  mode: 'panel',
+  sortOrder: 0,
+  builtIn: false
+}
+
+export const OPTIONAL_CATEGORY_PRESETS: CategoryDefinition[] = [BESTIARY_CATEGORY_PRESET]
+
+/** Optional category presets not tied to project templates. */
+export function getAddableOptionalCategories(current: CategoryDefinition[]): CategoryDefinition[] {
+  const currentIds = new Set(current.map((c) => c.id))
+  return OPTIONAL_CATEGORY_PRESETS.filter((p) => !currentIds.has(p.id))
+}
+
 export const MAX_ENTITY_GALLERY_IMAGES = 30
 
 export function normalizeSecondaryImagePaths(
@@ -599,7 +618,26 @@ export interface PeopleMeta {
   notes: string
 }
 
-export type EntityMeta = CharacterMeta | LocationMeta | LoreMeta | NoteMeta | PeopleMeta
+export interface BestiaryMeta {
+  imagePath: string | null
+  secondaryImagePaths: string[]
+  /** Creature species/kind (e.g. "Fire Dragon") — not CharacterMeta.race */
+  species: string
+  /** Creature type classification — not TreeNode.type */
+  type: string
+  general: string
+  habitat: string
+  physicalDescription: string
+  behavior: string
+  origin: string
+  /** How the creature fights or acts */
+  abilities: string
+  /** How protagonists counter or exploit this creature */
+  weaknesses: string
+  notes: string
+}
+
+export type EntityMeta = CharacterMeta | LocationMeta | LoreMeta | NoteMeta | PeopleMeta | BestiaryMeta
 
 export interface EntityMention {
   entityId: string
@@ -1067,6 +1105,51 @@ export function normalizePeopleMeta(raw: Partial<PeopleMeta> & Record<string, un
     relevance: typeof raw.relevance === 'string' ? raw.relevance : DEFAULT_PEOPLE_META.relevance,
     notes: typeof raw.notes === 'string' ? raw.notes : DEFAULT_PEOPLE_META.notes,
     relationships,
+    imagePath,
+    secondaryImagePaths: normalizeSecondaryImagePaths(raw.secondaryImagePaths, imagePath)
+  }
+}
+
+export const DEFAULT_BESTIARY_META: BestiaryMeta = {
+  imagePath: null,
+  secondaryImagePaths: [],
+  species: '',
+  type: '',
+  general: '',
+  habitat: '',
+  physicalDescription: '',
+  behavior: '',
+  origin: '',
+  abilities: '',
+  weaknesses: '',
+  notes: ''
+}
+
+export function normalizeBestiaryMeta(raw: Partial<BestiaryMeta> & Record<string, unknown>): BestiaryMeta {
+  const imagePath =
+    typeof raw.imagePath === 'string'
+      ? raw.imagePath
+      : raw.imagePath === null
+        ? null
+        : DEFAULT_BESTIARY_META.imagePath
+
+  return {
+    ...DEFAULT_BESTIARY_META,
+    ...raw,
+    species: typeof raw.species === 'string' ? raw.species : DEFAULT_BESTIARY_META.species,
+    type: typeof raw.type === 'string' ? raw.type : DEFAULT_BESTIARY_META.type,
+    general: typeof raw.general === 'string' ? raw.general : DEFAULT_BESTIARY_META.general,
+    habitat: typeof raw.habitat === 'string' ? raw.habitat : DEFAULT_BESTIARY_META.habitat,
+    physicalDescription:
+      typeof raw.physicalDescription === 'string'
+        ? raw.physicalDescription
+        : DEFAULT_BESTIARY_META.physicalDescription,
+    behavior: typeof raw.behavior === 'string' ? raw.behavior : DEFAULT_BESTIARY_META.behavior,
+    origin: typeof raw.origin === 'string' ? raw.origin : DEFAULT_BESTIARY_META.origin,
+    abilities: typeof raw.abilities === 'string' ? raw.abilities : DEFAULT_BESTIARY_META.abilities,
+    weaknesses:
+      typeof raw.weaknesses === 'string' ? raw.weaknesses : DEFAULT_BESTIARY_META.weaknesses,
+    notes: typeof raw.notes === 'string' ? raw.notes : DEFAULT_BESTIARY_META.notes,
     imagePath,
     secondaryImagePaths: normalizeSecondaryImagePaths(raw.secondaryImagePaths, imagePath)
   }

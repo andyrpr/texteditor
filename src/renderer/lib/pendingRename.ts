@@ -1,23 +1,13 @@
 import { useAppStore, type PendingRenameTarget } from '@/store/appStore'
 import { getCategoryScopedChildren, getFolderScope, isFolder } from '@/lib/treeUtils'
-import { BUILTIN_CATEGORY_IDS } from '@shared/types'
+import {
+  categoryIdForWikiNodeType,
+  legacySectionForWikiNodeType,
+  WIKI_NODE_TYPE_TO_CATEGORY_ID
+} from '@shared/categoryNodeKind'
 import type { FolderScope, TreeNode } from '@shared/types'
 
 export type { PendingRenameTarget }
-
-const WIKI_TYPE_TO_LEGACY_SECTION: Partial<Record<TreeNode['type'], string>> = {
-  character: 'characters',
-  location: 'locations',
-  lore: 'lore',
-  note: 'notes'
-}
-
-const WIKI_TYPE_TO_CATEGORY_ID: Partial<Record<TreeNode['type'], string>> = {
-  character: BUILTIN_CATEGORY_IDS.characters,
-  location: BUILTIN_CATEGORY_IDS.locations,
-  lore: BUILTIN_CATEGORY_IDS.lore,
-  note: BUILTIN_CATEGORY_IDS.notes
-}
 
 function ensureSectionExpanded(sectionId: string): void {
   const { expandedSections, toggleSection } = useAppStore.getState()
@@ -63,8 +53,8 @@ export function expandSidebarToNode(nodeId: string): void {
     return
   }
 
-  const legacySection = WIKI_TYPE_TO_LEGACY_SECTION[node.type]
-  const categoryId = WIKI_TYPE_TO_CATEGORY_ID[node.type]
+  const legacySection = legacySectionForWikiNodeType(node.type)
+  const categoryId = categoryIdForWikiNodeType(node.type)
   if (categoryId) {
     ensureSectionExpanded(categoryId)
     return
@@ -101,11 +91,11 @@ function expandSectionForScope(
   }
   ensureSectionExpanded(scope)
   const categoryId = {
-    characters: BUILTIN_CATEGORY_IDS.characters,
-    locations: BUILTIN_CATEGORY_IDS.locations,
-    lore: BUILTIN_CATEGORY_IDS.lore,
-    notes: BUILTIN_CATEGORY_IDS.notes
-  }[scope]
+    characters: WIKI_NODE_TYPE_TO_CATEGORY_ID.character,
+    locations: WIKI_NODE_TYPE_TO_CATEGORY_ID.location,
+    lore: WIKI_NODE_TYPE_TO_CATEGORY_ID.lore,
+    notes: WIKI_NODE_TYPE_TO_CATEGORY_ID.note
+  }[scope as 'characters' | 'locations' | 'lore' | 'notes']
   if (categoryId) ensureSectionExpanded(categoryId)
 }
 

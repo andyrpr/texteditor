@@ -30,6 +30,7 @@ import {
   makeReorderCommand,
   makeReparentCommand
 } from '@/lib/commands'
+import { openCategoryItem } from '@/lib/categoryNavigation'
 import { TreeContextMenu } from '@/components/Tree/TreeContextMenu'
 import { ConfirmDialog } from '@/components/UI/ConfirmDialog'
 import { cn } from '@/lib/utils'
@@ -243,9 +244,7 @@ export function SidebarTree({
     selectedContainerId,
     categories,
     expandedFolders,
-    selectEntry,
     setSelectedNodeId,
-    selectWikiEntity,
     selectContainer,
     toggleFolder,
     setNodes,
@@ -322,20 +321,11 @@ export function SidebarTree({
       selectContainer(folderContainerId(node.id))
       return
     }
-    if (node.type === 'entry') {
-      const cat = categories.find((c) => c.id === node.categoryId)
-      if (cat?.mode === 'panel') {
-        selectEntry(node.id, node.categoryId ?? null)
-      } else {
-        setSelectedNodeId(node.id)
-      }
+    if (node.type === 'chapter' || node.type === 'scene') {
+      setSelectedNodeId(node.id)
       return
     }
-    if (isWikiEntityType(node.type)) {
-      selectWikiEntity(node.id, node.type)
-      return
-    }
-    setSelectedNodeId(node.id)
+    void openCategoryItem(node.id)
   }
 
   const isNodeSelected = (node: TreeNode): boolean => {
