@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useAppStore } from '@/store/appStore'
 import { setsChanged } from '@/lib/setChange'
 import { applyNavigationSync, getNavigationSnapshot, publishNavigationSync } from '@/lib/navigationSync'
+import { isUiRestoreInProgress } from '@/lib/projectUiState'
 import type { NavigationSyncState } from '@shared/types'
 
 function navigationChanged(
@@ -18,7 +19,6 @@ function navigationChanged(
   if (state.sectionOrder.length !== prev.sectionOrder.length) return true
   if (state.sectionOrder.some((v, i) => v !== prev.sectionOrder[i])) return true
   if (setsChanged(state.expandedSections, prev.expandedSections)) return true
-  if (setsChanged(state.expandedFolders, prev.expandedFolders)) return true
   return false
 }
 
@@ -42,7 +42,7 @@ export async function hydrateNavigationFromMain(): Promise<void> {
       (current.selectedEntryId ?? null) !== (nav.selectedEntryId ?? null) ||
       (current.selectedEntryCategoryId ?? null) !== (nav.selectedEntryCategoryId ?? null) ||
       current.rightPanelOpen !== nav.rightPanelOpen ||
-      setsChanged(new Set(current.expandedFolders), new Set(nav.expandedFolders ?? []))
+      setsChanged(new Set(current.expandedSections), new Set(nav.expandedSections))
     ) {
       publishNavigationSync()
     }
@@ -81,6 +81,7 @@ export function useNavigationSyncPublisher(
 
     return useAppStore.subscribe((state, prev) => {
       if (!state.isProjectOpen) return
+      if (isUiRestoreInProgress()) return
       if (navigationChanged(state, prev)) {
         publishNavigationSync()
       }

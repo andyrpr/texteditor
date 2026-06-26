@@ -36,8 +36,8 @@ export function expandSidebarToNode(nodeId: string): void {
     current = state.nodes.find((n) => n.id === current!.parentId)
   }
   for (const folderId of folderIds.reverse()) {
-    if (!state.expandedFolders.has(folderId)) {
-      state.toggleFolder(folderId)
+    if (!state.expandedSections.has(folderId)) {
+      state.toggleSection(folderId)
     }
   }
 

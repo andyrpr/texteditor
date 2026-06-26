@@ -618,7 +618,8 @@ export interface ProjectUiState {
   selectedEntryId: string | null
   selectedEntryCategoryId: string | null
   expandedSections: string[]
-  expandedFolders: string[]
+  /** @deprecated Merged into expandedSections on load. Present only in legacy project files. */
+  expandedFolders?: string[]
   rightPanelOpen: boolean
 }
 
@@ -630,7 +631,6 @@ export interface NavigationSyncState {
   selectedEntryId?: string | null
   selectedEntryCategoryId?: string | null
   expandedSections: string[]
-  expandedFolders: string[]
   rightPanelOpen: boolean
   sectionOrder: string[]
 }

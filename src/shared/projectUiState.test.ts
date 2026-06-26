@@ -41,23 +41,22 @@ const baseUi: ProjectUiState = {
   selectedEntryId: null,
   selectedEntryCategoryId: null,
   expandedSections: ['manuscript'],
-  expandedFolders: [],
   rightPanelOpen: false
 }
 
-describe('sanitizeProjectUiState expandedFolders', () => {
+describe('sanitizeProjectUiState expandedSections', () => {
   it('keeps expanded scene chapter ids', () => {
     const chapter = sceneChapter('chapter-1')
-    const ui = { ...baseUi, expandedFolders: [chapter.id] }
+    const ui = { ...baseUi, expandedSections: ['manuscript', chapter.id] }
     const result = sanitizeProjectUiState(ui, [chapter], categories)
-    expect(result.expandedFolders).toEqual([chapter.id])
+    expect(result.expandedSections).toContain(chapter.id)
   })
 
   it('keeps expanded folder ids', () => {
     const f = folder('folder-1')
-    const ui = { ...baseUi, expandedFolders: [f.id] }
+    const ui = { ...baseUi, expandedSections: ['manuscript', f.id] }
     const result = sanitizeProjectUiState(ui, [f], categories)
-    expect(result.expandedFolders).toEqual([f.id])
+    expect(result.expandedSections).toContain(f.id)
   })
 
   it('drops simple chapter ids', () => {
@@ -65,8 +64,8 @@ describe('sanitizeProjectUiState expandedFolders', () => {
       ...sceneChapter('chapter-simple'),
       metadata: JSON.stringify({ structure: 'simple' })
     }
-    const ui = { ...baseUi, expandedFolders: [chapter.id] }
+    const ui = { ...baseUi, expandedSections: ['manuscript', chapter.id] }
     const result = sanitizeProjectUiState(ui, [chapter], categories)
-    expect(result.expandedFolders).toEqual([])
+    expect(result.expandedSections).not.toContain(chapter.id)
   })
 })

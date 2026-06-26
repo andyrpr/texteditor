@@ -31,7 +31,6 @@ function navigationChanged(
   if (state.sectionOrder.length !== prev.sectionOrder.length) return true
   if (state.sectionOrder.some((v, i) => v !== prev.sectionOrder[i])) return true
   if (setsChanged(state.expandedSections, prev.expandedSections)) return true
-  if (setsChanged(state.expandedFolders, prev.expandedFolders)) return true
   return false
 }
 

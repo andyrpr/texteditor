@@ -18,7 +18,6 @@ interface AppState {
   selectedNodeId: string | null
   selectedContainerId: string | null
   expandedSections: Set<string>
-  expandedFolders: Set<string>
   sectionOrder: string[]
 
   selectedEntityId: string | null
@@ -59,7 +58,6 @@ interface AppState {
   selectContainer: (id: string | null) => void
   selectWikiEntity: (id: string | null, type: WikiEntityType | null) => void
   toggleSection: (section: string) => void
-  toggleFolder: (folderId: string) => void
   setSectionOrder: (order: string[]) => void
 
   setSelectedEntity: (id: string | null, type: WikiEntityType | null) => void
@@ -99,7 +97,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   selectedNodeId: null,
   selectedContainerId: null,
   expandedSections: new Set(DEFAULT_EXPANDED_SECTIONS),
-  expandedFolders: new Set<string>(),
   sectionOrder: [...DEFAULT_SECTION_ORDER],
 
   selectedEntityId: null,
@@ -228,13 +225,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     else expanded.add(key)
     set({ expandedSections: expanded })
   },
-  toggleFolder: (folderId) => {
-    const expanded = new Set(get().expandedFolders)
-    if (expanded.has(folderId)) expanded.delete(folderId)
-    else expanded.add(folderId)
-    set({ expandedFolders: expanded })
-  },
-
   setSectionOrder: (order) => set({ sectionOrder: order }),
 
   /** Panel entry selection — preserves center view like setSelectedEntity for wiki items. */
@@ -301,7 +291,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       selectedEntryId: nav.selectedEntryId ?? null,
       selectedEntryCategoryId: nav.selectedEntryCategoryId ?? null,
       expandedSections: migrateExpandedSections(nav.expandedSections),
-      expandedFolders: new Set(nav.expandedFolders ?? []),
       rightPanelOpen: nav.rightPanelOpen,
       sectionOrder: migrateSectionOrder(nav.sectionOrder, get().categories),
       pendingRenameNodeId: null,

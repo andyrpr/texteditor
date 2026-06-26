@@ -248,10 +248,10 @@ export function SidebarTree({
     selectedEntryId,
     selectedContainerId,
     categories,
-    expandedFolders,
+    expandedSections,
     setSelectedNodeId,
     selectContainer,
-    toggleFolder,
+    toggleSection,
     setNodes,
   } = useAppStore()
 
@@ -411,7 +411,7 @@ export function SidebarTree({
             const folderNode = isFolder(node)
             const sceneChapter = node.type === 'chapter' && isChapterFolder(node)
             const isExpandable = folderNode || sceneChapter
-            const expanded = expandedFolders.has(node.id)
+            const expanded = expandedSections.has(node.id)
             const scenes = sceneChapter ? getScenes(nodes, node.id) : []
 
             if (renamingId === node.id) {
@@ -427,7 +427,7 @@ export function SidebarTree({
                   isFolderNode={folderNode}
                   isExpandable={isExpandable}
                   isExpanded={expanded}
-                  onToggleExpand={() => toggleFolder(node.id)}
+                  onToggleExpand={() => toggleSection(node.id)}
                   onSelect={() => handleSelect(node)}
                   onRename={() => startRename(node)}
                   onMoveToTrash={() =>

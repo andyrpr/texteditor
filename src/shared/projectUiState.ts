@@ -55,7 +55,6 @@ export function defaultProjectUiState(categories: CategoryDefinition[]): Project
     selectedEntryId: null,
     selectedEntryCategoryId: null,
     expandedSections,
-    expandedFolders: [],
     rightPanelOpen: false
   }
 }
@@ -85,12 +84,14 @@ export function normalizeProjectUiState(
     selectedEntryId: typeof raw.selectedEntryId === 'string' ? raw.selectedEntryId : null,
     selectedEntryCategoryId:
       typeof raw.selectedEntryCategoryId === 'string' ? raw.selectedEntryCategoryId : null,
-    expandedSections: Array.isArray(raw.expandedSections)
-      ? [...migrateExpandedSections(raw.expandedSections)]
-      : defaults.expandedSections,
-    expandedFolders: Array.isArray(raw.expandedFolders)
-      ? raw.expandedFolders.filter((id): id is string => typeof id === 'string')
-      : [],
+    expandedSections: [
+      ...(Array.isArray(raw.expandedSections)
+        ? migrateExpandedSections(raw.expandedSections)
+        : defaults.expandedSections),
+      ...(Array.isArray(raw.expandedFolders)
+        ? raw.expandedFolders.filter((id): id is string => typeof id === 'string')
+        : [])
+    ],
     rightPanelOpen: typeof raw.rightPanelOpen === 'boolean' ? raw.rightPanelOpen : false
   }
 }
@@ -178,13 +179,13 @@ export function sanitizeProjectUiState(
   }
 
   const expandedSections = [...migrateExpandedSections(ui.expandedSections)].filter(
-    (id) => id === 'manuscript' || id === 'trash' || categoryIds.has(id)
+    (id) => {
+      if (id === 'manuscript' || id === 'trash') return true
+      if (categoryIds.has(id)) return true
+      const node = nodes.find((n) => n.id === id && !n.deletedAt) ?? nodes.find((n) => n.id === id)
+      return Boolean(node && isExpandableTreeNode(node))
+    }
   )
-
-  const expandedFolders = ui.expandedFolders.filter((id) => {
-    const node = nodes.find((n) => n.id === id)
-    return Boolean(node && isExpandableTreeNode(node))
-  })
 
   const hasPanelSelection = Boolean(
     (selectedEntityId && selectedEntityType) || (selectedEntryId && selectedEntryCategoryId)
@@ -204,7 +205,6 @@ export function sanitizeProjectUiState(
     selectedEntryId,
     selectedEntryCategoryId,
     expandedSections,
-    expandedFolders,
     rightPanelOpen
   }
 }

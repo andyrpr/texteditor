@@ -9,7 +9,6 @@ const DEFAULT: NavigationSyncState = {
   selectedEntityId: null,
   selectedEntityType: null,
   expandedSections: [...DEFAULT_EXPANDED],
-  expandedFolders: [],
   rightPanelOpen: true,
   sectionOrder: [...DEFAULT_SECTION_ORDER]
 }
@@ -29,5 +28,5 @@ export function setNavigationState(next: NavigationSyncState): NavigationSyncSta
 }
 
 export function resetNavigationState(): void {
-  state = { ...DEFAULT, expandedSections: [...DEFAULT_EXPANDED], expandedFolders: [], sectionOrder: [...DEFAULT_SECTION_ORDER] }
+  state = { ...DEFAULT, expandedSections: [...DEFAULT_EXPANDED], sectionOrder: [...DEFAULT_SECTION_ORDER] }
 }

@@ -39,7 +39,6 @@ export function captureProjectUiState(): ProjectUiState {
     selectedEntryId: s.selectedEntryId,
     selectedEntryCategoryId: s.selectedEntryCategoryId,
     expandedSections: [...s.expandedSections],
-    expandedFolders: [...s.expandedFolders],
     rightPanelOpen
   }
 }
@@ -53,7 +52,6 @@ function toNavigationSyncState(ui: ProjectUiState): NavigationSyncState {
     selectedEntryId: ui.selectedEntryId,
     selectedEntryCategoryId: ui.selectedEntryCategoryId,
     expandedSections: ui.expandedSections,
-    expandedFolders: ui.expandedFolders,
     rightPanelOpen: ui.rightPanelOpen,
     sectionOrder: ui.sectionOrder
   }
