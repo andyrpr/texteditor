@@ -18,11 +18,11 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { Folder, GripVertical } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { countNodeWords, isFolder, isChapterFolder, stripNodeContentPreview } from '@/lib/treeUtils'
+import { countNodeWords, isFolder, isChapterFolder, isSimpleChapter, stripNodeContentPreview } from '@/lib/treeUtils'
 import { useAppStore } from '@/store/appStore'
 import { useHistoryStore } from '@/store/historyStore'
 import { makeRenameCommand } from '@/lib/commands'
-import { TreeContextMenu, EmptyAreaContextMenu } from '@/components/Tree/TreeContextMenu'
+import { TreeContextMenu, EmptyAreaContextMenu, type MoveToFolder } from '@/components/Tree/TreeContextMenu'
 import { ConfirmDialog } from '@/components/UI/ConfirmDialog'
 import type { TreeNode } from '@shared/types'
 import {
@@ -47,6 +47,13 @@ interface ContainerViewProps {
   menuVariant?: 'manuscript' | 'wiki' | 'trash'
   onRename?: (node: TreeNode) => void
   onMoveTo?: (node: TreeNode) => void
+  moveToFolders?: MoveToFolder[]
+  onMoveToFolder?: (node: TreeNode, folderId: string) => void
+  moveToChapters?: MoveToFolder[]
+  onMoveToChapter?: (node: TreeNode, chapterId: string) => void
+  onConvertToSimpleChapter?: (node: TreeNode) => void
+  onConvertToSceneChapter?: (node: TreeNode) => void
+  onConvertSimpleToSceneChapter?: (node: TreeNode) => void
   onOpenNewWindow?: (node: TreeNode) => void
   onMoveToTrash?: (node: TreeNode) => void
   onRecover?: (node: TreeNode) => void
@@ -157,6 +164,13 @@ function SortableCard({
   onSelect,
   onRename,
   onMoveTo,
+  moveToFolders,
+  onMoveToFolder,
+  moveToChapters,
+  onMoveToChapter,
+  onConvertToSimpleChapter,
+  onConvertToSceneChapter,
+  onConvertSimpleToSceneChapter,
   onOpenNewWindow,
   onMoveToTrash,
   onRecover,
@@ -175,6 +189,13 @@ function SortableCard({
   onSelect: () => void
   onRename?: () => void
   onMoveTo?: () => void
+  moveToFolders?: MoveToFolder[]
+  onMoveToFolder?: (folderId: string) => void
+  moveToChapters?: MoveToFolder[]
+  onMoveToChapter?: (chapterId: string) => void
+  onConvertToSimpleChapter?: () => void
+  onConvertToSceneChapter?: () => void
+  onConvertSimpleToSceneChapter?: () => void
   onOpenNewWindow?: () => void
   onMoveToTrash?: () => void
   onRecover?: () => void
@@ -274,6 +295,13 @@ function SortableCard({
       node={node}
       onRename={onRename}
       onMoveTo={node.type === 'scene' ? onMoveTo : undefined}
+      moveToFolders={moveToFolders?.filter((f) => f.id !== node.id)}
+      onMoveToFolder={onMoveToFolder}
+      moveToChapters={node.type === 'scene' ? moveToChapters?.filter((c) => c.id !== node.parentId) : undefined}
+      onMoveToChapter={node.type === 'scene' ? onMoveToChapter : undefined}
+      onConvertToSimpleChapter={node.type === 'scene' ? onConvertToSimpleChapter : undefined}
+      onConvertToSceneChapter={node.type === 'scene' ? onConvertToSceneChapter : undefined}
+      onConvertSimpleToSceneChapter={node.type === 'chapter' && isSimpleChapter(node) ? onConvertSimpleToSceneChapter : undefined}
       onOpenNewWindow={folderNode ? undefined : onOpenNewWindow}
       onMoveToTrash={() =>
         onConfirm({
@@ -302,6 +330,13 @@ export function ContainerView({
   menuVariant = 'manuscript',
   onRename,
   onMoveTo,
+  moveToFolders,
+  onMoveToFolder,
+  moveToChapters,
+  onMoveToChapter,
+  onConvertToSimpleChapter,
+  onConvertToSceneChapter,
+  onConvertSimpleToSceneChapter,
   onOpenNewWindow,
   onMoveToTrash,
   onRecover,
@@ -390,6 +425,13 @@ export function ContainerView({
                       : () => startRename(node)
                   }
                   onMoveTo={onMoveTo ? () => onMoveTo(node) : undefined}
+                  moveToFolders={moveToFolders}
+                  onMoveToFolder={onMoveToFolder ? (folderId) => onMoveToFolder(node, folderId) : undefined}
+                  moveToChapters={moveToChapters}
+                  onMoveToChapter={onMoveToChapter ? (chapterId) => onMoveToChapter(node, chapterId) : undefined}
+                  onConvertToSimpleChapter={onConvertToSimpleChapter ? () => onConvertToSimpleChapter(node) : undefined}
+                  onConvertToSceneChapter={onConvertToSceneChapter ? () => onConvertToSceneChapter(node) : undefined}
+                  onConvertSimpleToSceneChapter={onConvertSimpleToSceneChapter ? () => onConvertSimpleToSceneChapter(node) : undefined}
                   onOpenNewWindow={onOpenNewWindow ? () => onOpenNewWindow(node) : undefined}
                   onMoveToTrash={onMoveToTrash ? () => onMoveToTrash(node) : undefined}
                   onRecover={onRecover ? () => onRecover(node) : undefined}

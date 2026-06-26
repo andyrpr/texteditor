@@ -211,6 +211,84 @@ export function EditorPane(): React.JSX.Element {
     ]
   }
 
+  const getFoldersForScope = (scope: FolderScope): { id: string; title: string }[] =>
+    nodes.filter((n) => !n.deletedAt && n.type === 'folder' && getFolderScope(n) === scope)
+      .map((n) => ({ id: n.id, title: n.title }))
+
+  const getSceneChaptersList = (): { id: string; title: string }[] =>
+    getSceneChapters(nodes).map((n) => ({ id: n.id, title: n.title }))
+
+  const handleMoveToChapter = async (scene: TreeNode, chapterId: string): Promise<void> => {
+    await useHistoryStore.getState().push(
+      makeReparentCommand({
+        nodeId: scene.id,
+        oldParentId: scene.parentId ?? null,
+        newParentId: chapterId
+      })
+    )
+  }
+
+  const handleConvertSceneToSimpleChapter = async (scene: TreeNode): Promise<void> => {
+    const chapterParent = scene.parentId
+      ? nodes.find((n) => n.id === scene.parentId)
+      : null
+    const newChapter = await window.electronAPI.tree.create(
+      chapterParent?.parentId ?? null,
+      'chapter',
+      scene.title,
+      { metadata: JSON.stringify({ structure: 'simple' }) }
+    )
+    await window.electronAPI.tree.update(newChapter.id, { content: scene.content })
+    await window.electronAPI.tree.moveToTrash(scene.id)
+    const all = await window.electronAPI.tree.getAll()
+    setNodes(all)
+    setSelectedNodeId(newChapter.id)
+  }
+
+  const handleConvertSceneToSceneChapter = async (scene: TreeNode): Promise<void> => {
+    const chapterParent = scene.parentId
+      ? nodes.find((n) => n.id === scene.parentId)
+      : null
+    const newChapter = await window.electronAPI.tomes.createChapter('scenes', chapterParent?.parentId ?? null)
+    await window.electronAPI.tree.update(newChapter.id, { title: scene.title })
+    const newScenes = (await window.electronAPI.tree.getAll()).filter(
+      (n) => !n.deletedAt && n.type === 'scene' && n.parentId === newChapter.id
+    )
+    if (newScenes.length > 0) {
+      await window.electronAPI.tree.update(newScenes[0].id, { content: scene.content, title: scene.title })
+    }
+    await window.electronAPI.tree.moveToTrash(scene.id)
+    const all = await window.electronAPI.tree.getAll()
+    setNodes(all)
+    setSelectedNodeId(newChapter.id)
+  }
+
+  const handleConvertSimpleToSceneChapter = async (chapter: TreeNode): Promise<void> => {
+    await window.electronAPI.tree.update(chapter.id, {
+      metadata: JSON.stringify({ structure: 'scenes' })
+    })
+    const firstScene = await window.electronAPI.tree.create(
+      chapter.id,
+      'scene',
+      chapter.title
+    )
+    await window.electronAPI.tree.update(firstScene.id, { content: chapter.content })
+    await window.electronAPI.tree.update(chapter.id, { content: '' })
+    const all = await window.electronAPI.tree.getAll()
+    setNodes(all)
+    setSelectedNodeId(chapter.id)
+  }
+
+  const handleMoveToFolder = async (node: TreeNode, folderId: string): Promise<void> => {
+    await useHistoryStore.getState().push(
+      makeReparentCommand({
+        nodeId: node.id,
+        oldParentId: node.parentId ?? null,
+        newParentId: folderId
+      })
+    )
+  }
+
   const dialogs = (
     <>
       <MoveSceneDialog
@@ -265,6 +343,13 @@ export function EditorPane(): React.JSX.Element {
           onReorder={(reordered) => void persistReorder(reordered, null)}
           menuVariant="manuscript"
           onMoveTo={(node) => setMoveSceneNode(node)}
+          moveToFolders={getFoldersForScope('manuscript')}
+          onMoveToFolder={(node, folderId) => void handleMoveToFolder(node, folderId)}
+          moveToChapters={getSceneChaptersList()}
+          onMoveToChapter={(node, chapterId) => void handleMoveToChapter(node, chapterId)}
+          onConvertToSimpleChapter={(node) => void handleConvertSceneToSimpleChapter(node)}
+          onConvertToSceneChapter={(node) => void handleConvertSceneToSceneChapter(node)}
+          onConvertSimpleToSceneChapter={(node) => void handleConvertSimpleToSceneChapter(node)}
           onOpenNewWindow={openInNewWindow}
           onMoveToTrash={(node) => void handleMoveToTrash(node)}
           emptyMenuItems={buildManuscriptMenu(null)}
@@ -294,6 +379,8 @@ export function EditorPane(): React.JSX.Element {
           onReorder={(reordered) => void persistReorder(reordered, null)}
           menuVariant="wiki"
           onMoveTo={(node) => setMoveSceneNode(node)}
+          moveToFolders={getFoldersForScope(scope)}
+          onMoveToFolder={(node, folderId) => void handleMoveToFolder(node, folderId)}
           onOpenNewWindow={openInNewWindow}
           onMoveToTrash={(node) => void handleMoveToTrash(node)}
           emptyMenuItems={buildCategoryMenu(containerCategory, null)}
@@ -339,6 +426,13 @@ export function EditorPane(): React.JSX.Element {
             onReorder={(reordered) => void persistReorder(reordered, folderId)}
             menuVariant={isManuscriptFolder ? 'manuscript' : 'wiki'}
             onMoveTo={(node) => setMoveSceneNode(node)}
+            moveToFolders={getFoldersForScope(folderScope)}
+            onMoveToFolder={(node, folderId) => void handleMoveToFolder(node, folderId)}
+            moveToChapters={isManuscriptFolder ? getSceneChaptersList() : undefined}
+            onMoveToChapter={isManuscriptFolder ? (node, chapterId) => void handleMoveToChapter(node, chapterId) : undefined}
+            onConvertToSimpleChapter={isManuscriptFolder ? (node) => void handleConvertSceneToSimpleChapter(node) : undefined}
+            onConvertToSceneChapter={isManuscriptFolder ? (node) => void handleConvertSceneToSceneChapter(node) : undefined}
+            onConvertSimpleToSceneChapter={isManuscriptFolder ? (node) => void handleConvertSimpleToSceneChapter(node) : undefined}
             onOpenNewWindow={openInNewWindow}
             onMoveToTrash={(node) => void handleMoveToTrash(node)}
             emptyMenuItems={
@@ -369,6 +463,10 @@ export function EditorPane(): React.JSX.Element {
           onReorder={(reordered) => void persistReorder(reordered, selectedNode.id)}
           menuVariant="manuscript"
           onMoveTo={(node) => setMoveSceneNode(node)}
+          moveToChapters={getSceneChaptersList()}
+          onMoveToChapter={(node, chapterId) => void handleMoveToChapter(node, chapterId)}
+          onConvertToSimpleChapter={(node) => void handleConvertSceneToSimpleChapter(node)}
+          onConvertToSceneChapter={(node) => void handleConvertSceneToSceneChapter(node)}
           onOpenNewWindow={openInNewWindow}
           onMoveToTrash={(node) => void handleMoveToTrash(node)}
           emptyMenuItems={[{ label: 'New Scene', onSelect: () => void createScene(selectedNode.id) }]}
