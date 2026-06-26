@@ -145,7 +145,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       selectedEntityType: null,
       selectedEntryId: null,
       selectedEntryCategoryId: null,
-      expandedFolders: new Set(),
       isDirty: false,
       lastSaved: null,
       backupWarningCount: 0,

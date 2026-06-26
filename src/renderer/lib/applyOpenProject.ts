@@ -1,5 +1,5 @@
 import { useAppStore } from '@/store/appStore'
-import { publishNavigationSync } from '@/lib/navigationSync'
+import { publishNavigationSyncAsync } from '@/lib/navigationSync'
 import {
   beginUiRestore,
   markUiRestoreComplete,
@@ -14,12 +14,12 @@ export interface OpenProjectResult {
   uiState: ProjectUiState
 }
 
-export function applyOpenProjectResult(result: OpenProjectResult): void {
+export async function applyOpenProjectResult(result: OpenProjectResult): Promise<void> {
   beginUiRestore()
   const categories = result.meta.categories ?? []
   useAppStore.getState().setProject(result.path, result.meta, result.nodes)
   resolveProjectUiOnOpen(result.uiState, result.nodes, categories)
+  await publishNavigationSyncAsync()
   markUiRestoreComplete()
-  publishNavigationSync()
   useAppStore.getState().setLastSaved(result.meta.updatedAt)
 }

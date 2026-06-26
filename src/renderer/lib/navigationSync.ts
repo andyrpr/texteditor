@@ -1,4 +1,5 @@
 import { useAppStore } from '@/store/appStore'
+import { isUiRestoreInProgress } from '@/lib/projectUiState'
 import type { NavigationSyncState } from '@shared/types'
 
 let suppressNavigationPublish = false
@@ -51,6 +52,8 @@ function navigationEquals(a: NavigationSyncState, b: NavigationSyncState): boole
 }
 
 export function applyNavigationSync(nav: NavigationSyncState): void {
+  if (!useAppStore.getState().isProjectOpen) return
+  if (isUiRestoreInProgress()) return
   const current = getNavigationSnapshot()
   if (navigationEquals(current, nav)) return
 

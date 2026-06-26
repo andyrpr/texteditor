@@ -1,6 +1,6 @@
 import type {
   CategoryDefinition,
-  TemplateCategoryGroup,
+  FolderScope,
   TreeNode
 } from './types'
 import {
@@ -9,7 +9,6 @@ import {
   OPTIONAL_BESTIARY_CATEGORY_ID,
   PEOPLE_INTERVIEW_STATUS_OPTIONS
 } from './categoryIds'
-import { PROJECT_TEMPLATES } from './types'
 
 export type CategoryNodeKind = 'character' | 'location' | 'lore' | 'note' | 'entry'
 
@@ -276,30 +275,19 @@ export function nodeKindForCategory(cat: CategoryDefinition): CategoryNodeKind {
   return cat.nodeKind ?? inferNodeKindFromCategoryId(cat.id)
 }
 
+export function folderScopeForCategory(cat: CategoryDefinition): FolderScope {
+  switch (nodeKindForCategory(cat)) {
+    case 'character': return 'characters'
+    case 'location':  return 'locations'
+    case 'lore':      return 'lore'
+    case 'note':      return 'notes'
+    case 'entry':     return 'entry'
+  }
+}
+
 export function getAddableCategoryPresets(current: CategoryDefinition[]): CategoryDefinition[] {
   const currentIds = new Set(current.map((c) => c.id))
   return CATEGORY_PRESET_CATALOG.filter((p) => !currentIds.has(p.id)).map(cloneCategoryPreset)
-}
-
-/** Presets from Fiction / Non-Fiction templates not already in the project. */
-export function getAddableTemplateCategories(
-  current: CategoryDefinition[]
-): TemplateCategoryGroup[] {
-  const currentIds = new Set(current.map((c) => c.id))
-  return PROJECT_TEMPLATES.filter((template) => template.id !== 'blank')
-    .map((template) => ({
-      templateId: template.id,
-      templateName: template.name,
-      categories: resolveCategoriesFromPresetIds(template.presetIds).filter(
-        (preset) => !currentIds.has(preset.id)
-      )
-    }))
-    .filter((group) => group.categories.length > 0)
-}
-
-/** @deprecated Use getAddableCategoryPresets — kept for Category Manager shim until Plan 4. */
-export function getAddableOptionalCategories(current: CategoryDefinition[]): CategoryDefinition[] {
-  return getAddableCategoryPresets(current)
 }
 
 export const BUILTIN_CATEGORIES = resolveCategoriesFromPresetIds([...FICTION_PRESET_IDS])

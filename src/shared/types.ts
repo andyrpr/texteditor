@@ -331,12 +331,6 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   }
 ]
 
-export interface TemplateCategoryGroup {
-  templateId: TemplateId
-  templateName: string
-  categories: CategoryDefinition[]
-}
-
 export {
   BUILTIN_CATEGORIES,
   CATEGORY_PRESET_CATALOG,
@@ -345,9 +339,8 @@ export {
   cloneCategoryPreset,
   countCategoryEntries,
   defaultFictionCategories,
+  folderScopeForCategory,
   getAddableCategoryPresets,
-  getAddableOptionalCategories,
-  getAddableTemplateCategories,
   getCategoryPresetById,
   nodeKindForCategory,
   normalizeCategoryDefinition,

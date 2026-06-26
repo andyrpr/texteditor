@@ -80,6 +80,7 @@ export function useNavigationSyncPublisher(
     }
 
     return useAppStore.subscribe((state, prev) => {
+      if (!state.isProjectOpen) return
       if (navigationChanged(state, prev)) {
         publishNavigationSync()
       }

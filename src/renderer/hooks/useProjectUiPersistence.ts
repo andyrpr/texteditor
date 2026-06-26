@@ -5,6 +5,18 @@ import { captureProjectUiState, isUiRestoreInProgress } from '@/lib/projectUiSta
 
 const DEBOUNCE_MS = 500
 
+let sharedTimer: ReturnType<typeof setTimeout> | null = null
+
+export async function flushProjectUiState(): Promise<void> {
+  if (sharedTimer) {
+    clearTimeout(sharedTimer)
+    sharedTimer = null
+  }
+  if (isUiRestoreInProgress()) return
+  if (!useAppStore.getState().isProjectOpen) return
+  await window.electronAPI.tomes.updateUiState(captureProjectUiState())
+}
+
 function navigationChanged(
   state: ReturnType<typeof useAppStore.getState>,
   prev: ReturnType<typeof useAppStore.getState>
@@ -38,10 +50,14 @@ export function useProjectUiPersistence(enabled: boolean): void {
     const schedule = (): void => {
       if (isUiRestoreInProgress()) return
       if (timerRef.current) clearTimeout(timerRef.current)
-      timerRef.current = setTimeout(() => {
+      if (sharedTimer) clearTimeout(sharedTimer)
+      const timer = setTimeout(() => {
         timerRef.current = null
+        sharedTimer = null
         flush()
       }, DEBOUNCE_MS)
+      timerRef.current = timer
+      sharedTimer = timer
     }
 
     const unsub = useAppStore.subscribe((state, prev) => {
@@ -53,7 +69,10 @@ export function useProjectUiPersistence(enabled: boolean): void {
 
     return () => {
       unsub()
-      if (timerRef.current) clearTimeout(timerRef.current)
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+        if (sharedTimer === timerRef.current) sharedTimer = null
+      }
     }
   }, [enabled])
 }

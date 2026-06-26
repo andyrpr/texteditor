@@ -4,7 +4,8 @@ import { useHistoryStore } from '@/store/historyStore'
 import { useToastStore } from '@/components/UI/toast'
 import { flushAllDirty, flushAndSaveProject, resetPersistenceState } from '@/lib/contentPersistence'
 import { applyOpenProjectResult } from '@/lib/applyOpenProject'
-import { captureProjectUiState } from '@/lib/projectUiState'
+import { runWithNavigationPublishSuppressed } from '@/lib/navigationSync'
+import { flushProjectUiState } from '@/hooks/useProjectUiPersistence'
 import type { CreateProjectInput } from '@shared/types'
 import { defaultFictionCategories } from '@shared/categoryPresets'
 
@@ -77,7 +78,7 @@ export function useProject(): {
         await flushAllDirty()
         useHistoryStore.getState().clear()
         const result = await window.electronAPI.tomes.openProject(path)
-        applyOpenProjectResult(result)
+        await applyOpenProjectResult(result)
         setBackupWarningCount(0)
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Could not open project'
@@ -98,7 +99,7 @@ export function useProject(): {
         categories: input.categories ?? defaultFictionCategories()
       })
       const openResult = await window.electronAPI.tomes.openProject(result.path)
-      applyOpenProjectResult(openResult)
+      await applyOpenProjectResult(openResult)
     },
     []
   )
@@ -125,13 +126,15 @@ export function useProject(): {
     }
 
     try {
-      await window.electronAPI.tomes.updateUiState(captureProjectUiState())
+      await flushProjectUiState()
     } catch (err) {
       console.error('Failed to save UI state before close:', err)
     }
 
     resetPersistenceState()
-    closeProjectStore()
+    runWithNavigationPublishSuppressed(() => {
+      closeProjectStore()
+    })
     useHistoryStore.getState().clear()
 
     try {
