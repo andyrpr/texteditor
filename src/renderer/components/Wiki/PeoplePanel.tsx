@@ -1,21 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import { SpellCheckedInput, SpellCheckedTextarea } from '@/components/UI/spell-checked-field'
-import { CommaSeparatedField } from '@/components/UI/CommaSeparatedField'
 import { ComboField } from '@/components/UI/ComboField'
-import { ComboTagsField } from '@/components/UI/ComboTagsField'
 import { Input } from '@/components/UI/input'
 import { Button } from '@/components/UI/button'
 import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
 import { useAppStore } from '@/store/appStore'
-import { useFieldSuggestions } from '@/hooks/useFieldSuggestions'
-import { useArrayFieldSuggestions } from '@/hooks/useArrayFieldSuggestions'
+import { useEntryFieldSuggestions } from '@/hooks/useEntryFieldSuggestions'
 import { cn } from '@/lib/utils'
 import {
-  CHARACTER_RELATIONSHIP_TYPES,
-  type CharacterMeta,
-  type CharacterRelationship,
-  type CharacterRelationshipType,
+  DEFAULT_PEOPLE_META,
+  NF_PEOPLE_CATEGORY_ID,
+  PEOPLE_INTERVIEW_STATUS_OPTIONS,
+  PEOPLE_RELATIONSHIP_TYPES,
+  type PeopleMeta,
+  type PeopleRelationship,
+  type PeopleRelationshipType,
   type TreeNode
 } from '@shared/types'
 
@@ -37,25 +37,25 @@ function Field({
 const selectClassName =
   'flex h-8 min-w-0 flex-1 rounded-md border border-input bg-transparent px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
 
-function CharacterSearchSelect({
+function PeopleSearchSelect({
   value,
-  characters,
+  people,
   onChange
 }: {
   value: string
-  characters: TreeNode[]
-  onChange: (characterId: string) => void
+  people: TreeNode[]
+  onChange: (personId: string) => void
 }): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const selected = characters.find((c) => c.id === value)
+  const selected = people.find((p) => p.id === value)
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return characters
-    return characters.filter((c) => c.title.toLowerCase().includes(q))
-  }, [characters, query])
+    if (!q) return people
+    return people.filter((p) => p.title.toLowerCase().includes(q))
+  }, [people, query])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent): void => {
@@ -71,7 +71,7 @@ function CharacterSearchSelect({
     <div ref={containerRef} className="relative min-w-0 flex-1">
       <Input
         value={open ? query : (selected?.title ?? '')}
-        placeholder="Select character"
+        placeholder="Select person"
         className="h-8"
         onFocus={() => {
           setOpen(true)
@@ -85,24 +85,24 @@ function CharacterSearchSelect({
       {open && (
         <div className="absolute z-20 mt-1 max-h-40 w-full overflow-y-auto rounded-md border border-input bg-popover">
           {filtered.length === 0 ? (
-            <p className="px-2 py-1.5 text-xs text-muted-foreground">No characters found</p>
+            <p className="px-2 py-1.5 text-xs text-muted-foreground">No people found</p>
           ) : (
-            filtered.map((character) => (
+            filtered.map((person) => (
               <button
-                key={character.id}
+                key={person.id}
                 type="button"
                 className={cn(
                   'block w-full px-2 py-1.5 text-left text-sm hover:bg-accent',
-                  character.id === value && 'bg-accent'
+                  person.id === value && 'bg-accent'
                 )}
                 onMouseDown={(e) => {
                   e.preventDefault()
-                  onChange(character.id)
+                  onChange(person.id)
                   setQuery('')
                   setOpen(false)
                 }}
               >
-                {character.title}
+                {person.title}
               </button>
             ))
           )}
@@ -112,7 +112,7 @@ function CharacterSearchSelect({
   )
 }
 
-export function CharacterPanel({
+export function PeoplePanel({
   nodeId,
   title,
   metadata,
@@ -120,20 +120,36 @@ export function CharacterPanel({
 }: {
   nodeId: string
   title: string
-  metadata: CharacterMeta
-  onUpdate: (meta: CharacterMeta, title?: string) => void
+  metadata: PeopleMeta
+  onUpdate: (meta: PeopleMeta, title?: string) => void
 }): React.JSX.Element {
   const nodes = useAppStore((s) => s.nodes)
   const [meta, setMeta] = useState(metadata)
   const [name, setName] = useState(title)
 
-  const otherCharacters = useMemo(
-    () => nodes.filter((n) => n.type === 'character' && !n.deletedAt && n.id !== nodeId),
+  const otherPeople = useMemo(
+    () =>
+      nodes.filter(
+        (n) =>
+          n.type === 'entry' &&
+          n.categoryId === NF_PEOPLE_CATEGORY_ID &&
+          !n.deletedAt &&
+          n.id !== nodeId
+      ),
     [nodes, nodeId]
   )
-  const raceSuggestions = useFieldSuggestions('character', 'race', nodeId)
-  const genderSuggestions = useFieldSuggestions('character', 'gender', nodeId)
-  const professionSuggestions = useArrayFieldSuggestions('character', 'professions', nodeId)
+  const ethnicitySuggestions = useEntryFieldSuggestions(
+    NF_PEOPLE_CATEGORY_ID,
+    'ethnicity',
+    nodeId,
+    DEFAULT_PEOPLE_META
+  )
+  const genderSuggestions = useEntryFieldSuggestions(
+    NF_PEOPLE_CATEGORY_ID,
+    'gender',
+    nodeId,
+    DEFAULT_PEOPLE_META
+  )
 
   useEffect(() => {
     setMeta(metadata)
@@ -145,14 +161,14 @@ export function CharacterPanel({
   }, [meta, name, title, onUpdate])
 
   const saveMeta = useCallback(
-    (next: CharacterMeta) => {
+    (next: PeopleMeta) => {
       setMeta(next)
       onUpdate(next, name !== title ? name : undefined)
     },
     [name, title, onUpdate]
   )
 
-  const updateRelationship = (index: number, updates: Partial<CharacterRelationship>): void => {
+  const updateRelationship = (index: number, updates: Partial<PeopleRelationship>): void => {
     const relationships = meta.relationships.map((rel, i) =>
       i === index ? { ...rel, ...updates } : rel
     )
@@ -164,7 +180,7 @@ export function CharacterPanel({
   const addRelationship = (): void => {
     const next = {
       ...meta,
-      relationships: [...meta.relationships, { characterId: '', type: 'Unknown' as const }]
+      relationships: [...meta.relationships, { personId: '', type: 'Unknown' as const }]
     }
     setMeta(next)
     onUpdate(next, name !== title ? name : undefined)
@@ -186,7 +202,7 @@ export function CharacterPanel({
         title={name}
         imagePath={meta.imagePath}
         secondaryImagePaths={meta.secondaryImagePaths}
-        entityType="character"
+        entityType="entry"
         onImagesChange={({ imagePath, secondaryImagePaths }) =>
           saveMeta({ ...meta, imagePath, secondaryImagePaths })
         }
@@ -195,31 +211,19 @@ export function CharacterPanel({
       <Field label="Name">
         <SpellCheckedInput value={name} onChange={(e) => setName(e.target.value)} onBlur={save} />
       </Field>
-      <Field label="Also known as">
-        <CommaSeparatedField
-          value={meta.aliases}
-          onChange={(aliases) => setMeta({ ...meta, aliases })}
+      <Field label="Known As">
+        <SpellCheckedInput
+          value={meta.knownAs}
+          onChange={(e) => setMeta({ ...meta, knownAs: e.target.value })}
           onBlur={save}
-        />
-      </Field>
-      <Field label="General">
-        <SpellCheckedTextarea
-          measureKey={`${nodeId}-general`}
-          value={meta.general}
-          onChange={(e) => setMeta({ ...meta, general: e.target.value })}
-          onBlur={save}
-          rows={3}
         />
       </Field>
       <div className="grid grid-cols-3 gap-2">
-        <Field label="Age">
-          <SpellCheckedInput value={meta.age} onChange={(e) => setMeta({ ...meta, age: e.target.value })} onBlur={save} />
-        </Field>
-        <Field label="Race">
+        <Field label="Ethnicity">
           <ComboField
-            value={meta.race}
-            suggestions={raceSuggestions}
-            onChange={(v) => setMeta({ ...meta, race: v })}
+            value={meta.ethnicity}
+            suggestions={ethnicitySuggestions}
+            onChange={(v) => setMeta({ ...meta, ethnicity: v })}
             onBlur={save}
           />
         </Field>
@@ -231,58 +235,71 @@ export function CharacterPanel({
             onBlur={save}
           />
         </Field>
+        <Field label="Age">
+          <SpellCheckedInput
+            value={meta.age}
+            onChange={(e) => setMeta({ ...meta, age: e.target.value })}
+            onBlur={save}
+          />
+        </Field>
       </div>
-      <Field label="Profession">
-        <ComboTagsField
-          value={meta.professions}
-          suggestions={professionSuggestions}
-          onChange={(professions) => setMeta({ ...meta, professions })}
-          onBlur={save}
-        />
-      </Field>
-      <Field label="Physical Description">
+      <Field label="General">
         <SpellCheckedTextarea
-          measureKey={nodeId}
-          value={meta.physicalDescription}
-          onChange={(e) => setMeta({ ...meta, physicalDescription: e.target.value })}
+          measureKey={`${nodeId}-general`}
+          value={meta.general}
+          onChange={(e) => setMeta({ ...meta, general: e.target.value })}
           onBlur={save}
           rows={3}
         />
       </Field>
-      <Field label="Personality">
-        <SpellCheckedTextarea
-          measureKey={nodeId}
-          value={meta.personality}
-          onChange={(e) => setMeta({ ...meta, personality: e.target.value })}
+      <Field label="Role / Title">
+        <SpellCheckedInput
+          value={meta.roleTitle}
+          onChange={(e) => setMeta({ ...meta, roleTitle: e.target.value })}
           onBlur={save}
-          rows={3}
         />
       </Field>
-      <Field label="Background">
-        <SpellCheckedTextarea
-          measureKey={nodeId}
-          value={meta.background}
-          onChange={(e) => setMeta({ ...meta, background: e.target.value })}
+      <Field label="Organization">
+        <SpellCheckedInput
+          value={meta.organization}
+          onChange={(e) => setMeta({ ...meta, organization: e.target.value })}
           onBlur={save}
-          rows={3}
         />
       </Field>
-      <Field label="Role in Story">
+      <Field label="Interview Status">
+        <select
+          value={meta.interviewStatus}
+          onChange={(e) => {
+            const next = { ...meta, interviewStatus: e.target.value }
+            setMeta(next)
+            onUpdate(next, name !== title ? name : undefined)
+          }}
+          className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+        >
+          <option value="">— none —</option>
+          {PEOPLE_INTERVIEW_STATUS_OPTIONS.map((opt) => (
+            <option key={opt} value={opt}>
+              {opt}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label="Key Quotes">
         <SpellCheckedTextarea
           measureKey={nodeId}
-          value={meta.role}
-          onChange={(e) => setMeta({ ...meta, role: e.target.value })}
+          value={meta.keyQuotes}
+          onChange={(e) => setMeta({ ...meta, keyQuotes: e.target.value })}
           onBlur={save}
-          rows={3}
+          rows={4}
         />
       </Field>
-      <Field label="Notes">
+      <Field label="Relevance">
         <SpellCheckedTextarea
-          measureKey={nodeId}
-          value={meta.notes}
-          onChange={(e) => setMeta({ ...meta, notes: e.target.value })}
+          measureKey={`${nodeId}-relevance`}
+          value={meta.relevance}
+          onChange={(e) => setMeta({ ...meta, relevance: e.target.value })}
           onBlur={save}
-          rows={3}
+          rows={2}
         />
       </Field>
 
@@ -294,21 +311,21 @@ export function CharacterPanel({
               <select
                 value={rel.type}
                 onChange={(e) => {
-                  updateRelationship(index, { type: e.target.value as CharacterRelationshipType })
+                  updateRelationship(index, { type: e.target.value as PeopleRelationshipType })
                 }}
                 className={selectClassName}
                 style={{ flex: '0 0 7.5rem' }}
               >
-                {CHARACTER_RELATIONSHIP_TYPES.map((type) => (
+                {PEOPLE_RELATIONSHIP_TYPES.map((type) => (
                   <option key={type} value={type}>
                     {type}
                   </option>
                 ))}
               </select>
-              <CharacterSearchSelect
-                value={rel.characterId}
-                characters={otherCharacters}
-                onChange={(characterId) => updateRelationship(index, { characterId })}
+              <PeopleSearchSelect
+                value={rel.personId}
+                people={otherPeople}
+                onChange={(personId) => updateRelationship(index, { personId })}
               />
               <Button
                 type="button"
@@ -335,20 +352,11 @@ export function CharacterPanel({
         </Button>
       </div>
 
-      <Field label="Starts as">
+      <Field label="Notes">
         <SpellCheckedTextarea
-          measureKey={nodeId}
-          value={meta.startsAs}
-          onChange={(e) => setMeta({ ...meta, startsAs: e.target.value })}
-          onBlur={save}
-          rows={3}
-        />
-      </Field>
-      <Field label="Ends as">
-        <SpellCheckedTextarea
-          measureKey={nodeId}
-          value={meta.endsAs}
-          onChange={(e) => setMeta({ ...meta, endsAs: e.target.value })}
+          measureKey={`${nodeId}-notes`}
+          value={meta.notes}
+          onChange={(e) => setMeta({ ...meta, notes: e.target.value })}
           onBlur={save}
           rows={3}
         />

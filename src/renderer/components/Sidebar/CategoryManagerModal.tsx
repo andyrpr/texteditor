@@ -30,9 +30,10 @@ import { Label } from '@/components/UI/label'
 import { ScrollArea } from '@/components/UI/scroll-area'
 import { cn } from '@/lib/utils'
 import { useAppStore } from '@/store/appStore'
+import { captureProjectUiState } from '@/lib/projectUiState'
 import { CATEGORY_ICON_MAP } from '@/components/Sidebar/categoryIcons'
-import { getAddableTemplateCategories, PROJECT_TEMPLATES } from '@shared/types'
-import type { CategoryDefinition, CategoryMode, TemplateCategoryGroup } from '@shared/types'
+import { cloneCategoryPreset, countCategoryEntries, getAddableCategoryPresets } from '@shared/categoryPresets'
+import type { CategoryDefinition, CategoryMode } from '@shared/types'
 
 const ICON_NAMES = Object.keys(CATEGORY_ICON_MAP)
 
@@ -155,33 +156,6 @@ function TemplateCategoryRow({
   )
 }
 
-function TemplateCategorySection({
-  group,
-  onAdd
-}: {
-  group: TemplateCategoryGroup
-  onAdd: (preset: CategoryDefinition) => void
-}): React.JSX.Element {
-  const description =
-    PROJECT_TEMPLATES.find((t) => t.id === group.templateId)?.description ?? ''
-
-  return (
-    <div className="space-y-1.5">
-      <div>
-        <p className="text-xs font-medium text-foreground">{group.templateName}</p>
-        {description && (
-          <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{description}</p>
-        )}
-      </div>
-      <div className="space-y-1.5">
-        {group.categories.map((cat) => (
-          <TemplateCategoryRow key={cat.id} category={cat} onAdd={() => onAdd(cat)} />
-        ))}
-      </div>
-    </div>
-  )
-}
-
 interface AddCategoryFormProps {
   onAdd: (cat: Omit<CategoryDefinition, 'sortOrder' | 'builtIn' | 'panelBlocks'>) => void
   onCancel: () => void
@@ -272,8 +246,8 @@ export function CategoryManagerModal({
   const { categories, sectionOrder, setSectionOrder, updateCategories, nodes } = useAppStore()
   const [showAddForm, setShowAddForm] = useState(false)
 
-  const addableTemplateGroups = useMemo(
-    () => getAddableTemplateCategories(categories),
+  const addablePresets = useMemo(
+    () => getAddableCategoryPresets(categories),
     [categories]
   )
 
@@ -291,11 +265,12 @@ export function CategoryManagerModal({
     .filter((c): c is CategoryDefinition => !!c)
 
   const addCategoryToProject = async (cat: CategoryDefinition): Promise<void> => {
-    const updated = [...categories, { ...cat, sortOrder: categories.length }]
-    const nextOrder = [...sectionOrder, cat.id]
+    const cloned = cloneCategoryPreset(cat)
+    const updated = [...categories, { ...cloned, sortOrder: categories.length }]
+    const nextOrder = [...sectionOrder, cloned.id]
     setSectionOrder(nextOrder)
     await updateCategories(updated)
-    await window.electronAPI.tomes.updateUiState({ sectionOrder: nextOrder })
+    await window.electronAPI.tomes.updateUiState(captureProjectUiState())
   }
 
   const handleDragEnd = async (event: DragEndEvent): Promise<void> => {
@@ -315,7 +290,7 @@ export function CategoryManagerModal({
 
     setSectionOrder(nextIds)
     await updateCategories(reordered)
-    await window.electronAPI.tomes.updateUiState({ sectionOrder: nextIds })
+    await window.electronAPI.tomes.updateUiState(captureProjectUiState())
   }
 
   const handleRemove = async (categoryId: string): Promise<void> => {
@@ -323,7 +298,7 @@ export function CategoryManagerModal({
     const nextOrder = sectionOrder.filter((id) => id !== categoryId)
     setSectionOrder(nextOrder)
     await updateCategories(updated)
-    await window.electronAPI.tomes.updateUiState({ sectionOrder: nextOrder })
+    await window.electronAPI.tomes.updateUiState(captureProjectUiState())
   }
 
   const handleAdd = async (
@@ -339,7 +314,7 @@ export function CategoryManagerModal({
   }
 
   const handleAddTemplateCategory = async (preset: CategoryDefinition): Promise<void> => {
-    await addCategoryToProject({ ...preset })
+    await addCategoryToProject(preset)
   }
 
   return (
@@ -370,7 +345,7 @@ export function CategoryManagerModal({
             <>
               <DialogTitle>Manage categories</DialogTitle>
               <DialogDescription>
-                Reorder your categories, add presets from templates, or create a custom one.
+                Reorder your categories, add a preset, or create a custom one.
               </DialogDescription>
             </>
           )}
@@ -387,7 +362,7 @@ export function CategoryManagerModal({
                 </p>
                 {orderedCategories.length === 0 ? (
                   <p className="py-2 text-center text-sm text-muted-foreground">
-                    No categories yet. Add from templates below or create a custom one.
+                    No categories yet. Add a preset below or create a custom one.
                   </p>
                 ) : (
                   <DndContext
@@ -404,9 +379,7 @@ export function CategoryManagerModal({
                           <SortableCategoryRow
                             key={cat.id}
                             category={cat}
-                            entryCount={
-                              nodes.filter((n) => n.categoryId === cat.id && !n.deletedAt).length
-                            }
+                            entryCount={countCategoryEntries(nodes, cat)}
                             onRemove={() => void handleRemove(cat.id)}
                           />
                         ))}
@@ -418,19 +391,19 @@ export function CategoryManagerModal({
 
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Add from templates
+                  Add category
                 </p>
-                {addableTemplateGroups.length === 0 ? (
+                {addablePresets.length === 0 ? (
                   <p className="text-sm italic text-muted-foreground/80">
-                    All template categories are already in this project.
+                    All preset categories are already in this project.
                   </p>
                 ) : (
-                  <div className="space-y-4">
-                    {addableTemplateGroups.map((group) => (
-                      <TemplateCategorySection
-                        key={group.templateId}
-                        group={group}
-                        onAdd={(preset) => void handleAddTemplateCategory(preset)}
+                  <div className="space-y-1.5">
+                    {addablePresets.map((cat) => (
+                      <TemplateCategoryRow
+                        key={cat.id}
+                        category={cat}
+                        onAdd={() => void handleAddTemplateCategory(cat)}
                       />
                     ))}
                   </div>

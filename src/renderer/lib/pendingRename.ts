@@ -1,23 +1,10 @@
 import { useAppStore, type PendingRenameTarget } from '@/store/appStore'
 import { getCategoryScopedChildren, getFolderScope, isFolder } from '@/lib/treeUtils'
-import { BUILTIN_CATEGORY_IDS } from '@shared/types'
-import type { FolderScope, TreeNode } from '@shared/types'
+import { categoryIdForWikiNodeType } from '@shared/categoryNodeKind'
+import { folderScopeForCategory } from '@shared/categoryPresets'
+import type { TreeNode } from '@shared/types'
 
 export type { PendingRenameTarget }
-
-const WIKI_TYPE_TO_LEGACY_SECTION: Partial<Record<TreeNode['type'], string>> = {
-  character: 'characters',
-  location: 'locations',
-  lore: 'lore',
-  note: 'notes'
-}
-
-const WIKI_TYPE_TO_CATEGORY_ID: Partial<Record<TreeNode['type'], string>> = {
-  character: BUILTIN_CATEGORY_IDS.characters,
-  location: BUILTIN_CATEGORY_IDS.locations,
-  lore: BUILTIN_CATEGORY_IDS.lore,
-  note: BUILTIN_CATEGORY_IDS.notes
-}
 
 function ensureSectionExpanded(sectionId: string): void {
   const { expandedSections, toggleSection } = useAppStore.getState()
@@ -46,8 +33,8 @@ export function expandSidebarToNode(nodeId: string): void {
     current = state.nodes.find((n) => n.id === current!.parentId)
   }
   for (const folderId of folderIds.reverse()) {
-    if (!state.expandedFolders.has(folderId)) {
-      state.toggleFolder(folderId)
+    if (!state.expandedSections.has(folderId)) {
+      state.toggleSection(folderId)
     }
   }
 
@@ -63,14 +50,9 @@ export function expandSidebarToNode(nodeId: string): void {
     return
   }
 
-  const legacySection = WIKI_TYPE_TO_LEGACY_SECTION[node.type]
-  const categoryId = WIKI_TYPE_TO_CATEGORY_ID[node.type]
+  const categoryId = categoryIdForWikiNodeType(node.type)
   if (categoryId) {
     ensureSectionExpanded(categoryId)
-    return
-  }
-  if (legacySection) {
-    ensureSectionExpanded(legacySection)
     return
   }
 
@@ -82,8 +64,8 @@ export function expandSidebarToNode(nodeId: string): void {
 
 function expandSectionForScope(
   nodes: TreeNode[],
-  categories: { id: string }[],
-  scope: FolderScope,
+  categories: import('@shared/types').CategoryDefinition[],
+  scope: string,
   folderId: string
 ): void {
   if (scope === 'manuscript') {
@@ -99,14 +81,8 @@ function expandSectionForScope(
     }
     return
   }
-  ensureSectionExpanded(scope)
-  const categoryId = {
-    characters: BUILTIN_CATEGORY_IDS.characters,
-    locations: BUILTIN_CATEGORY_IDS.locations,
-    lore: BUILTIN_CATEGORY_IDS.lore,
-    notes: BUILTIN_CATEGORY_IDS.notes
-  }[scope]
-  if (categoryId) ensureSectionExpanded(categoryId)
+  const cat = categories.find((c) => folderScopeForCategory(c) === scope)
+  if (cat) ensureSectionExpanded(cat.id)
 }
 
 export function requestSidebarRenameAfterCreate(createdId: string | null | undefined): void {

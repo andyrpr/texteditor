@@ -6,9 +6,10 @@ import { SpellCheckedInput, SpellCheckedTextarea } from '@/components/UI/spell-c
 import { ComboField } from '@/components/UI/ComboField'
 import { ScrollArea } from '@/components/UI/scroll-area'
 import { CharacterPanel } from '@/components/Wiki/CharacterPanel'
-import { EntryPanel } from '@/components/Wiki/EntryPanel'
+import { renderEntryPanel } from '@/components/Wiki/entryPanelRegistry'
 import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
 import { NotePanel } from '@/components/Wiki/NotePanel'
+import { ensureNodeInStore } from '@/lib/categoryNavigation'
 import { publishNavigationSyncAsync } from '@/lib/navigationSync'
 import { useFieldSuggestions } from '@/hooks/useFieldSuggestions'
 import { useResizeHandle, usePersistLayout } from '@/hooks/useResize'
@@ -82,8 +83,11 @@ function LocationPanel({
         nodeId={nodeId}
         title={name}
         imagePath={meta.imagePath}
+        secondaryImagePaths={meta.secondaryImagePaths}
         entityType="location"
-        onImageChange={(imagePath) => saveMeta({ ...meta, imagePath })}
+        onImagesChange={({ imagePath, secondaryImagePaths }) =>
+          saveMeta({ ...meta, imagePath, secondaryImagePaths })
+        }
       />
 
       <Field label="Name">
@@ -146,8 +150,11 @@ function LorePanel({
         nodeId={nodeId}
         title={name}
         imagePath={meta.imagePath}
+        secondaryImagePaths={meta.secondaryImagePaths}
         entityType="lore"
-        onImageChange={(imagePath) => saveMeta({ ...meta, imagePath })}
+        onImagesChange={({ imagePath, secondaryImagePaths }) =>
+          saveMeta({ ...meta, imagePath, secondaryImagePaths })
+        }
       />
 
       <Field label="Name">
@@ -199,6 +206,23 @@ export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.E
   const entryCategory = selectedEntryId
     ? (categories.find((c) => c.id === selectedEntryCategoryId) ?? null)
     : null
+
+  const [resolvingNode, setResolvingNode] = useState(false)
+
+  useEffect(() => {
+    if (!activeId || node) {
+      setResolvingNode(false)
+      return
+    }
+    let cancelled = false
+    setResolvingNode(true)
+    void ensureNodeInStore(activeId).finally(() => {
+      if (!cancelled) setResolvingNode(false)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [activeId, node])
 
   const { handleProps } = useResizeHandle(
     rightPanelWidth,
@@ -269,14 +293,33 @@ export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.E
       })
   }
 
-  if (!detached && (!activeId || !node)) return null
-  if (detached && !node) {
+  if (!detached && !activeId) return null
+
+  if (!node && activeId) {
+    if (detached) {
+      return (
+        <div className="flex flex-1 items-center justify-center text-muted-foreground">
+          <p className="text-sm">Select an entity to view details</p>
+        </div>
+      )
+    }
     return (
-      <div className="flex flex-1 items-center justify-center text-muted-foreground">
-        <p className="text-sm">Select an entity to view details</p>
-      </div>
+      <aside
+        className="relative flex h-full shrink-0 flex-col border-l border-border bg-card"
+        style={{ width: rightPanelWidth }}
+      >
+        <div
+          {...handleProps}
+          className={cn(handleProps.className, 'left-0')}
+          style={{ left: 0 }}
+        />
+        <div className="flex flex-1 items-center justify-center text-muted-foreground">
+          <p className="text-sm">{resolvingNode ? 'Loading…' : 'Entry not found'}</p>
+        </div>
+      </aside>
     )
   }
+
   if (!node) return null
 
   const panelType = selectedEntryId ? 'entry' : (selectedEntityType ?? node.type)
@@ -374,13 +417,13 @@ export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.E
             />
           )}
           {panelType === 'entry' && entryCategory && (
-            <EntryPanel
-              nodeId={node.id}
-              title={node.title}
-              metadata={node.metadata}
-              category={entryCategory}
-              onUpdate={handleEntryUpdate}
-            />
+            renderEntryPanel(entryCategory, {
+              nodeId: node.id,
+              title: node.title,
+              rawMetadata: node.metadata,
+              category: entryCategory,
+              onUpdate: handleEntryUpdate
+            })
           )}
           {panelType === 'entry' && !entryCategory && (
             <p className="text-sm text-muted-foreground">

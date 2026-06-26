@@ -9,6 +9,7 @@ import {
   makeReorderCommand,
   makeReparentCommand
 } from '@/lib/commands'
+import { createCategoryItem, openCategoryItem } from '@/lib/categoryNavigation'
 import { requestRenameAfterCreate } from '@/lib/pendingRename'
 import { RichTextEditor } from '@/components/Editor/RichTextEditor'
 import { ContainerView } from '@/components/Editor/ContainerView'
@@ -25,49 +26,21 @@ import {
   isFolder,
   isTrashContainerId,
   isWikiEntityType,
-  nodeTypeForWikiSection,
   parseFolderContainerId,
   parseTrashContainerId,
-  resolveEntryCategoryIdForFolder,
-  resolveLegacySectionContainerId
+  resolveEntryCategoryIdForFolder
 } from '@/lib/treeUtils'
-import type { ContainerSectionId } from '@/lib/treeUtils'
-import type { ChapterStructure, FolderScope, NodeType, TreeNode } from '@shared/types'
+import { folderScopeForCategory } from '@shared/categoryPresets'
+import type { CategoryDefinition, ChapterStructure, FolderScope, TreeNode } from '@shared/types'
 import { TRASH_CATEGORY_LABELS } from '@shared/types'
 
-const SECTION_CONTAINER_META: Record<
-  ContainerSectionId,
-  { title: string; scope: FolderScope; emptyMessage: string }
-> = {
-  manuscript: {
-    title: 'Manuscript',
-    scope: 'manuscript',
-    emptyMessage: 'No items yet. Right-click to add a folder or chapter.'
-  },
-  characters: {
-    title: 'Characters',
-    scope: 'characters',
-    emptyMessage: 'No characters yet. Right-click to add a folder or character.'
-  },
-  locations: {
-    title: 'Locations',
-    scope: 'locations',
-    emptyMessage: 'No locations yet. Right-click to add a folder or location.'
-  },
-  lore: {
-    title: 'Lore',
-    scope: 'lore',
-    emptyMessage: 'No lore entries yet. Right-click to add a folder or lore entry.'
-  },
-  notes: {
-    title: 'Notes',
-    scope: 'notes',
-    emptyMessage: 'No notes yet. Right-click to add a folder or note.'
-  }
-}
-
-function isContainerSectionId(id: string): id is ContainerSectionId {
-  return id in SECTION_CONTAINER_META
+function resolveContainerCategory(
+  containerId: string | null,
+  categories: CategoryDefinition[]
+): CategoryDefinition | null {
+  if (!containerId) return null
+  if (containerId === 'manuscript' || containerId.startsWith('trash') || containerId.startsWith('folder:')) return null
+  return categories.find((c) => c.id === containerId) ?? null
 }
 
 function containerSelectionId(
@@ -89,7 +62,6 @@ export function EditorPane(): React.JSX.Element {
     setSelectedNodeId,
     selectWikiEntity,
     setSelectedEntity,
-    selectEntry,
     selectContainer,
     setNodes
   } = useAppStore()
@@ -144,7 +116,7 @@ export function EditorPane(): React.JSX.Element {
   const createFolder = async (
     scope: FolderScope,
     parentId: string | null,
-    entryCategoryId?: string
+    categoryId?: string
   ): Promise<void> => {
     const createdId = await useHistoryStore.getState().push(
       makeCreateFolderCommand({ scope, parentId, title: 'New Folder' })
@@ -153,47 +125,10 @@ export function EditorPane(): React.JSX.Element {
       selectContainer(folderContainerId(parentId))
     } else if (scope === 'manuscript') {
       selectContainer('manuscript')
-    } else if (entryCategoryId) {
-      selectContainer(entryCategoryId)
-    } else {
-      selectContainer(scope)
+    } else if (categoryId) {
+      selectContainer(categoryId)
     }
     if (createdId) {
-      requestRenameAfterCreate(createdId, 'container')
-    }
-  }
-
-  const createEntity = async (type: NodeType, parentId: string | null): Promise<void> => {
-    const defaults: Record<string, string> = {
-      character: 'New Character',
-      location: 'New Location',
-      lore: 'New Lore Entry',
-      note: 'New Note'
-    }
-    const title = defaults[type] ?? 'New Item'
-    const createdId = await useHistoryStore.getState().push(
-      makeCreateNodeCommand({ parentId, type, title })
-    )
-    if (createdId && isWikiEntityType(type)) {
-      setSelectedEntity(createdId, type)
-    }
-    if (createdId) {
-      requestRenameAfterCreate(createdId, 'container')
-    }
-  }
-
-  const createEntry = async (categoryId: string, parentId: string | null): Promise<void> => {
-    const category = categories.find((c) => c.id === categoryId)
-    const title = category ? `New ${category.name.replace(/s$/, '')}` : 'New Entry'
-    const createdId = await useHistoryStore.getState().push(
-      makeCreateNodeCommand({ parentId, type: 'entry', title, categoryId })
-    )
-    if (createdId) {
-      if (category?.mode === 'panel') {
-        selectEntry(createdId, categoryId)
-      } else {
-        setSelectedNodeId(createdId)
-      }
       requestRenameAfterCreate(createdId, 'container')
     }
   }
@@ -255,53 +190,25 @@ export function EditorPane(): React.JSX.Element {
       setSelectedNodeId(node.id)
       return
     }
-    if (node.type === 'entry' && entryCategoryId) {
-      const category = categories.find((c) => c.id === entryCategoryId)
-      if (category?.mode === 'panel') {
-        selectEntry(node.id, entryCategoryId)
-      } else {
-        setSelectedNodeId(node.id)
-      }
-      return
-    }
-    if (isWikiEntityType(node.type)) {
-      setSelectedEntity(node.id, node.type)
-    }
+    void openCategoryItem(node.id)
   }
 
-  const buildEmptyMenu = (
-    scope: FolderScope,
-    parentId: string | null,
-    entryCategoryId?: string
+  const buildManuscriptMenu = (parentId: string | null) => [
+    { label: 'New Folder', onSelect: () => void createFolder('manuscript', parentId) },
+    { label: 'New Chapter', onSelect: () => void createChapter('simple', parentId) },
+    { label: 'New Chapter with Scenes', onSelect: () => void createChapter('scenes', parentId) }
+  ]
+
+  const buildCategoryMenu = (
+    category: CategoryDefinition,
+    parentId: string | null
   ) => {
-    const items: { label: string; onSelect: () => void }[] = [
-      {
-        label: 'New Folder',
-        onSelect: () => void createFolder(scope, parentId, entryCategoryId)
-      }
+    const scope = folderScopeForCategory(category)
+    const itemLabel = `New ${category.name.replace(/s$/, '')}`
+    return [
+      { label: 'New Folder', onSelect: () => void createFolder(scope, parentId, category.id) },
+      { label: itemLabel, onSelect: () => void createCategoryItem(category.id, parentId, 'container') }
     ]
-    if (scope === 'manuscript') {
-      items.push(
-        { label: 'New Chapter', onSelect: () => void createChapter('simple', parentId) },
-        { label: 'New Chapter with Scenes', onSelect: () => void createChapter('scenes', parentId) }
-      )
-    } else if (scope === 'entry' && entryCategoryId) {
-      const category = categories.find((c) => c.id === entryCategoryId)
-      const label = category ? `New ${category.name.replace(/s$/, '')}` : 'New Entry'
-      items.push({ label, onSelect: () => void createEntry(entryCategoryId, parentId) })
-    } else {
-      const type = nodeTypeForWikiSection(scope as ContainerSectionId)
-      if (type) {
-        const labels: Record<string, string> = {
-          character: 'New Character',
-          location: 'New Location',
-          lore: 'New Lore Entry',
-          note: 'New Note'
-        }
-        items.push({ label: labels[type], onSelect: () => void createEntity(type, parentId) })
-      }
-    }
-    return items
   }
 
   const dialogs = (
@@ -345,60 +252,51 @@ export function EditorPane(): React.JSX.Element {
     )
   }
 
-  const sectionContainerId = selectedContainerId
-    ? resolveLegacySectionContainerId(selectedContainerId)
-    : null
-
-  if (sectionContainerId) {
-    const meta = SECTION_CONTAINER_META[sectionContainerId]
-    const items = getChildren(nodes, null, meta.scope)
-    const isManuscript = sectionContainerId === 'manuscript'
-
+  if (selectedContainerId === 'manuscript') {
+    const items = getChildren(nodes, null, 'manuscript')
     return (
       <>
         <ContainerView
-          title={meta.title}
+          title="Manuscript"
           items={items}
-          emptyMessage={meta.emptyMessage}
-          selectedNodeId={
-            isManuscript ? selectedNodeId : containerSelectionId(selectedNodeId, selectedEntityId, selectedEntryId)
-          }
-          onSelect={(node) => handleSelectContainerItem(node, meta.scope)}
+          emptyMessage="No items yet. Right-click to add a folder or chapter."
+          selectedNodeId={selectedNodeId}
+          onSelect={(node) => handleSelectContainerItem(node, 'manuscript')}
           onReorder={(reordered) => void persistReorder(reordered, null)}
-          menuVariant={isManuscript ? 'manuscript' : 'wiki'}
+          menuVariant="manuscript"
           onMoveTo={(node) => setMoveSceneNode(node)}
           onOpenNewWindow={openInNewWindow}
           onMoveToTrash={(node) => void handleMoveToTrash(node)}
-          emptyMenuItems={buildEmptyMenu(meta.scope, null)}
+          emptyMenuItems={buildManuscriptMenu(null)}
         />
         {dialogs}
       </>
     )
   }
 
-  const entryCategory =
-    selectedContainerId && !sectionContainerId
-      ? (categories.find((c) => c.id === selectedContainerId) ?? null)
-      : null
+  const containerCategory = resolveContainerCategory(selectedContainerId, categories)
 
-  if (entryCategory) {
-    const items = getCategoryScopedChildren(nodes, null, entryCategory.id)
-    const emptyLabel = entryCategory.name.replace(/s$/, '')
+  if (containerCategory) {
+    const scope = folderScopeForCategory(containerCategory)
+    const items = scope === 'entry'
+      ? getCategoryScopedChildren(nodes, null, containerCategory.id)
+      : getChildren(nodes, null, scope)
+    const emptyLabel = containerCategory.name.replace(/s$/, '').toLowerCase()
 
     return (
       <>
         <ContainerView
-          title={entryCategory.name}
+          title={containerCategory.name}
           items={items}
-          emptyMessage={`No ${emptyLabel.toLowerCase()} entries yet. Right-click to add a folder or entry.`}
+          emptyMessage={`No ${emptyLabel} entries yet. Right-click to add a folder or entry.`}
           selectedNodeId={containerSelectionId(selectedNodeId, selectedEntityId, selectedEntryId)}
-          onSelect={(node) => handleSelectContainerItem(node, 'entry', entryCategory.id)}
+          onSelect={(node) => handleSelectContainerItem(node, scope, containerCategory.id)}
           onReorder={(reordered) => void persistReorder(reordered, null)}
           menuVariant="wiki"
           onMoveTo={(node) => setMoveSceneNode(node)}
           onOpenNewWindow={openInNewWindow}
           onMoveToTrash={(node) => void handleMoveToTrash(node)}
-          emptyMenuItems={buildEmptyMenu('entry', null, entryCategory.id)}
+          emptyMenuItems={buildCategoryMenu(containerCategory, null)}
         />
         {dialogs}
       </>
@@ -410,7 +308,7 @@ export function EditorPane(): React.JSX.Element {
     const folder = nodes.find((n) => n.id === folderId)
     if (folder && isFolder(folder)) {
       const folderScope = getFolderScope(folder) ?? 'manuscript'
-      const entryCategoryId =
+      const folderCategoryId =
         folderScope === 'entry'
           ? resolveEntryCategoryIdForFolder(
               nodes,
@@ -419,9 +317,13 @@ export function EditorPane(): React.JSX.Element {
             )
           : undefined
       const items =
-        folderScope === 'entry' && entryCategoryId
-          ? getCategoryScopedChildren(nodes, folderId, entryCategoryId)
+        folderScope === 'entry' && folderCategoryId
+          ? getCategoryScopedChildren(nodes, folderId, folderCategoryId)
           : getChildren(nodes, folderId, folderScope)
+      const folderCategory = folderCategoryId
+        ? categories.find((c) => c.id === folderCategoryId)
+        : categories.find((c) => folderScopeForCategory(c) === folderScope)
+      const isManuscriptFolder = folderScope === 'manuscript'
       return (
         <>
           <ContainerView
@@ -429,17 +331,23 @@ export function EditorPane(): React.JSX.Element {
             items={items}
             emptyMessage="This folder is empty. Right-click to add items."
             selectedNodeId={
-              folderScope === 'manuscript'
+              isManuscriptFolder
                 ? selectedNodeId
                 : containerSelectionId(selectedNodeId, selectedEntityId, selectedEntryId)
             }
-            onSelect={(node) => handleSelectContainerItem(node, folderScope, entryCategoryId)}
+            onSelect={(node) => handleSelectContainerItem(node, folderScope, folderCategoryId)}
             onReorder={(reordered) => void persistReorder(reordered, folderId)}
-            menuVariant={folderScope === 'manuscript' ? 'manuscript' : 'wiki'}
+            menuVariant={isManuscriptFolder ? 'manuscript' : 'wiki'}
             onMoveTo={(node) => setMoveSceneNode(node)}
             onOpenNewWindow={openInNewWindow}
             onMoveToTrash={(node) => void handleMoveToTrash(node)}
-            emptyMenuItems={buildEmptyMenu(folderScope, folderId, entryCategoryId)}
+            emptyMenuItems={
+              isManuscriptFolder
+                ? buildManuscriptMenu(folderId)
+                : folderCategory
+                  ? buildCategoryMenu(folderCategory, folderId)
+                  : [{ label: 'New Folder', onSelect: () => void createFolder(folderScope, folderId) }]
+            }
           />
           {dialogs}
         </>

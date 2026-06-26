@@ -1,4 +1,5 @@
 import { useAppStore } from '@/store/appStore'
+import { isUiRestoreInProgress } from '@/lib/projectUiState'
 import type { NavigationSyncState } from '@shared/types'
 
 let suppressNavigationPublish = false
@@ -26,7 +27,6 @@ export function getNavigationSnapshot(): NavigationSyncState {
     selectedEntryId: s.selectedEntryId,
     selectedEntryCategoryId: s.selectedEntryCategoryId,
     expandedSections: [...s.expandedSections],
-    expandedFolders: [...s.expandedFolders],
     rightPanelOpen: s.rightPanelOpen,
     sectionOrder: [...s.sectionOrder]
   }
@@ -43,14 +43,14 @@ function navigationEquals(a: NavigationSyncState, b: NavigationSyncState): boole
     a.rightPanelOpen === b.rightPanelOpen &&
     a.expandedSections.length === b.expandedSections.length &&
     a.expandedSections.every((v, i) => v === b.expandedSections[i]) &&
-    (a.expandedFolders ?? []).length === (b.expandedFolders ?? []).length &&
-    (a.expandedFolders ?? []).every((v, i) => v === (b.expandedFolders ?? [])[i]) &&
     a.sectionOrder.length === b.sectionOrder.length &&
     a.sectionOrder.every((v, i) => v === b.sectionOrder[i])
   )
 }
 
 export function applyNavigationSync(nav: NavigationSyncState): void {
+  if (!useAppStore.getState().isProjectOpen) return
+  if (isUiRestoreInProgress()) return
   const current = getNavigationSnapshot()
   if (navigationEquals(current, nav)) return
 

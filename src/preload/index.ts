@@ -90,8 +90,14 @@ export interface ElectronAPI {
     importEntityImage: (
       nodeId: string,
       sourcePath: string,
-      entityType: 'character' | 'location' | 'lore'
+      entityType: 'character' | 'location' | 'lore' | 'entry'
     ) => Promise<{ relativePath: string }>
+    importEntityGalleryImage: (
+      nodeId: string,
+      sourcePath: string,
+      entityType: 'character' | 'location' | 'lore' | 'entry'
+    ) => Promise<{ relativePath: string }>
+    deleteEntityImage: (relativePath: string) => Promise<void>
   }
   backup: {
     list: () => Promise<{ path: string; createdAt: string }[]>
@@ -175,7 +181,11 @@ const api: ElectronAPI = {
     importCharacterImage: (nodeId, sourcePath) =>
       ipcRenderer.invoke('entity:importCharacterImage', { nodeId, sourcePath }),
     importEntityImage: (nodeId, sourcePath, entityType) =>
-      ipcRenderer.invoke('entity:importEntityImage', { nodeId, sourcePath, entityType })
+      ipcRenderer.invoke('entity:importEntityImage', { nodeId, sourcePath, entityType }),
+    importEntityGalleryImage: (nodeId, sourcePath, entityType) =>
+      ipcRenderer.invoke('entity:importEntityGalleryImage', { nodeId, sourcePath, entityType }),
+    deleteEntityImage: (relativePath) =>
+      ipcRenderer.invoke('entity:deleteEntityImage', { relativePath })
   },
   backup: {
     list: () => ipcRenderer.invoke('backup:list')

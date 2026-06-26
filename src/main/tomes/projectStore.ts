@@ -17,7 +17,10 @@ import type {
   ChapterStructure
 } from '@shared/types'
 import {
-  BUILTIN_CATEGORIES,
+  defaultFictionCategories,
+  normalizeCategoryDefinition
+} from '@shared/categoryPresets'
+import {
   DEFAULT_CHARACTER_META,
   DEFAULT_BOOK_SETTINGS,
   DEFAULT_LOCATION_META,
@@ -34,6 +37,7 @@ import {
   parseMetadata,
   normalizeBookSettings
 } from '@shared/types'
+import { defaultProjectUiState, normalizeProjectUiState, sanitizeProjectUiState } from '@shared/projectUiState'
 import {
   getNodeDir,
   getTomesPath,
@@ -44,7 +48,8 @@ import {
   getAssetsDir,
   getCharacterImagesDir,
   getLocationImagesDir,
-  getLoreImagesDir
+  getLoreImagesDir,
+  getEntryImagesDir
 } from './paths'
 import { validateTomesFile } from './validate'
 import {
@@ -104,6 +109,20 @@ function scopeToEntityIndexKey(scope: FolderScope): keyof TomesManifest['index']
   }
 }
 
+function deduplicateIndexEntries(entries: TomesIndexEntry[]): TomesIndexEntry[] {
+  const liveByFilename = new Map<string, string>()
+  for (const entry of entries) {
+    if (!entry.deletedAt) {
+      liveByFilename.set(entry.filename, entry.id)
+    }
+  }
+  return entries.filter((entry) => {
+    if (!entry.deletedAt) return true
+    const liveId = liveByFilename.get(entry.filename)
+    return !liveId || liveId === entry.id
+  })
+}
+
 function normalizeManifest(m: TomesManifest): TomesManifest {
   if (!m.index.folders) {
     m.index.folders = []
@@ -111,9 +130,21 @@ function normalizeManifest(m: TomesManifest): TomesManifest {
   if (!m.index.entries) {
     m.index.entries = []
   }
-  if (!m.categories) {
-    m.categories = [...BUILTIN_CATEGORIES]
+
+  const indexKeys: (keyof TomesManifest['index'])[] = [
+    'folders', 'chapters', 'scenes', 'characters', 'locations', 'lore', 'notes', 'entries'
+  ]
+  for (const key of indexKeys) {
+    if (m.index[key]) {
+      m.index[key] = deduplicateIndexEntries(m.index[key])
+    }
   }
+
+  if (!m.categories) {
+    m.categories = defaultFictionCategories()
+  }
+  m.categories = m.categories.map(normalizeCategoryDefinition)
+  m.uiState = normalizeProjectUiState(m.uiState, m.categories)
   return m
 }
 
@@ -249,6 +280,7 @@ async function loadAllNodes(): Promise<TreeNode[]> {
       const filePath = getTxdPathForEntry(entry, type)
       if (await fse.pathExists(filePath)) {
         const txd = await readTxdFile(filePath)
+        if (txd.id !== entry.id) continue
         const node = txdToNode(txd, entry)
         nodes.push(node)
         nodeCache.set(node.id, node)
@@ -304,7 +336,7 @@ export function getProjectMeta(): ProjectMeta | null {
     author: manifest.author,
     genre: manifest.genre,
     bookSettings: normalizeBookSettings(manifest.bookSettings ?? {}),
-    categories: manifest.categories ?? [...BUILTIN_CATEGORIES],
+    categories: (manifest.categories ?? defaultFictionCategories()).map(normalizeCategoryDefinition),
     createdAt: manifest.createdAt,
     updatedAt: manifest.lastSavedAt
   }
@@ -341,9 +373,13 @@ export async function createProject(input: CreateProjectInput): Promise<{
   await fse.ensureDir(join(getWikiDir(root), 'notes', 'folders'))
   await fse.ensureDir(join(getWikiDir(root), 'entries'))
   await fse.ensureDir(join(getWikiDir(root), 'entries', 'folders'))
+  await fse.ensureDir(getEntryImagesDir(root))
   await fse.ensureDir(join(getWikiDir(root), 'entry', 'folders'))
   await fse.ensureDir(getBackupsDir(root))
   await fse.ensureDir(getAssetsDir(root))
+
+  const categories =
+    input.categories?.map(normalizeCategoryDefinition) ?? defaultFictionCategories()
 
   manifest = {
     __tomes: TOMES_MAGIC,
@@ -354,8 +390,8 @@ export async function createProject(input: CreateProjectInput): Promise<{
     createdAt: timestamp,
     lastSavedAt: timestamp,
     version: '1.0',
-    categories: input.categories,
-    uiState: { sectionOrder: input.categories.map((c) => c.id) },
+    categories,
+    uiState: defaultProjectUiState(categories),
     index: {
       folders: [],
       chapters: [],
@@ -414,11 +450,14 @@ export async function openProject(tomesFilePath: string): Promise<{
   await purgeExpiredTrash()
   await updateRecentLastOpened(manifest.id)
 
+  const categories = manifest.categories ?? defaultFictionCategories()
+  const uiState = sanitizeProjectUiState(getUiState(), nodes, categories)
+
   return {
     path: tomesPath,
     meta: getProjectMeta()!,
     nodes,
-    uiState: getUiState()
+    uiState
   }
 }
 
@@ -976,15 +1015,17 @@ export async function renameRecentProject(
 }
 
 export function getUiState(): ProjectUiState {
+  const categories = manifest?.categories ?? defaultFictionCategories()
   if (!manifest) {
-    return { sectionOrder: [...DEFAULT_SECTION_ORDER] }
+    return defaultProjectUiState(categories)
   }
-  return manifest.uiState ?? { sectionOrder: [...DEFAULT_SECTION_ORDER] }
+  return normalizeProjectUiState(manifest.uiState, categories)
 }
 
 export async function updateUiState(uiState: ProjectUiState): Promise<ProjectUiState> {
   if (!manifest) throw new Error('No project open')
-  manifest.uiState = uiState
+  const categories = manifest.categories ?? defaultFictionCategories()
+  manifest.uiState = normalizeProjectUiState(uiState, categories)
   await writeManifest()
   return getUiState()
 }
@@ -1021,17 +1062,12 @@ export function getSyncState(): {
 export async function importEntityImage(
   nodeId: string,
   sourcePath: string,
-  entityType: 'character' | 'location' | 'lore'
+  entityType: 'character' | 'location' | 'lore' | 'entry'
 ): Promise<string> {
   if (!projectRoot) throw new Error('No project open')
 
   const ext = extname(sourcePath).toLowerCase() || '.png'
-  const imagesDir =
-    entityType === 'character'
-      ? getCharacterImagesDir(projectRoot)
-      : entityType === 'location'
-        ? getLocationImagesDir(projectRoot)
-        : getLoreImagesDir(projectRoot)
+  const imagesDir = getEntityImagesDir(projectRoot, entityType)
   await fse.ensureDir(imagesDir)
 
   const filename = `${nodeId}${ext}`
@@ -1039,6 +1075,63 @@ export async function importEntityImage(
   await fse.copy(sourcePath, destPath, { overwrite: true })
 
   return relative(projectRoot, destPath).split('\\').join('/')
+}
+
+export async function importEntityGalleryImage(
+  nodeId: string,
+  sourcePath: string,
+  entityType: 'character' | 'location' | 'lore' | 'entry'
+): Promise<string> {
+  if (!projectRoot) throw new Error('No project open')
+
+  const ext = extname(sourcePath).toLowerCase() || '.png'
+  const imagesDir = getEntityImagesDir(projectRoot, entityType)
+  await fse.ensureDir(imagesDir)
+
+  const filename = `${nodeId}-gallery-${uuidv4()}${ext}`
+  const destPath = join(imagesDir, filename)
+  await fse.copy(sourcePath, destPath, { overwrite: false })
+
+  return relative(projectRoot, destPath).split('\\').join('/')
+}
+
+export async function deleteEntityImage(relativePath: string): Promise<void> {
+  if (!projectRoot) throw new Error('No project open')
+
+  const filePath = resolve(projectRoot, relativePath)
+  if (!isPathInEntityImagesDir(projectRoot, filePath)) {
+    throw new Error('Invalid image path')
+  }
+
+  await fse.remove(filePath).catch(() => {})
+}
+
+function getEntityImagesDir(
+  root: string,
+  entityType: 'character' | 'location' | 'lore' | 'entry'
+): string {
+  switch (entityType) {
+    case 'character':
+      return getCharacterImagesDir(root)
+    case 'location':
+      return getLocationImagesDir(root)
+    case 'lore':
+      return getLoreImagesDir(root)
+    case 'entry':
+      return getEntryImagesDir(root)
+  }
+}
+
+function isPathInEntityImagesDir(root: string, filePath: string): boolean {
+  const resolved = resolve(filePath)
+  const dirs = [
+    getCharacterImagesDir(root),
+    getLocationImagesDir(root),
+    getLoreImagesDir(root),
+    getEntryImagesDir(root)
+  ].map((dir) => resolve(dir))
+
+  return dirs.some((dir) => resolved === dir || resolved.startsWith(`${dir}/`) || resolved.startsWith(`${dir}\\`))
 }
 
 export async function importCharacterImage(nodeId: string, sourcePath: string): Promise<string> {

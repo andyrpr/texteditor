@@ -11,6 +11,7 @@ import {
 } from '@/hooks/useNavigationSync'
 import { useThemeSync } from '@/hooks/useThemeSync'
 import { useStructuralUndoShortcuts } from '@/hooks/useStructuralUndoShortcuts'
+import { useProjectUiPersistence } from '@/hooks/useProjectUiPersistence'
 import { PanelRightOpen } from 'lucide-react'
 
 const PANEL_LABELS: Record<string, string> = {
@@ -28,6 +29,7 @@ export function ChildWindowRoot(): React.JSX.Element {
   useThemeSync()
   useNavigationSync({ skipInitialFetch: true })
   useNavigationSyncPublisher(hydrated, { publishOnMount: false })
+  useProjectUiPersistence(hydrated)
 
   useEffect(() => {
     void Promise.all([hydrateFromMain(), hydrateNavigationFromMain()]).then(() => {

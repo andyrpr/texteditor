@@ -6,6 +6,20 @@ function syncNodes(nodes: TreeNode[]): void {
   useAppStore.getState().setNodes(nodes)
 }
 
+function clearSelectionForDeletedNode(createdId: string): void {
+  const {
+    selectedNodeId,
+    selectedEntryId,
+    selectedEntityId,
+    setSelectedNodeId,
+    selectEntry,
+    setSelectedEntity
+  } = useAppStore.getState()
+  if (selectedNodeId === createdId) setSelectedNodeId(null)
+  if (selectedEntryId === createdId) selectEntry(null, null)
+  if (selectedEntityId === createdId) setSelectedEntity(null, null)
+}
+
 export function makeCreateNodeCommand(params: {
   parentId: string | null
   type: NodeType
@@ -33,6 +47,7 @@ export function makeCreateNodeCommand(params: {
           options
         )
         createdId = node.id
+        useAppStore.getState().upsertNode(node)
       } catch (err) {
         console.error('Create node failed:', err)
       }
@@ -43,8 +58,7 @@ export function makeCreateNodeCommand(params: {
       try {
         const updated = await window.electronAPI.tree.permanentDelete(createdId)
         syncNodes(updated)
-        const { selectedNodeId, setSelectedNodeId } = useAppStore.getState()
-        if (selectedNodeId === createdId) setSelectedNodeId(null)
+        clearSelectionForDeletedNode(createdId)
       } catch (err) {
         console.error('Undo create node failed:', err)
       }
@@ -72,6 +86,7 @@ export function makeCreateFolderCommand(params: {
           params.title
         )
         createdId = node.id
+        useAppStore.getState().upsertNode(node)
       } catch (err) {
         console.error('Create folder failed:', err)
       }
@@ -82,6 +97,7 @@ export function makeCreateFolderCommand(params: {
       try {
         const updated = await window.electronAPI.tree.permanentDelete(createdId)
         syncNodes(updated)
+        clearSelectionForDeletedNode(createdId)
       } catch (err) {
         console.error('Undo create folder failed:', err)
       }

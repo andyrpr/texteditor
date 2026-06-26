@@ -1,3 +1,8 @@
+import {
+  BUILTIN_CATEGORY_IDS,
+  NF_PEOPLE_CATEGORY_ID
+} from './categoryIds'
+
 export type EntityType = 'character' | 'location' | 'lore'
 
 export type WikiEntityType = EntityType | 'note'
@@ -181,6 +186,39 @@ export interface CharacterRelationship {
   type: CharacterRelationshipType
 }
 
+export type PeopleRelationshipType =
+  | 'Colleague'
+  | 'Source'
+  | 'Interview Subject'
+  | 'Family'
+  | 'Friend'
+  | 'Mentor'
+  | 'Other'
+  | 'Unknown'
+
+export const PEOPLE_RELATIONSHIP_TYPES: PeopleRelationshipType[] = [
+  'Colleague',
+  'Source',
+  'Interview Subject',
+  'Family',
+  'Friend',
+  'Mentor',
+  'Other',
+  'Unknown'
+]
+
+export interface PeopleRelationship {
+  personId: string
+  type: PeopleRelationshipType
+}
+
+export {
+  BUILTIN_CATEGORY_IDS,
+  NF_PEOPLE_CATEGORY_ID,
+  OPTIONAL_BESTIARY_CATEGORY_ID,
+  PEOPLE_INTERVIEW_STATUS_OPTIONS
+} from './categoryIds'
+
 // ─── Panel block system ───────────────────────────────────────────────────────
 
 export type PanelBlockType =
@@ -243,103 +281,12 @@ export interface CategoryDefinition {
   builtIn: boolean
   /** Panel layout — only used when mode === 'panel' */
   panelBlocks?: PanelBlock[]
+  /**
+   * How nodes are stored on disk — always set by normalizeCategoryDefinition after load.
+   * Never read directly; use nodeKindForCategory(cat).
+   */
+  nodeKind?: 'character' | 'location' | 'lore' | 'note' | 'entry'
 }
-
-// ─── Built-in category definitions ───────────────────────────────────────────
-
-/** IDs for built-in categories — used to map to existing NodeType for legacy nodes */
-export const BUILTIN_CATEGORY_IDS = {
-  characters: 'builtin-characters',
-  locations: 'builtin-locations',
-  lore: 'builtin-lore',
-  notes: 'builtin-notes'
-} as const
-
-export const BUILTIN_CATEGORIES: CategoryDefinition[] = [
-  {
-    id: BUILTIN_CATEGORY_IDS.characters,
-    name: 'Characters',
-    icon: 'Users',
-    mode: 'panel',
-    sortOrder: 0,
-    builtIn: true,
-    panelBlocks: [
-      { id: 'aliases', label: 'Aliases', type: 'tags' },
-      { id: 'age', label: 'Age', type: 'text' },
-      { id: 'race', label: 'Race', type: 'text' },
-      { id: 'gender', label: 'Gender', type: 'text' },
-      { id: 'physicalDescription', label: 'Physical Description', type: 'textarea', rows: 3 },
-      { id: 'personality', label: 'Personality', type: 'textarea', rows: 3 },
-      { id: 'background', label: 'Background', type: 'textarea', rows: 3 },
-      { id: 'role', label: 'Role', type: 'text' },
-      {
-        id: 'relationships',
-        label: 'Relationships',
-        type: 'relationships',
-        allowedCategoryIds: [BUILTIN_CATEGORY_IDS.characters]
-      },
-      { id: 'notes', label: 'Notes', type: 'textarea', rows: 4 }
-    ]
-  },
-  {
-    id: BUILTIN_CATEGORY_IDS.locations,
-    name: 'Locations',
-    icon: 'MapPin',
-    mode: 'panel',
-    sortOrder: 1,
-    builtIn: true,
-    panelBlocks: [
-      { id: 'locationType', label: 'Type', type: 'text' },
-      { id: 'description', label: 'Description', type: 'textarea', rows: 4 },
-      {
-        id: 'connectedLocations',
-        label: 'Connected Locations',
-        type: 'relationships',
-        allowedCategoryIds: [BUILTIN_CATEGORY_IDS.locations]
-      },
-      {
-        id: 'notableCharacters',
-        label: 'Notable Characters',
-        type: 'relationships',
-        allowedCategoryIds: [BUILTIN_CATEGORY_IDS.characters]
-      },
-      { id: 'notes', label: 'Notes', type: 'textarea', rows: 3 }
-    ]
-  },
-  {
-    id: BUILTIN_CATEGORY_IDS.lore,
-    name: 'Lore',
-    icon: 'Scroll',
-    mode: 'panel',
-    sortOrder: 2,
-    builtIn: true,
-    panelBlocks: [
-      { id: 'category', label: 'Category', type: 'text' },
-      { id: 'description', label: 'Description', type: 'textarea', rows: 4 },
-      {
-        id: 'relatedCharacters',
-        label: 'Related Characters',
-        type: 'relationships',
-        allowedCategoryIds: [BUILTIN_CATEGORY_IDS.characters]
-      },
-      {
-        id: 'relatedLocations',
-        label: 'Related Locations',
-        type: 'relationships',
-        allowedCategoryIds: [BUILTIN_CATEGORY_IDS.locations]
-      },
-      { id: 'notes', label: 'Notes', type: 'textarea', rows: 3 }
-    ]
-  },
-  {
-    id: BUILTIN_CATEGORY_IDS.notes,
-    name: 'Notes',
-    icon: 'StickyNote',
-    mode: 'editor',
-    sortOrder: 3,
-    builtIn: true
-  }
-]
 
 // ─── Template definitions ─────────────────────────────────────────────────────
 
@@ -349,7 +296,8 @@ export interface ProjectTemplate {
   id: TemplateId
   name: string
   description: string
-  categories: CategoryDefinition[]
+  /** ids into CATEGORY_PRESET_CATALOG */
+  presetIds: string[]
 }
 
 export const PROJECT_TEMPLATES: ProjectTemplate[] = [
@@ -357,127 +305,73 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     id: 'blank',
     name: 'Blank',
     description: 'Just the manuscript. Add categories whenever you need them.',
-    categories: []
+    presetIds: []
   },
   {
     id: 'fiction',
     name: 'Fiction',
     description: 'Characters, Locations, Lore, and Notes — the classic setup for novels and short stories.',
-    categories: BUILTIN_CATEGORIES
+    presetIds: [
+      BUILTIN_CATEGORY_IDS.characters,
+      BUILTIN_CATEGORY_IDS.locations,
+      BUILTIN_CATEGORY_IDS.lore,
+      BUILTIN_CATEGORY_IDS.notes
+    ]
   },
   {
     id: 'non-fiction',
     name: 'Non-Fiction',
     description: 'People, Sources, Concepts, and Notes — built for research-driven writing.',
-    categories: [
-      {
-        id: 'nf-people',
-        name: 'People',
-        icon: 'UserCircle',
-        mode: 'panel',
-        sortOrder: 0,
-        builtIn: false,
-        panelBlocks: [
-          { id: 'knownAs', label: 'Known As', type: 'text' },
-          { id: 'roleTitle', label: 'Role / Title', type: 'text' },
-          { id: 'organization', label: 'Organization', type: 'text' },
-          {
-            id: 'interviewStatus',
-            label: 'Interview Status',
-            type: 'status',
-            options: ['Not contacted', 'Contacted', 'Interviewed', 'Declined']
-          },
-          { id: 'keyQuotes', label: 'Key Quotes', type: 'textarea', rows: 4 },
-          { id: 'relevance', label: 'Relevance', type: 'textarea', rows: 2 },
-          { id: 'notes', label: 'Notes', type: 'textarea', rows: 3 }
-        ]
-      },
-      {
-        id: 'nf-sources',
-        name: 'Sources',
-        icon: 'BookOpen',
-        mode: 'panel',
-        sortOrder: 1,
-        builtIn: false,
-        panelBlocks: [
-          { id: 'authors', label: 'Author(s)', type: 'text' },
-          {
-            id: 'sourceType',
-            label: 'Type',
-            type: 'status',
-            options: ['Book', 'Article', 'Interview', 'Website', 'Podcast', 'Documentary', 'Other']
-          },
-          { id: 'publisher', label: 'Publisher / Publication', type: 'text' },
-          { id: 'year', label: 'Year', type: 'text' },
-          { id: 'url', label: 'URL', type: 'text' },
-          { id: 'keyExcerpts', label: 'Key Excerpts', type: 'textarea', rows: 4 },
-          { id: 'relevance', label: 'Relevance / How Cited', type: 'textarea', rows: 2 },
-          { id: 'notes', label: 'Notes', type: 'textarea', rows: 3 }
-        ]
-      },
-      {
-        id: 'nf-concepts',
-        name: 'Concepts',
-        icon: 'Lightbulb',
-        mode: 'panel',
-        sortOrder: 2,
-        builtIn: false,
-        panelBlocks: [
-          { id: 'definition', label: 'Definition', type: 'textarea', rows: 2 },
-          {
-            id: 'domain',
-            label: 'Domain',
-            type: 'text',
-            placeholder: 'e.g. Economics, Psychology, History'
-          },
-          { id: 'keyThinkers', label: 'Key Thinkers / References', type: 'textarea', rows: 2 },
-          {
-            id: 'relatedConcepts',
-            label: 'Related Concepts',
-            type: 'relationships',
-            allowedCategoryIds: ['nf-concepts']
-          },
-          { id: 'application', label: 'How It Applies', type: 'textarea', rows: 3 },
-          { id: 'notes', label: 'Notes', type: 'textarea', rows: 3 }
-        ]
-      },
-      {
-        id: BUILTIN_CATEGORY_IDS.notes,
-        name: 'Notes',
-        icon: 'StickyNote',
-        mode: 'editor',
-        sortOrder: 3,
-        builtIn: false
-      }
+    presetIds: [
+      NF_PEOPLE_CATEGORY_ID,
+      'nf-sources',
+      'nf-concepts',
+      BUILTIN_CATEGORY_IDS.notes
     ]
   }
 ]
 
-export interface TemplateCategoryGroup {
-  templateId: TemplateId
-  templateName: string
-  categories: CategoryDefinition[]
-}
+export {
+  BUILTIN_CATEGORIES,
+  CATEGORY_PRESET_CATALOG,
+  FICTION_PRESET_IDS,
+  NON_FICTION_PRESET_IDS,
+  cloneCategoryPreset,
+  countCategoryEntries,
+  defaultFictionCategories,
+  folderScopeForCategory,
+  getAddableCategoryPresets,
+  getCategoryPresetById,
+  nodeKindForCategory,
+  normalizeCategoryDefinition,
+  resolveCategoriesFromPresetIds
+} from './categoryPresets'
 
-/** Presets from Fiction / Non-Fiction templates not already in the project. */
-export function getAddableTemplateCategories(
-  current: CategoryDefinition[]
-): TemplateCategoryGroup[] {
-  const currentIds = new Set(current.map((c) => c.id))
-  return PROJECT_TEMPLATES.filter((template) => template.id !== 'blank')
-    .map((template) => ({
-      templateId: template.id,
-      templateName: template.name,
-      categories: template.categories.filter((preset) => !currentIds.has(preset.id))
-    }))
-    .filter((group) => group.categories.length > 0)
+export const MAX_ENTITY_GALLERY_IMAGES = 30
+
+export function normalizeSecondaryImagePaths(
+  raw: unknown,
+  imagePath: string | null
+): string[] {
+  if (!Array.isArray(raw)) return []
+  const seen = new Set<string>()
+  const paths: string[] = []
+  for (const entry of raw) {
+    if (typeof entry !== 'string' || !entry || entry === imagePath || seen.has(entry)) continue
+    seen.add(entry)
+    paths.push(entry)
+    if (paths.length >= MAX_ENTITY_GALLERY_IMAGES) break
+  }
+  return paths
 }
 
 export interface CharacterMeta {
   aliases: string[]
+  general: string
   age: string
   race: string
   gender: string
+  professions: string[]
   physicalDescription: string
   personality: string
   background: string
@@ -487,6 +381,7 @@ export interface CharacterMeta {
   endsAs: string
   notes: string
   imagePath: string | null
+  secondaryImagePaths: string[]
 }
 
 export interface LocationMeta {
@@ -496,6 +391,7 @@ export interface LocationMeta {
   notableCharacters: string[]
   notes: string
   imagePath: string | null
+  secondaryImagePaths: string[]
 }
 
 export interface LoreMeta {
@@ -505,13 +401,50 @@ export interface LoreMeta {
   relatedLocations: string[]
   notes: string
   imagePath: string | null
+  secondaryImagePaths: string[]
 }
 
 export interface NoteMeta {
   tags: string[]
 }
 
-export type EntityMeta = CharacterMeta | LocationMeta | LoreMeta | NoteMeta
+export interface PeopleMeta {
+  imagePath: string | null
+  secondaryImagePaths: string[]
+  knownAs: string
+  ethnicity: string
+  gender: string
+  age: string
+  general: string
+  roleTitle: string
+  organization: string
+  interviewStatus: string
+  keyQuotes: string
+  relevance: string
+  relationships: PeopleRelationship[]
+  notes: string
+}
+
+export interface BestiaryMeta {
+  imagePath: string | null
+  secondaryImagePaths: string[]
+  /** Creature species/kind (e.g. "Fire Dragon") — not CharacterMeta.race */
+  species: string
+  /** Creature type classification — not TreeNode.type */
+  type: string
+  general: string
+  habitat: string
+  physicalDescription: string
+  behavior: string
+  origin: string
+  /** How the creature fights or acts */
+  abilities: string
+  /** How protagonists counter or exploit this creature */
+  weaknesses: string
+  notes: string
+}
+
+export type EntityMeta = CharacterMeta | LocationMeta | LoreMeta | NoteMeta | PeopleMeta | BestiaryMeta
 
 export interface EntityMention {
   entityId: string
@@ -678,6 +611,16 @@ export interface ChapterMeta {
 
 export interface ProjectUiState {
   sectionOrder: string[]
+  selectedNodeId: string | null
+  selectedContainerId: string | null
+  selectedEntityId: string | null
+  selectedEntityType: WikiEntityType | null
+  selectedEntryId: string | null
+  selectedEntryCategoryId: string | null
+  expandedSections: string[]
+  /** @deprecated Merged into expandedSections on load. Present only in legacy project files. */
+  expandedFolders?: string[]
+  rightPanelOpen: boolean
 }
 
 export interface NavigationSyncState {
@@ -688,7 +631,6 @@ export interface NavigationSyncState {
   selectedEntryId?: string | null
   selectedEntryCategoryId?: string | null
   expandedSections: string[]
-  expandedFolders: string[]
   rightPanelOpen: boolean
   sectionOrder: string[]
 }
@@ -799,9 +741,11 @@ export const COVER_COLORS = [
 
 export const DEFAULT_CHARACTER_META: CharacterMeta = {
   aliases: [],
+  general: '',
   age: '',
   race: '',
   gender: '',
+  professions: [],
   physicalDescription: '',
   personality: '',
   background: '',
@@ -810,7 +754,8 @@ export const DEFAULT_CHARACTER_META: CharacterMeta = {
   startsAs: '',
   endsAs: '',
   notes: '',
-  imagePath: null
+  imagePath: null,
+  secondaryImagePaths: []
 }
 
 export function normalizeCharacterMeta(raw: Partial<CharacterMeta> & Record<string, unknown>): CharacterMeta {
@@ -828,14 +773,26 @@ export function normalizeCharacterMeta(raw: Partial<CharacterMeta> & Record<stri
       })
     : []
 
+  const imagePath =
+    typeof raw.imagePath === 'string'
+      ? raw.imagePath
+      : raw.imagePath === null
+        ? null
+        : DEFAULT_CHARACTER_META.imagePath
+
   return {
     ...DEFAULT_CHARACTER_META,
     ...raw,
     aliases: Array.isArray(raw.aliases) ? raw.aliases.map(String) : DEFAULT_CHARACTER_META.aliases,
+    general: typeof raw.general === 'string' ? raw.general : DEFAULT_CHARACTER_META.general,
+    professions: Array.isArray(raw.professions)
+      ? raw.professions.map(String).filter(Boolean)
+      : DEFAULT_CHARACTER_META.professions,
     relationships,
     startsAs: typeof raw.startsAs === 'string' ? raw.startsAs : DEFAULT_CHARACTER_META.startsAs,
     endsAs: typeof raw.endsAs === 'string' ? raw.endsAs : DEFAULT_CHARACTER_META.endsAs,
-    imagePath: typeof raw.imagePath === 'string' ? raw.imagePath : raw.imagePath === null ? null : DEFAULT_CHARACTER_META.imagePath
+    imagePath,
+    secondaryImagePaths: normalizeSecondaryImagePaths(raw.secondaryImagePaths, imagePath)
   }
 }
 
@@ -845,21 +802,24 @@ export const DEFAULT_LOCATION_META: LocationMeta = {
   connectedLocations: [],
   notableCharacters: [],
   notes: '',
-  imagePath: null
+  imagePath: null,
+  secondaryImagePaths: []
 }
 
 export function normalizeLocationMeta(raw: Partial<LocationMeta> & Record<string, unknown>): LocationMeta {
   const parsed = { ...DEFAULT_LOCATION_META, ...raw }
+  const imagePath =
+    typeof raw.imagePath === 'string'
+      ? raw.imagePath
+      : raw.imagePath === null
+        ? null
+        : DEFAULT_LOCATION_META.imagePath
   return {
     ...parsed,
     connectedLocations: Array.isArray(parsed.connectedLocations) ? parsed.connectedLocations : [],
     notableCharacters: Array.isArray(parsed.notableCharacters) ? parsed.notableCharacters : [],
-    imagePath:
-      typeof raw.imagePath === 'string'
-        ? raw.imagePath
-        : raw.imagePath === null
-          ? null
-          : DEFAULT_LOCATION_META.imagePath
+    imagePath,
+    secondaryImagePaths: normalizeSecondaryImagePaths(raw.secondaryImagePaths, imagePath)
   }
 }
 
@@ -869,18 +829,137 @@ export const DEFAULT_LORE_META: LoreMeta = {
   relatedCharacters: [],
   relatedLocations: [],
   notes: '',
-  imagePath: null
+  imagePath: null,
+  secondaryImagePaths: []
 }
 
-export function normalizeLoreMeta(meta: LoreMeta): LoreMeta {
+export function normalizeLoreMeta(raw: Partial<LoreMeta> & Record<string, unknown>): LoreMeta {
+  const imagePath =
+    typeof raw.imagePath === 'string'
+      ? raw.imagePath
+      : raw.imagePath === null
+        ? null
+        : DEFAULT_LORE_META.imagePath
   return {
-    ...meta,
-    imagePath: meta.imagePath ?? null
+    ...DEFAULT_LORE_META,
+    ...raw,
+    relatedCharacters: Array.isArray(raw.relatedCharacters) ? raw.relatedCharacters.map(String) : [],
+    relatedLocations: Array.isArray(raw.relatedLocations) ? raw.relatedLocations.map(String) : [],
+    imagePath,
+    secondaryImagePaths: normalizeSecondaryImagePaths(raw.secondaryImagePaths, imagePath)
   }
 }
 
 export const DEFAULT_NOTE_META: NoteMeta = {
   tags: []
+}
+
+export const DEFAULT_PEOPLE_META: PeopleMeta = {
+  imagePath: null,
+  secondaryImagePaths: [],
+  knownAs: '',
+  ethnicity: '',
+  gender: '',
+  age: '',
+  general: '',
+  roleTitle: '',
+  organization: '',
+  interviewStatus: '',
+  keyQuotes: '',
+  relevance: '',
+  relationships: [],
+  notes: ''
+}
+
+export function normalizePeopleMeta(raw: Partial<PeopleMeta> & Record<string, unknown>): PeopleMeta {
+  const relationships: PeopleRelationship[] = Array.isArray(raw.relationships)
+    ? raw.relationships.map((entry) => {
+        const rel = entry as Partial<PeopleRelationship>
+        const type =
+          rel.type && PEOPLE_RELATIONSHIP_TYPES.includes(rel.type as PeopleRelationshipType)
+            ? (rel.type as PeopleRelationshipType)
+            : 'Unknown'
+        return {
+          personId: typeof rel.personId === 'string' ? rel.personId : '',
+          type
+        }
+      })
+    : []
+
+  const imagePath =
+    typeof raw.imagePath === 'string'
+      ? raw.imagePath
+      : raw.imagePath === null
+        ? null
+        : DEFAULT_PEOPLE_META.imagePath
+
+  return {
+    ...DEFAULT_PEOPLE_META,
+    ...raw,
+    knownAs: typeof raw.knownAs === 'string' ? raw.knownAs : DEFAULT_PEOPLE_META.knownAs,
+    ethnicity: typeof raw.ethnicity === 'string' ? raw.ethnicity : DEFAULT_PEOPLE_META.ethnicity,
+    gender: typeof raw.gender === 'string' ? raw.gender : DEFAULT_PEOPLE_META.gender,
+    age: typeof raw.age === 'string' ? raw.age : DEFAULT_PEOPLE_META.age,
+    general: typeof raw.general === 'string' ? raw.general : DEFAULT_PEOPLE_META.general,
+    roleTitle: typeof raw.roleTitle === 'string' ? raw.roleTitle : DEFAULT_PEOPLE_META.roleTitle,
+    organization:
+      typeof raw.organization === 'string' ? raw.organization : DEFAULT_PEOPLE_META.organization,
+    interviewStatus:
+      typeof raw.interviewStatus === 'string'
+        ? raw.interviewStatus
+        : DEFAULT_PEOPLE_META.interviewStatus,
+    keyQuotes: typeof raw.keyQuotes === 'string' ? raw.keyQuotes : DEFAULT_PEOPLE_META.keyQuotes,
+    relevance: typeof raw.relevance === 'string' ? raw.relevance : DEFAULT_PEOPLE_META.relevance,
+    notes: typeof raw.notes === 'string' ? raw.notes : DEFAULT_PEOPLE_META.notes,
+    relationships,
+    imagePath,
+    secondaryImagePaths: normalizeSecondaryImagePaths(raw.secondaryImagePaths, imagePath)
+  }
+}
+
+export const DEFAULT_BESTIARY_META: BestiaryMeta = {
+  imagePath: null,
+  secondaryImagePaths: [],
+  species: '',
+  type: '',
+  general: '',
+  habitat: '',
+  physicalDescription: '',
+  behavior: '',
+  origin: '',
+  abilities: '',
+  weaknesses: '',
+  notes: ''
+}
+
+export function normalizeBestiaryMeta(raw: Partial<BestiaryMeta> & Record<string, unknown>): BestiaryMeta {
+  const imagePath =
+    typeof raw.imagePath === 'string'
+      ? raw.imagePath
+      : raw.imagePath === null
+        ? null
+        : DEFAULT_BESTIARY_META.imagePath
+
+  return {
+    ...DEFAULT_BESTIARY_META,
+    ...raw,
+    species: typeof raw.species === 'string' ? raw.species : DEFAULT_BESTIARY_META.species,
+    type: typeof raw.type === 'string' ? raw.type : DEFAULT_BESTIARY_META.type,
+    general: typeof raw.general === 'string' ? raw.general : DEFAULT_BESTIARY_META.general,
+    habitat: typeof raw.habitat === 'string' ? raw.habitat : DEFAULT_BESTIARY_META.habitat,
+    physicalDescription:
+      typeof raw.physicalDescription === 'string'
+        ? raw.physicalDescription
+        : DEFAULT_BESTIARY_META.physicalDescription,
+    behavior: typeof raw.behavior === 'string' ? raw.behavior : DEFAULT_BESTIARY_META.behavior,
+    origin: typeof raw.origin === 'string' ? raw.origin : DEFAULT_BESTIARY_META.origin,
+    abilities: typeof raw.abilities === 'string' ? raw.abilities : DEFAULT_BESTIARY_META.abilities,
+    weaknesses:
+      typeof raw.weaknesses === 'string' ? raw.weaknesses : DEFAULT_BESTIARY_META.weaknesses,
+    notes: typeof raw.notes === 'string' ? raw.notes : DEFAULT_BESTIARY_META.notes,
+    imagePath,
+    secondaryImagePaths: normalizeSecondaryImagePaths(raw.secondaryImagePaths, imagePath)
+  }
 }
 
 export function normalizeNoteMeta(raw: Partial<NoteMeta> & Record<string, unknown>): NoteMeta {
@@ -913,7 +992,12 @@ export const SIDEBAR_MIN_WIDTH = 56
 export const RIGHT_PANEL_MIN_WIDTH = 320
 export const RIGHT_PANEL_MAX_WIDTH = 640
 
-export const DEFAULT_SECTION_ORDER = ['characters', 'locations', 'lore', 'notes']
+export const DEFAULT_SECTION_ORDER = [
+  BUILTIN_CATEGORY_IDS.characters,
+  BUILTIN_CATEGORY_IDS.locations,
+  BUILTIN_CATEGORY_IDS.lore,
+  BUILTIN_CATEGORY_IDS.notes
+]
 
 const LEGACY_SECTION_TO_CATEGORY: Record<string, string> = {
   characters: BUILTIN_CATEGORY_IDS.characters,

@@ -3,9 +3,11 @@ import { useAppStore } from '@/store/appStore'
 import { useHistoryStore } from '@/store/historyStore'
 import { useToastStore } from '@/components/UI/toast'
 import { flushAllDirty, flushAndSaveProject, resetPersistenceState } from '@/lib/contentPersistence'
-import { publishNavigationSync } from '@/lib/navigationSync'
+import { applyOpenProjectResult } from '@/lib/applyOpenProject'
+import { runWithNavigationPublishSuppressed } from '@/lib/navigationSync'
+import { flushProjectUiState } from '@/hooks/useProjectUiPersistence'
 import type { CreateProjectInput } from '@shared/types'
-import { BUILTIN_CATEGORIES, migrateSectionOrder } from '@shared/types'
+import { defaultFictionCategories } from '@shared/categoryPresets'
 
 export function useProject(): {
   createProjectFromInput: (
@@ -27,8 +29,7 @@ export function useProject(): {
     setNodes,
     setLastSaved,
     setSelectedNodeId,
-    setBackupWarningCount,
-    setSectionOrder
+    setBackupWarningCount
   } = useAppStore()
   const addToast = useToastStore((s) => s.addToast)
 
@@ -77,21 +78,15 @@ export function useProject(): {
         await flushAllDirty()
         useHistoryStore.getState().clear()
         const result = await window.electronAPI.tomes.openProject(path)
-        setProject(result.path, result.meta, result.nodes)
-        if (result.uiState?.sectionOrder) {
-          setSectionOrder(migrateSectionOrder(result.uiState.sectionOrder, result.meta.categories ?? []))
-        }
-        selectFirstNode(result.nodes)
-        setLastSaved(result.meta.updatedAt)
+        await applyOpenProjectResult(result)
         setBackupWarningCount(0)
-        publishNavigationSync()
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Could not open project'
         addToast(message, 'warning')
         throw err
       }
     },
-    [setProject, selectFirstNode, setLastSaved, setBackupWarningCount, setSectionOrder, addToast]
+    [setBackupWarningCount, addToast]
   )
 
   const createProjectFromInput = useCallback(
@@ -101,17 +96,12 @@ export function useProject(): {
       const result = await window.electronAPI.tomes.createProject({
         ...input,
         templateId: input.templateId ?? 'fiction',
-        categories: input.categories ?? BUILTIN_CATEGORIES
+        categories: input.categories ?? defaultFictionCategories()
       })
       const openResult = await window.electronAPI.tomes.openProject(result.path)
-      setProject(openResult.path, openResult.meta, openResult.nodes)
-      if (openResult.uiState?.sectionOrder) {
-        setSectionOrder(migrateSectionOrder(openResult.uiState.sectionOrder, openResult.meta.categories ?? []))
-      }
-      selectFirstNode(openResult.nodes)
-      setLastSaved(openResult.meta.updatedAt)
+      await applyOpenProjectResult(openResult)
     },
-    [setProject, selectFirstNode, setLastSaved, setSectionOrder]
+    []
   )
 
   const openProject = useCallback(async () => {
@@ -135,8 +125,16 @@ export function useProject(): {
       addToast('Could not save all changes before closing.', 'warning')
     }
 
+    try {
+      await flushProjectUiState()
+    } catch (err) {
+      console.error('Failed to save UI state before close:', err)
+    }
+
     resetPersistenceState()
-    closeProjectStore()
+    runWithNavigationPublishSuppressed(() => {
+      closeProjectStore()
+    })
     useHistoryStore.getState().clear()
 
     try {

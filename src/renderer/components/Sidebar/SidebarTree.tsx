@@ -30,6 +30,7 @@ import {
   makeReorderCommand,
   makeReparentCommand
 } from '@/lib/commands'
+import { openCategoryItem } from '@/lib/categoryNavigation'
 import { TreeContextMenu } from '@/components/Tree/TreeContextMenu'
 import { ConfirmDialog } from '@/components/UI/ConfirmDialog'
 import { cn } from '@/lib/utils'
@@ -90,6 +91,7 @@ function TreeItemRow({
   depth,
   isSelected,
   isFolderNode,
+  isExpandable,
   isExpanded,
   onToggleExpand,
   trailingAction,
@@ -100,6 +102,7 @@ function TreeItemRow({
   depth: number
   isSelected?: boolean
   isFolderNode?: boolean
+  isExpandable?: boolean
   isExpanded?: boolean
   onToggleExpand?: () => void
   trailingAction?: React.ReactNode
@@ -119,7 +122,7 @@ function TreeItemRow({
       )}
       style={{ paddingLeft: `${depth * 12 + 8}px` }}
     >
-      {isFolderNode ? (
+      {isExpandable ? (
         <button
           type="button"
           className="shrink-0 rounded p-0.5"
@@ -157,6 +160,7 @@ function SortableTreeItem({
   depth,
   isSelected,
   isFolderNode,
+  isExpandable,
   isExpanded,
   onToggleExpand,
   onSelect,
@@ -172,6 +176,7 @@ function SortableTreeItem({
   depth: number
   isSelected: boolean
   isFolderNode?: boolean
+  isExpandable?: boolean
   isExpanded?: boolean
   onToggleExpand?: () => void
   onSelect: () => void
@@ -215,6 +220,7 @@ function SortableTreeItem({
           depth={depth}
           isSelected={isSelected}
           isFolderNode={isFolderNode}
+          isExpandable={isExpandable}
           isExpanded={isExpanded}
           onToggleExpand={onToggleExpand}
           trailingAction={trailingAction}
@@ -242,12 +248,10 @@ export function SidebarTree({
     selectedEntryId,
     selectedContainerId,
     categories,
-    expandedFolders,
-    selectEntry,
+    expandedSections,
     setSelectedNodeId,
-    selectWikiEntity,
     selectContainer,
-    toggleFolder,
+    toggleSection,
     setNodes,
   } = useAppStore()
 
@@ -322,20 +326,11 @@ export function SidebarTree({
       selectContainer(folderContainerId(node.id))
       return
     }
-    if (node.type === 'entry') {
-      const cat = categories.find((c) => c.id === node.categoryId)
-      if (cat?.mode === 'panel') {
-        selectEntry(node.id, node.categoryId ?? null)
-      } else {
-        setSelectedNodeId(node.id)
-      }
+    if (node.type === 'chapter' || node.type === 'scene') {
+      setSelectedNodeId(node.id)
       return
     }
-    if (isWikiEntityType(node.type)) {
-      selectWikiEntity(node.id, node.type)
-      return
-    }
-    setSelectedNodeId(node.id)
+    void openCategoryItem(node.id)
   }
 
   const isNodeSelected = (node: TreeNode): boolean => {
@@ -414,8 +409,10 @@ export function SidebarTree({
           {children.map((node, index) => {
             const isLast = index === children.length - 1
             const folderNode = isFolder(node)
-            const expanded = expandedFolders.has(node.id)
-            const scenes = node.type === 'chapter' && isChapterFolder(node) ? getScenes(nodes, node.id) : []
+            const sceneChapter = node.type === 'chapter' && isChapterFolder(node)
+            const isExpandable = folderNode || sceneChapter
+            const expanded = expandedSections.has(node.id)
+            const scenes = sceneChapter ? getScenes(nodes, node.id) : []
 
             if (renamingId === node.id) {
               return <div key={node.id}>{renderRenameInput(node.id)}</div>
@@ -428,8 +425,9 @@ export function SidebarTree({
                   depth={depth}
                   isSelected={isNodeSelected(node)}
                   isFolderNode={folderNode}
+                  isExpandable={isExpandable}
                   isExpanded={expanded}
-                  onToggleExpand={() => toggleFolder(node.id)}
+                  onToggleExpand={() => toggleSection(node.id)}
                   onSelect={() => handleSelect(node)}
                   onRename={() => startRename(node)}
                   onMoveToTrash={() =>
@@ -441,7 +439,7 @@ export function SidebarTree({
                   onDoubleClick={() => startRename(node)}
                   className={isLast && scenes.length === 0 ? 'mb-1' : undefined}
                   trailingAction={
-                    folderNode ? undefined : scenes.length === 0 && isChapterFolder(node) && onAddScene ? (
+                    folderNode ? undefined : scenes.length === 0 && sceneChapter && onAddScene ? (
                       <HoverAddButton
                         className="group-hover/chapter:opacity-100"
                         onClick={() => onAddScene(node.id)}
@@ -463,23 +461,33 @@ export function SidebarTree({
                     onOpenNewWindow={onOpenNewWindow}
                   />
                 )}
-                {scenes.length > 0 && (
-                  <SceneList
-                    chapterId={node.id}
-                    scenes={scenes}
-                    depth={depth + 1}
-                    isLastChapter={isLast}
-                    renamingId={renamingId}
-                    renameValue={renameValue}
-                    setRenameValue={setRenameValue}
-                    onRename={(id) => void handleRename(id)}
-                    setRenamingId={setRenamingId}
-                    startRename={startRename}
-                    confirmTrash={confirmTrash}
-                    onOpenNewWindow={onOpenNewWindow}
-                    onAddScene={onAddScene}
-                    disabled={disabled}
-                  />
+                {sceneChapter && scenes.length > 0 && (
+                  <div className={cn(
+                    'grid transition-[grid-template-rows] duration-200 ease-in-out',
+                    expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+                  )}>
+                    <div className={cn(
+                      'overflow-hidden transition-opacity duration-200 ease-in-out',
+                      expanded ? 'opacity-100' : 'pointer-events-none opacity-0'
+                    )}>
+                      <SceneList
+                        chapterId={node.id}
+                        scenes={scenes}
+                        depth={depth + 1}
+                        isLastChapter={isLast}
+                        renamingId={renamingId}
+                        renameValue={renameValue}
+                        setRenameValue={setRenameValue}
+                        onRename={(id) => void handleRename(id)}
+                        setRenamingId={setRenamingId}
+                        startRename={startRename}
+                        confirmTrash={confirmTrash}
+                        onOpenNewWindow={onOpenNewWindow}
+                        onAddScene={onAddScene}
+                        disabled={disabled}
+                      />
+                    </div>
+                  </div>
                 )}
               </div>
             )

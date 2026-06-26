@@ -15,6 +15,7 @@ import {
   MapPin,
   MessageSquare,
   Music,
+  PawPrint,
   Pencil,
   Phone,
   Scroll,
@@ -53,6 +54,7 @@ export const CATEGORY_ICON_MAP: Record<string, React.ComponentType<{ className?:
   Target,
   MessageSquare,
   Phone,
+  PawPrint,
   Pencil,
   Settings2
 }

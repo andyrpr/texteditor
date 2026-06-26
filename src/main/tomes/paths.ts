@@ -41,6 +41,10 @@ export function getLoreImagesDir(projectRoot: string): string {
   return join(getWikiDir(projectRoot), 'lore', 'images')
 }
 
+export function getEntryImagesDir(projectRoot: string): string {
+  return join(getWikiDir(projectRoot), 'entries', 'images')
+}
+
 export function getBackupsDir(projectRoot: string): string {
   return join(projectRoot, 'backups')
 }

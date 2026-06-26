@@ -43,32 +43,20 @@ import {
 import { useAppStore } from '@/store/appStore'
 import { useHistoryStore } from '@/store/historyStore'
 import { makeCreateChapterCommand, makeCreateNodeCommand } from '@/lib/commands'
+import { createCategoryItem } from '@/lib/categoryNavigation'
 import { requestSidebarRenameAfterCreate } from '@/lib/pendingRename'
 import { useResizeHandle, usePersistLayout } from '@/hooks/useResize'
 import { publishNavigationSyncAsync } from '@/lib/navigationSync'
+import { captureProjectUiState } from '@/lib/projectUiState'
 import { cn } from '@/lib/utils'
 import {
   getTrashCategories,
   hasTrashItems,
-  isWikiEntityType,
   trashContainerId
 } from '@/lib/treeUtils'
-import type { CategoryDefinition, ChapterStructure, FolderScope, NodeType, TrashCategory } from '@shared/types'
+import { folderScopeForCategory } from '@shared/categoryPresets'
+import type { CategoryDefinition, ChapterStructure, TrashCategory } from '@shared/types'
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH, TRASH_CATEGORY_LABELS } from '@shared/types'
-
-const BUILTIN_TO_SCOPE: Record<string, FolderScope> = {
-  'builtin-characters': 'characters',
-  'builtin-locations': 'locations',
-  'builtin-lore': 'lore',
-  'builtin-notes': 'notes'
-}
-
-const BUILTIN_TO_NODETYPE: Record<string, NodeType> = {
-  'builtin-characters': 'character',
-  'builtin-locations': 'location',
-  'builtin-lore': 'lore',
-  'builtin-notes': 'note'
-}
 
 const SIDEBAR_TITLEBAR_INSET = 78
 const SIDEBAR_ICON_ONLY_THRESHOLD = SIDEBAR_MIN_WIDTH + 16
@@ -214,7 +202,6 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
     selectContainer,
     selectWikiEntity,
     setSelectedNodeId,
-    selectEntry,
     toggleSection,
     setSectionOrder,
     updateCategories,
@@ -266,41 +253,6 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
     )
     if (createdId) {
       setSelectedNodeId(createdId)
-      requestSidebarRenameAfterCreate(createdId)
-    }
-  }
-
-  const handleAddEntity = async (type: NodeType, parentId: string | null = null): Promise<void> => {
-    const defaults: Record<NodeType, string> = {
-      folder: 'New Folder',
-      chapter: 'New Chapter',
-      scene: 'New Scene',
-      character: 'New Character',
-      location: 'New Location',
-      lore: 'New Lore Entry',
-      note: 'New Note',
-      entry: 'New Entry'
-    }
-    const createdId = await useHistoryStore.getState().push(
-      makeCreateNodeCommand({ parentId, type, title: defaults[type] })
-    )
-    if (createdId && isWikiEntityType(type)) selectWikiEntity(createdId, type)
-    requestSidebarRenameAfterCreate(createdId)
-  }
-
-  /** Creates a new entry node in a custom category. */
-  const handleAddEntry = async (categoryId: string): Promise<void> => {
-    const category = categories.find((c) => c.id === categoryId)
-    const title = category ? `New ${category.name.replace(/s$/, '')}` : 'New Entry'
-    const createdId = await useHistoryStore.getState().push(
-      makeCreateNodeCommand({ parentId: null, type: 'entry', title, categoryId })
-    )
-    if (createdId) {
-      if (category?.mode === 'panel') {
-        selectEntry(createdId, categoryId)
-      } else {
-        setSelectedNodeId(createdId)
-      }
       requestSidebarRenameAfterCreate(createdId)
     }
   }
@@ -358,7 +310,7 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
     const merged = [...reorderedCategories, ...remaining]
 
     await updateCategories(merged)
-    await window.electronAPI.tomes.updateUiState({ sectionOrder: nextOrder })
+    await window.electronAPI.tomes.updateUiState(captureProjectUiState())
   }
 
   const handleDetach = (): void => {
@@ -453,9 +405,7 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
                 <SortableContext items={orderedCategories.map((c) => c.id)} strategy={verticalListSortingStrategy}>
                   {orderedCategories.map((category) => {
                     const Icon = resolveIcon(category.icon)
-                    const legacyScope = BUILTIN_TO_SCOPE[category.id]
-                    const legacyNodeType = BUILTIN_TO_NODETYPE[category.id]
-                    const isBuiltIn = !!legacyScope
+                    const scope = folderScopeForCategory(category)
 
                     return (
                       <SortableSection key={category.id} id={category.id} iconOnly={iconOnly}>
@@ -470,24 +420,16 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
                             if (!isCategoryExpanded(category.id)) toggleSection(category.id)
                             selectContainer(category.id)
                           }}
-                          onAdd={
-                            isBuiltIn
-                              ? () => void handleAddEntity(legacyNodeType!)
-                              : () => void handleAddEntry(category.id)
-                          }
+                          onAdd={() => void createCategoryItem(category.id, null, 'sidebar')}
                           addOnHover
                         />
                         {!iconOnly && (
                           <SidebarSectionBody open={isCategoryExpanded(category.id)}>
                             <SidebarTree
-                              scope={isBuiltIn ? legacyScope! : 'entry'}
+                              scope={scope}
                               parentId={null}
-                              categoryId={isBuiltIn ? undefined : category.id}
-                              onAddEntity={
-                                isBuiltIn
-                                  ? () => void handleAddEntity(legacyNodeType!)
-                                  : () => void handleAddEntry(category.id)
-                              }
+                              categoryId={category.id}
+                              onAddEntity={() => void createCategoryItem(category.id, null, 'sidebar')}
                               onOpenNewWindow={openInNewWindow}
                             />
                           </SidebarSectionBody>
