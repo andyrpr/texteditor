@@ -461,23 +461,33 @@ export function SidebarTree({
                     onOpenNewWindow={onOpenNewWindow}
                   />
                 )}
-                {sceneChapter && expanded && scenes.length > 0 && (
-                  <SceneList
-                    chapterId={node.id}
-                    scenes={scenes}
-                    depth={depth + 1}
-                    isLastChapter={isLast}
-                    renamingId={renamingId}
-                    renameValue={renameValue}
-                    setRenameValue={setRenameValue}
-                    onRename={(id) => void handleRename(id)}
-                    setRenamingId={setRenamingId}
-                    startRename={startRename}
-                    confirmTrash={confirmTrash}
-                    onOpenNewWindow={onOpenNewWindow}
-                    onAddScene={onAddScene}
-                    disabled={disabled}
-                  />
+                {sceneChapter && scenes.length > 0 && (
+                  <div className={cn(
+                    'grid transition-[grid-template-rows] duration-200 ease-in-out',
+                    expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+                  )}>
+                    <div className={cn(
+                      'overflow-hidden transition-opacity duration-200 ease-in-out',
+                      expanded ? 'opacity-100' : 'pointer-events-none opacity-0'
+                    )}>
+                      <SceneList
+                        chapterId={node.id}
+                        scenes={scenes}
+                        depth={depth + 1}
+                        isLastChapter={isLast}
+                        renamingId={renamingId}
+                        renameValue={renameValue}
+                        setRenameValue={setRenameValue}
+                        onRename={(id) => void handleRename(id)}
+                        setRenamingId={setRenamingId}
+                        startRename={startRename}
+                        confirmTrash={confirmTrash}
+                        onOpenNewWindow={onOpenNewWindow}
+                        onAddScene={onAddScene}
+                        disabled={disabled}
+                      />
+                    </div>
+                  </div>
                 )}
               </div>
             )
