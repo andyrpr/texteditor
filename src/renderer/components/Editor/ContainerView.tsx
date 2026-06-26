@@ -18,13 +18,22 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { Folder, GripVertical } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { countNodeWords, isFolder, stripNodeContentPreview } from '@/lib/treeUtils'
+import { countNodeWords, isFolder, isChapterFolder, stripNodeContentPreview } from '@/lib/treeUtils'
 import { useAppStore } from '@/store/appStore'
 import { useHistoryStore } from '@/store/historyStore'
 import { makeRenameCommand } from '@/lib/commands'
 import { TreeContextMenu, EmptyAreaContextMenu } from '@/components/Tree/TreeContextMenu'
 import { ConfirmDialog } from '@/components/UI/ConfirmDialog'
 import type { TreeNode } from '@shared/types'
+import {
+  parseMetadata,
+  DEFAULT_CHARACTER_META,
+  DEFAULT_LOCATION_META,
+  DEFAULT_LORE_META,
+  DEFAULT_BESTIARY_META
+} from '@shared/types'
+import type { CharacterMeta, LocationMeta, LoreMeta, BestiaryMeta } from '@shared/types'
+import { OPTIONAL_BESTIARY_CATEGORY_ID } from '@shared/categoryIds'
 
 interface ContainerViewProps {
   title: string
@@ -51,6 +60,88 @@ interface ConfirmState {
   destructive?: boolean
   confirmLabel?: string
   onConfirm: () => void | Promise<void>
+}
+
+function MetaTag({ value }: { value: string }): React.JSX.Element | null {
+  if (!value) return null
+  return <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{value}</span>
+}
+
+function CardBody({
+  node,
+  allNodes,
+  sceneChapter
+}: {
+  node: TreeNode
+  allNodes: TreeNode[]
+  sceneChapter: boolean
+}): React.JSX.Element {
+  if (sceneChapter) {
+    const scenes = allNodes.filter((n) => !n.deletedAt && n.parentId === node.id && n.type === 'scene')
+    const totalWords = scenes.reduce((sum, s) => sum + countNodeWords(s), 0)
+    return (
+      <div className="mt-2 flex-1">
+        <p className="text-sm text-muted-foreground">
+          {scenes.length} {scenes.length === 1 ? 'scene' : 'scenes'} · {totalWords.toLocaleString()} {totalWords === 1 ? 'word' : 'words'}
+        </p>
+      </div>
+    )
+  }
+
+  if (node.type === 'character') {
+    const meta = parseMetadata<CharacterMeta>(node.metadata, DEFAULT_CHARACTER_META)
+    const tags = [meta.age, meta.race, meta.gender].filter(Boolean)
+    return (
+      <div className="mt-2 flex-1 space-y-2">
+        {tags.length > 0 && <div className="flex flex-wrap gap-1">{tags.map((t) => <MetaTag key={t} value={t} />)}</div>}
+        {meta.general && <p className="text-sm text-muted-foreground line-clamp-2">{meta.general}</p>}
+      </div>
+    )
+  }
+
+  if (node.type === 'location') {
+    const meta = parseMetadata<LocationMeta>(node.metadata, DEFAULT_LOCATION_META)
+    return (
+      <div className="mt-2 flex-1 space-y-2">
+        {meta.type && <div className="flex flex-wrap gap-1"><MetaTag value={meta.type} /></div>}
+        {meta.general && <p className="text-sm text-muted-foreground line-clamp-2">{meta.general}</p>}
+      </div>
+    )
+  }
+
+  if (node.type === 'lore') {
+    const meta = parseMetadata<LoreMeta>(node.metadata, DEFAULT_LORE_META)
+    return (
+      <div className="mt-2 flex-1 space-y-2">
+        {meta.category && <div className="flex flex-wrap gap-1"><MetaTag value={meta.category} /></div>}
+        {meta.general && <p className="text-sm text-muted-foreground line-clamp-2">{meta.general}</p>}
+      </div>
+    )
+  }
+
+  if (node.type === 'entry' && node.categoryId === OPTIONAL_BESTIARY_CATEGORY_ID) {
+    const meta = parseMetadata<BestiaryMeta>(node.metadata, DEFAULT_BESTIARY_META)
+    const tags = [meta.species, meta.type].filter(Boolean)
+    return (
+      <div className="mt-2 flex-1 space-y-2">
+        {tags.length > 0 && <div className="flex flex-wrap gap-1">{tags.map((t) => <MetaTag key={t} value={t} />)}</div>}
+        {meta.general && <p className="text-sm text-muted-foreground line-clamp-2">{meta.general}</p>}
+      </div>
+    )
+  }
+
+  const preview = stripNodeContentPreview(node)
+  const words = countNodeWords(node)
+  return (
+    <>
+      <p className="mt-2 flex-1 text-sm text-muted-foreground line-clamp-3">{preview}</p>
+      {words > 0 && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          {words.toLocaleString()} {words === 1 ? 'word' : 'words'}
+        </p>
+      )}
+    </>
+  )
 }
 
 function SortableCard({
@@ -94,15 +185,15 @@ function SortableCard({
     id: node.id,
     disabled: readOnly
   })
+  const allNodes = useAppStore((s) => s.nodes)
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition
   }
 
-  const words = countNodeWords(node)
-  const preview = stripNodeContentPreview(node)
   const folderNode = isFolder(node)
+  const sceneChapter = isChapterFolder(node)
 
   const card = (
     <div
@@ -112,7 +203,8 @@ function SortableCard({
         'no-drag group relative flex flex-col rounded-lg border bg-card p-4 shadow-sm transition-colors',
         renaming ? 'cursor-default' : 'cursor-pointer',
         isSelected ? 'border-primary ring-1 ring-primary' : 'border-border hover:border-primary/50 hover:bg-accent/30',
-        isDragging && 'opacity-50 z-10'
+        isDragging && 'opacity-50 z-10',
+        sceneChapter && 'border-dashed'
       )}
       onClick={renaming ? undefined : onSelect}
     >
@@ -147,16 +239,7 @@ function SortableCard({
           <h3 className="font-medium leading-snug">{node.title}</h3>
         )}
       </div>
-      {!renaming && (
-        <>
-          <p className="mt-2 flex-1 text-sm text-muted-foreground line-clamp-3">{preview}</p>
-          {words > 0 && (
-            <p className="mt-3 text-xs text-muted-foreground">
-              {words.toLocaleString()} {words === 1 ? 'word' : 'words'}
-            </p>
-          )}
-        </>
-      )}
+      {!renaming && <CardBody node={node} allNodes={allNodes} sceneChapter={sceneChapter} />}
     </div>
   )
 

@@ -386,6 +386,7 @@ export interface CharacterMeta {
 
 export interface LocationMeta {
   type: string
+  general: string
   description: string
   connectedLocations: string[]
   notableCharacters: string[]
@@ -396,6 +397,7 @@ export interface LocationMeta {
 
 export interface LoreMeta {
   category: string
+  general: string
   description: string
   relatedCharacters: string[]
   relatedLocations: string[]
@@ -798,6 +800,7 @@ export function normalizeCharacterMeta(raw: Partial<CharacterMeta> & Record<stri
 
 export const DEFAULT_LOCATION_META: LocationMeta = {
   type: '',
+  general: '',
   description: '',
   connectedLocations: [],
   notableCharacters: [],
@@ -816,6 +819,7 @@ export function normalizeLocationMeta(raw: Partial<LocationMeta> & Record<string
         : DEFAULT_LOCATION_META.imagePath
   return {
     ...parsed,
+    general: typeof raw.general === 'string' ? raw.general : DEFAULT_LOCATION_META.general,
     connectedLocations: Array.isArray(parsed.connectedLocations) ? parsed.connectedLocations : [],
     notableCharacters: Array.isArray(parsed.notableCharacters) ? parsed.notableCharacters : [],
     imagePath,
@@ -825,6 +829,7 @@ export function normalizeLocationMeta(raw: Partial<LocationMeta> & Record<string
 
 export const DEFAULT_LORE_META: LoreMeta = {
   category: '',
+  general: '',
   description: '',
   relatedCharacters: [],
   relatedLocations: [],
@@ -843,6 +848,7 @@ export function normalizeLoreMeta(raw: Partial<LoreMeta> & Record<string, unknow
   return {
     ...DEFAULT_LORE_META,
     ...raw,
+    general: typeof raw.general === 'string' ? raw.general : DEFAULT_LORE_META.general,
     relatedCharacters: Array.isArray(raw.relatedCharacters) ? raw.relatedCharacters.map(String) : [],
     relatedLocations: Array.isArray(raw.relatedLocations) ? raw.relatedLocations.map(String) : [],
     imagePath,
