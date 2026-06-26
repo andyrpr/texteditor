@@ -1,15 +1,18 @@
 import type {
   CategoryDefinition,
+  ChapterMeta,
   ProjectUiState,
   TreeNode,
   WikiEntityType
 } from './types'
 import {
   BUILTIN_CATEGORY_IDS,
+  DEFAULT_CHAPTER_META,
   DEFAULT_EXPANDED_SECTIONS,
   DEFAULT_SECTION_ORDER,
   migrateExpandedSections,
-  migrateSectionOrder
+  migrateSectionOrder,
+  parseMetadata
 } from './types'
 
 const LEGACY_SECTION_TO_CATEGORY: Record<string, string> = {
@@ -21,6 +24,16 @@ const LEGACY_SECTION_TO_CATEGORY: Record<string, string> = {
 
 const WIKI_ENTITY_TYPES = new Set<WikiEntityType>(['character', 'location', 'lore', 'note'])
 const EDITABLE_NODE_TYPES = new Set(['chapter', 'scene'])
+
+function isExpandableTreeNode(node: TreeNode): boolean {
+  if (node.deletedAt) return false
+  if (node.type === 'folder') return true
+  if (node.type === 'chapter') {
+    const meta = parseMetadata<ChapterMeta>(node.metadata, DEFAULT_CHAPTER_META)
+    return meta.structure === 'scenes'
+  }
+  return false
+}
 
 export function defaultProjectUiState(categories: CategoryDefinition[]): ProjectUiState {
   const categoryIds = new Set(categories.map((c) => c.id))
@@ -170,7 +183,7 @@ export function sanitizeProjectUiState(
 
   const expandedFolders = ui.expandedFolders.filter((id) => {
     const node = nodes.find((n) => n.id === id)
-    return Boolean(node && node.type === 'folder' && !node.deletedAt)
+    return Boolean(node && isExpandableTreeNode(node))
   })
 
   const hasPanelSelection = Boolean(

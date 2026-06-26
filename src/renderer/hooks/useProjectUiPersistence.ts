@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useAppStore } from '@/store/appStore'
+import { setsChanged } from '@/lib/setChange'
 import { captureProjectUiState, isUiRestoreInProgress } from '@/lib/projectUiState'
 
 const DEBOUNCE_MS = 500
@@ -17,14 +18,8 @@ function navigationChanged(
   if (state.rightPanelOpen !== prev.rightPanelOpen) return true
   if (state.sectionOrder.length !== prev.sectionOrder.length) return true
   if (state.sectionOrder.some((v, i) => v !== prev.sectionOrder[i])) return true
-  if (state.expandedSections.size !== prev.expandedSections.size) return true
-  for (const section of state.expandedSections) {
-    if (!prev.expandedSections.has(section)) return true
-  }
-  if (state.expandedFolders.size !== prev.expandedFolders.size) return true
-  for (const folder of state.expandedFolders) {
-    if (!prev.expandedFolders.has(folder)) return true
-  }
+  if (setsChanged(state.expandedSections, prev.expandedSections)) return true
+  if (setsChanged(state.expandedFolders, prev.expandedFolders)) return true
   return false
 }
 

@@ -37,7 +37,7 @@ import {
   parseMetadata,
   normalizeBookSettings
 } from '@shared/types'
-import { defaultProjectUiState, normalizeProjectUiState } from '@shared/projectUiState'
+import { defaultProjectUiState, normalizeProjectUiState, sanitizeProjectUiState } from '@shared/projectUiState'
 import {
   getNodeDir,
   getTomesPath,
@@ -425,11 +425,14 @@ export async function openProject(tomesFilePath: string): Promise<{
   await purgeExpiredTrash()
   await updateRecentLastOpened(manifest.id)
 
+  const categories = manifest.categories ?? defaultFictionCategories()
+  const uiState = sanitizeProjectUiState(getUiState(), nodes, categories)
+
   return {
     path: tomesPath,
     meta: getProjectMeta()!,
     nodes,
-    uiState: getUiState()
+    uiState
   }
 }
 

@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useAppStore } from '@/store/appStore'
+import { setsChanged } from '@/lib/setChange'
 import { applyNavigationSync, getNavigationSnapshot, publishNavigationSync } from '@/lib/navigationSync'
 import type { NavigationSyncState } from '@shared/types'
 
@@ -16,16 +17,15 @@ function navigationChanged(
   if (state.rightPanelOpen !== prev.rightPanelOpen) return true
   if (state.sectionOrder.length !== prev.sectionOrder.length) return true
   if (state.sectionOrder.some((v, i) => v !== prev.sectionOrder[i])) return true
-  if (state.expandedSections.size !== prev.expandedSections.size) return true
-  for (const section of state.expandedSections) {
-    if (!prev.expandedSections.has(section)) return true
-  }
+  if (setsChanged(state.expandedSections, prev.expandedSections)) return true
+  if (setsChanged(state.expandedFolders, prev.expandedFolders)) return true
   return false
 }
 
 export async function hydrateNavigationFromMain(): Promise<void> {
   const nav = await window.electronAPI.navigation.get()
   const current = getNavigationSnapshot()
+  const isProjectOpen = useAppStore.getState().isProjectOpen
 
   // Avoid overwriting a selection the user (or project open) already made while this fetch was in flight.
   const hasLocalSelection =
@@ -34,14 +34,15 @@ export async function hydrateNavigationFromMain(): Promise<void> {
     current.selectedContainerId !== null ||
     current.selectedEntryId !== null
 
-  if (hasLocalSelection) {
+  if (isProjectOpen || hasLocalSelection) {
     if (
       current.selectedEntityId !== nav.selectedEntityId ||
       current.selectedNodeId !== nav.selectedNodeId ||
       current.selectedContainerId !== nav.selectedContainerId ||
       (current.selectedEntryId ?? null) !== (nav.selectedEntryId ?? null) ||
       (current.selectedEntryCategoryId ?? null) !== (nav.selectedEntryCategoryId ?? null) ||
-      current.rightPanelOpen !== nav.rightPanelOpen
+      current.rightPanelOpen !== nav.rightPanelOpen ||
+      setsChanged(new Set(current.expandedFolders), new Set(nav.expandedFolders ?? []))
     ) {
       publishNavigationSync()
     }
