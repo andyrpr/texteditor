@@ -182,7 +182,7 @@ export function sanitizeProjectUiState(
     (id) => {
       if (id === 'manuscript' || id === 'trash') return true
       if (categoryIds.has(id)) return true
-      const node = nodes.find((n) => n.id === id && !n.deletedAt) ?? nodes.find((n) => n.id === id)
+      const node = nodes.find((n) => n.id === id)
       return Boolean(node && isExpandableTreeNode(node))
     }
   )

@@ -109,6 +109,20 @@ function scopeToEntityIndexKey(scope: FolderScope): keyof TomesManifest['index']
   }
 }
 
+function deduplicateIndexEntries(entries: TomesIndexEntry[]): TomesIndexEntry[] {
+  const liveByFilename = new Map<string, string>()
+  for (const entry of entries) {
+    if (!entry.deletedAt) {
+      liveByFilename.set(entry.filename, entry.id)
+    }
+  }
+  return entries.filter((entry) => {
+    if (!entry.deletedAt) return true
+    const liveId = liveByFilename.get(entry.filename)
+    return !liveId || liveId === entry.id
+  })
+}
+
 function normalizeManifest(m: TomesManifest): TomesManifest {
   if (!m.index.folders) {
     m.index.folders = []
@@ -116,6 +130,16 @@ function normalizeManifest(m: TomesManifest): TomesManifest {
   if (!m.index.entries) {
     m.index.entries = []
   }
+
+  const indexKeys: (keyof TomesManifest['index'])[] = [
+    'folders', 'chapters', 'scenes', 'characters', 'locations', 'lore', 'notes', 'entries'
+  ]
+  for (const key of indexKeys) {
+    if (m.index[key]) {
+      m.index[key] = deduplicateIndexEntries(m.index[key])
+    }
+  }
+
   if (!m.categories) {
     m.categories = defaultFictionCategories()
   }
@@ -256,6 +280,7 @@ async function loadAllNodes(): Promise<TreeNode[]> {
       const filePath = getTxdPathForEntry(entry, type)
       if (await fse.pathExists(filePath)) {
         const txd = await readTxdFile(filePath)
+        if (txd.id !== entry.id) continue
         const node = txdToNode(txd, entry)
         nodes.push(node)
         nodeCache.set(node.id, node)
