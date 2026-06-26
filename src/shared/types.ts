@@ -992,7 +992,12 @@ export const SIDEBAR_MIN_WIDTH = 56
 export const RIGHT_PANEL_MIN_WIDTH = 320
 export const RIGHT_PANEL_MAX_WIDTH = 640
 
-export const DEFAULT_SECTION_ORDER = ['characters', 'locations', 'lore', 'notes']
+export const DEFAULT_SECTION_ORDER = [
+  BUILTIN_CATEGORY_IDS.characters,
+  BUILTIN_CATEGORY_IDS.locations,
+  BUILTIN_CATEGORY_IDS.lore,
+  BUILTIN_CATEGORY_IDS.notes
+]
 
 const LEGACY_SECTION_TO_CATEGORY: Record<string, string> = {
   characters: BUILTIN_CATEGORY_IDS.characters,

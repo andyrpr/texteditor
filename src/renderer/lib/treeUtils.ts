@@ -7,7 +7,7 @@ import type {
   TreeNode,
   WikiEntityType
 } from '@shared/types'
-import { BUILTIN_CATEGORY_IDS, DEFAULT_CHAPTER_META, DEFAULT_FOLDER_META, parseMetadata } from '@shared/types'
+import { DEFAULT_CHAPTER_META, DEFAULT_FOLDER_META, parseMetadata } from '@shared/types'
 
 export function isSimpleChapter(node: TreeNode): boolean {
   const meta = parseMetadata<ChapterMeta>(node.metadata, DEFAULT_CHAPTER_META)
@@ -34,65 +34,10 @@ export function getFolderScope(node: TreeNode): FolderScope | null {
   return meta.scope
 }
 
-export type ContainerSectionId = 'manuscript' | 'characters' | 'locations' | 'lore' | 'notes'
-
 const WIKI_ENTITY_TYPES = new Set<WikiEntityType>(['character', 'location', 'lore', 'note'])
 
 export function isWikiEntityType(type: TreeNode['type']): type is WikiEntityType {
   return WIKI_ENTITY_TYPES.has(type as WikiEntityType)
-}
-
-export function wikiSectionForType(type: WikiEntityType): ContainerSectionId {
-  switch (type) {
-    case 'character':
-      return 'characters'
-    case 'location':
-      return 'locations'
-    case 'lore':
-      return 'lore'
-    case 'note':
-      return 'notes'
-  }
-}
-
-export function nodeTypeForWikiSection(section: ContainerSectionId): NodeType | null {
-  switch (section) {
-    case 'characters':
-      return 'character'
-    case 'locations':
-      return 'location'
-    case 'lore':
-      return 'lore'
-    case 'notes':
-      return 'note'
-    default:
-      return null
-  }
-}
-
-export function folderScopeForSection(section: ContainerSectionId): FolderScope {
-  return section
-}
-
-const BUILTIN_CATEGORY_TO_SECTION: Record<string, ContainerSectionId> = {
-  [BUILTIN_CATEGORY_IDS.characters]: 'characters',
-  [BUILTIN_CATEGORY_IDS.locations]: 'locations',
-  [BUILTIN_CATEGORY_IDS.lore]: 'lore',
-  [BUILTIN_CATEGORY_IDS.notes]: 'notes'
-}
-
-/** Map sidebar category id or legacy section id to EditorPane container section. */
-export function resolveLegacySectionContainerId(containerId: string): ContainerSectionId | null {
-  if (
-    containerId === 'manuscript' ||
-    containerId === 'characters' ||
-    containerId === 'locations' ||
-    containerId === 'lore' ||
-    containerId === 'notes'
-  ) {
-    return containerId
-  }
-  return BUILTIN_CATEGORY_TO_SECTION[containerId] ?? null
 }
 
 /** Root/folder children for a custom entry category (folders + entries in that category). */

@@ -1,11 +1,8 @@
 import { useAppStore, type PendingRenameTarget } from '@/store/appStore'
 import { getCategoryScopedChildren, getFolderScope, isFolder } from '@/lib/treeUtils'
-import {
-  categoryIdForWikiNodeType,
-  legacySectionForWikiNodeType,
-  WIKI_NODE_TYPE_TO_CATEGORY_ID
-} from '@shared/categoryNodeKind'
-import type { FolderScope, TreeNode } from '@shared/types'
+import { categoryIdForWikiNodeType } from '@shared/categoryNodeKind'
+import { folderScopeForCategory } from '@shared/categoryPresets'
+import type { TreeNode } from '@shared/types'
 
 export type { PendingRenameTarget }
 
@@ -53,14 +50,9 @@ export function expandSidebarToNode(nodeId: string): void {
     return
   }
 
-  const legacySection = legacySectionForWikiNodeType(node.type)
   const categoryId = categoryIdForWikiNodeType(node.type)
   if (categoryId) {
     ensureSectionExpanded(categoryId)
-    return
-  }
-  if (legacySection) {
-    ensureSectionExpanded(legacySection)
     return
   }
 
@@ -72,8 +64,8 @@ export function expandSidebarToNode(nodeId: string): void {
 
 function expandSectionForScope(
   nodes: TreeNode[],
-  categories: { id: string }[],
-  scope: FolderScope,
+  categories: import('@shared/types').CategoryDefinition[],
+  scope: string,
   folderId: string
 ): void {
   if (scope === 'manuscript') {
@@ -89,14 +81,8 @@ function expandSectionForScope(
     }
     return
   }
-  ensureSectionExpanded(scope)
-  const categoryId = {
-    characters: WIKI_NODE_TYPE_TO_CATEGORY_ID.character,
-    locations: WIKI_NODE_TYPE_TO_CATEGORY_ID.location,
-    lore: WIKI_NODE_TYPE_TO_CATEGORY_ID.lore,
-    notes: WIKI_NODE_TYPE_TO_CATEGORY_ID.note
-  }[scope as 'characters' | 'locations' | 'lore' | 'notes']
-  if (categoryId) ensureSectionExpanded(categoryId)
+  const cat = categories.find((c) => folderScopeForCategory(c) === scope)
+  if (cat) ensureSectionExpanded(cat.id)
 }
 
 export function requestSidebarRenameAfterCreate(createdId: string | null | undefined): void {

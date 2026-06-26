@@ -8,13 +8,6 @@ export const WIKI_NODE_TYPE_TO_CATEGORY_ID: Record<WikiEntityType, string> = {
   note: BUILTIN_CATEGORY_IDS.notes
 }
 
-export const WIKI_NODE_TYPE_TO_LEGACY_SECTION: Record<WikiEntityType, string> = {
-  character: 'characters',
-  location: 'locations',
-  lore: 'lore',
-  note: 'notes'
-}
-
 const CATEGORY_ID_TO_WIKI_NODE_TYPE = Object.fromEntries(
   Object.entries(WIKI_NODE_TYPE_TO_CATEGORY_ID).map(([type, id]) => [id, type])
 ) as Record<string, WikiEntityType>
@@ -38,9 +31,3 @@ export function categoryIdForWikiNodeType(type: TreeNode['type']): string | unde
   return undefined
 }
 
-export function legacySectionForWikiNodeType(type: TreeNode['type']): string | undefined {
-  if (type in WIKI_NODE_TYPE_TO_LEGACY_SECTION) {
-    return WIKI_NODE_TYPE_TO_LEGACY_SECTION[type as WikiEntityType]
-  }
-  return undefined
-}
