@@ -8,8 +8,10 @@ interface SpellSuggestionsProps {
   word: string
   suggestions: string[]
   message?: string
+  isCustomWord?: boolean
   onSelect: (replacement: string) => void
   onAddToDictionary: () => void
+  onRemoveFromDictionary?: () => void
   onClose: () => void
 }
 
@@ -19,8 +21,10 @@ export function SpellSuggestions({
   word,
   suggestions,
   message,
+  isCustomWord,
   onSelect,
   onAddToDictionary,
+  onRemoveFromDictionary,
   onClose
 }: SpellSuggestionsProps): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
@@ -86,16 +90,29 @@ export function SpellSuggestions({
       )}
 
       <div className="my-1 border-t border-border" />
-      <button
-        type="button"
-        onMouseDown={(e) => {
-          e.preventDefault()
-          onAddToDictionary()
-        }}
-        className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground focus:outline-none text-muted-foreground"
-      >
-        Add to dictionary
-      </button>
+      {isCustomWord && onRemoveFromDictionary ? (
+        <button
+          type="button"
+          onMouseDown={(e) => {
+            e.preventDefault()
+            onRemoveFromDictionary()
+          }}
+          className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground focus:outline-none text-muted-foreground"
+        >
+          Remove from dictionary
+        </button>
+      ) : (
+        <button
+          type="button"
+          onMouseDown={(e) => {
+            e.preventDefault()
+            onAddToDictionary()
+          }}
+          className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground focus:outline-none text-muted-foreground"
+        >
+          Add to dictionary
+        </button>
+      )}
     </div>,
     document.body
   )

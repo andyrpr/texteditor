@@ -252,6 +252,7 @@ function SortableCard({
           <input
             autoFocus
             value={renameValue ?? node.title}
+            onFocus={(e) => e.currentTarget.select()}
             onChange={(e) => onRenameValueChange?.(e.target.value)}
             onBlur={() => onRenameCommit?.()}
             onKeyDown={(e) => {

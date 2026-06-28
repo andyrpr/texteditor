@@ -48,8 +48,17 @@ export function addCustomWord(word: string): void {
   saveCustomWords(customWords)
 }
 
+export function removeCustomWord(word: string): void {
+  customWords.delete(word.toLowerCase())
+  saveCustomWords(customWords)
+}
+
 export function isCustomWord(word: string): boolean {
   return customWords.has(word.toLowerCase())
+}
+
+export function getCustomWords(): string[] {
+  return [...customWords].sort()
 }
 
 type NSpellInstance = ReturnType<typeof nspell>
@@ -163,8 +172,12 @@ async function checkOffline(text: string, signal?: AbortSignal): Promise<SpellMa
   await ensureDictsReady()
   if (!dictsReady) return []
 
-  const checker = lastLang === 'es' ? spellEs : spellEn
-  if (!checker) return []
+  if (!spellEn) initDict('en')
+  if (!spellEs) initDict('es')
+
+  const primary = lastLang === 'es' ? spellEs : spellEn
+  const secondary = lastLang === 'es' ? spellEn : spellEs
+  if (!primary) return []
 
   const matches: SpellMatch[] = []
   let wordCount = 0
@@ -183,14 +196,18 @@ async function checkOffline(text: string, signal?: AbortSignal): Promise<SpellMa
     const word = m[0]
     if (word.length < 2) continue
     if (isCustomWord(word)) continue
-    if (!checker.correct(word)) {
-      matches.push({
-        from: m.index,
-        to: m.index + word.length,
-        word,
-        suggestions: checker.suggest(word).slice(0, 6)
-      })
-    }
+    if (primary.correct(word)) continue
+    if (secondary?.correct(word)) continue
+
+    matches.push({
+      from: m.index,
+      to: m.index + word.length,
+      word,
+      suggestions: [
+        ...primary.suggest(word).slice(0, 4),
+        ...(secondary?.suggest(word).slice(0, 2) ?? [])
+      ].filter((s, i, arr) => arr.indexOf(s) === i).slice(0, 6)
+    })
   }
   return matches
 }
