@@ -16,7 +16,7 @@ import {
   arrayMove
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Folder, GripVertical } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Folder, GripVertical } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { countNodeWords, isFolder, isChapterFolder, isSimpleChapter, stripNodeContentPreview } from '@/lib/treeUtils'
 import { useAppStore } from '@/store/appStore'
@@ -38,6 +38,11 @@ import { OPTIONAL_BESTIARY_CATEGORY_ID } from '@shared/categoryIds'
 interface ContainerViewProps {
   title: string
   subtitle?: string
+  breadcrumb?: string
+  canGoBack?: boolean
+  canGoForward?: boolean
+  onGoBack?: () => void
+  onGoForward?: () => void
   items: TreeNode[]
   emptyMessage: string
   selectedNodeId: string | null
@@ -295,7 +300,7 @@ function SortableCard({
       node={node}
       onRename={onRename}
       onMoveTo={node.type === 'scene' ? onMoveTo : undefined}
-      moveToFolders={moveToFolders?.filter((f) => f.id !== node.id)}
+      moveToFolders={moveToFolders?.filter((f) => f.id !== node.id && (node.parentId ? f.id !== node.parentId : f.id !== '__root__'))}
       onMoveToFolder={onMoveToFolder}
       moveToChapters={node.type === 'scene' ? moveToChapters?.filter((c) => c.id !== node.parentId) : undefined}
       onMoveToChapter={node.type === 'scene' ? onMoveToChapter : undefined}
@@ -321,6 +326,11 @@ function SortableCard({
 export function ContainerView({
   title,
   subtitle,
+  breadcrumb,
+  canGoBack,
+  canGoForward,
+  onGoBack,
+  onGoForward,
   items,
   emptyMessage,
   selectedNodeId,
@@ -449,9 +459,38 @@ export function ContainerView({
   return (
     <div className="no-drag flex flex-1 flex-col overflow-hidden">
       <div className="shrink-0 border-b border-border px-8 py-4">
-        <div className="flex items-baseline justify-between gap-4">
-          <h1 className="text-lg font-semibold">{title}</h1>
-          {subtitle && <p className="shrink-0 text-sm text-muted-foreground">{subtitle}</p>}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <h1 className="shrink-0 text-lg font-semibold">{title}</h1>
+            {breadcrumb && (
+              <div className="min-w-0 max-w-[70%] overflow-x-auto scrollbar-none">
+                <p className="whitespace-nowrap text-sm text-muted-foreground">{breadcrumb}</p>
+              </div>
+            )}
+            {subtitle && <p className="shrink-0 text-sm text-muted-foreground">{subtitle}</p>}
+          </div>
+          {(canGoBack || canGoForward) && (
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                disabled={!canGoBack}
+                onClick={onGoBack}
+                className="rounded p-1 hover:bg-muted disabled:opacity-30 disabled:hover:bg-transparent"
+                aria-label="Go back"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                disabled={!canGoForward}
+                onClick={onGoForward}
+                className="rounded p-1 hover:bg-muted disabled:opacity-30 disabled:hover:bg-transparent"
+                aria-label="Go forward"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
       {emptyMenuItems && emptyMenuItems.length > 0 ? (

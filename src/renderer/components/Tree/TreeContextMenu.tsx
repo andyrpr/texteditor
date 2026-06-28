@@ -94,15 +94,21 @@ export function TreeContextMenu({
                   </ContextMenu.SubTrigger>
                   <ContextMenu.Portal>
                     <ContextMenu.SubContent className="z-50 min-w-[160px] rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md">
-                      {moveToFolders!.map((f) => (
-                        <ContextMenu.Item
-                          key={f.id}
-                          className="flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent"
-                          onSelect={() => onMoveToFolder!(f.id)}
-                        >
-                          {f.title}
-                        </ContextMenu.Item>
-                      ))}
+                      {moveToFolders!.map((f, i) => {
+                        const isRoot = f.id === '__root__'
+                        const nextIsFolder = i + 1 < moveToFolders!.length && moveToFolders![i + 1].id !== '__root__'
+                        return (
+                          <span key={f.id}>
+                            <ContextMenu.Item
+                              className="flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent"
+                              onSelect={() => onMoveToFolder!(f.id)}
+                            >
+                              {f.title}
+                            </ContextMenu.Item>
+                            {isRoot && nextIsFolder && <ContextMenu.Separator className="my-1 h-px bg-border" />}
+                          </span>
+                        )
+                      })}
                     </ContextMenu.SubContent>
                   </ContextMenu.Portal>
                 </ContextMenu.Sub>

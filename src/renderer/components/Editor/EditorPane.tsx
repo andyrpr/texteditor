@@ -63,8 +63,25 @@ export function EditorPane(): React.JSX.Element {
     selectWikiEntity,
     setSelectedEntity,
     selectContainer,
-    setNodes
+    setNodes,
+    containerHistory,
+    containerHistoryIndex,
+    containerGoBack,
+    containerGoForward
   } = useAppStore()
+
+  const canGoBack = containerHistoryIndex > 0
+  const canGoForward = containerHistoryIndex < containerHistory.length - 1
+
+  const buildBreadcrumb = (folderId: string): string => {
+    const parts: string[] = []
+    let current = nodes.find((n) => n.id === folderId)
+    while (current) {
+      parts.unshift(current.title)
+      current = current.parentId ? nodes.find((n) => n.id === current!.parentId) : undefined
+    }
+    return parts.join(' / ')
+  }
 
   const [moveSceneNode, setMoveSceneNode] = useState<TreeNode | null>(null)
   const [recoverSceneNode, setRecoverSceneNode] = useState<TreeNode | null>(null)
@@ -211,9 +228,16 @@ export function EditorPane(): React.JSX.Element {
     ]
   }
 
+  const MOVE_TO_ROOT = '__root__'
+
   const getFoldersForScope = (scope: FolderScope): { id: string; title: string }[] =>
     nodes.filter((n) => !n.deletedAt && n.type === 'folder' && getFolderScope(n) === scope)
       .map((n) => ({ id: n.id, title: n.title }))
+
+  const getFoldersWithRoot = (scope: FolderScope, rootLabel: string): { id: string; title: string }[] => [
+    { id: MOVE_TO_ROOT, title: rootLabel },
+    ...getFoldersForScope(scope)
+  ]
 
   const getSceneChaptersList = (): { id: string; title: string }[] =>
     getSceneChapters(nodes).map((n) => ({ id: n.id, title: n.title }))
@@ -284,7 +308,7 @@ export function EditorPane(): React.JSX.Element {
       makeReparentCommand({
         nodeId: node.id,
         oldParentId: node.parentId ?? null,
-        newParentId: folderId
+        newParentId: folderId === MOVE_TO_ROOT ? null : folderId
       })
     )
   }
@@ -336,6 +360,10 @@ export function EditorPane(): React.JSX.Element {
       <>
         <ContainerView
           title="Manuscript"
+          canGoBack={canGoBack}
+          canGoForward={canGoForward}
+          onGoBack={containerGoBack}
+          onGoForward={containerGoForward}
           items={items}
           emptyMessage="No items yet. Right-click to add a folder or chapter."
           selectedNodeId={selectedNodeId}
@@ -372,6 +400,10 @@ export function EditorPane(): React.JSX.Element {
       <>
         <ContainerView
           title={containerCategory.name}
+          canGoBack={canGoBack}
+          canGoForward={canGoForward}
+          onGoBack={containerGoBack}
+          onGoForward={containerGoForward}
           items={items}
           emptyMessage={`No ${emptyLabel} entries yet. Right-click to add a folder or entry.`}
           selectedNodeId={containerSelectionId(selectedNodeId, selectedEntityId, selectedEntryId)}
@@ -414,7 +446,12 @@ export function EditorPane(): React.JSX.Element {
       return (
         <>
           <ContainerView
-            title={folder.title}
+            title={isManuscriptFolder ? 'Manuscript' : folderCategory?.name ?? folder.title}
+            breadcrumb={buildBreadcrumb(folderId)}
+            canGoBack={canGoBack}
+            canGoForward={canGoForward}
+            onGoBack={containerGoBack}
+            onGoForward={containerGoForward}
             items={items}
             emptyMessage="This folder is empty. Right-click to add items."
             selectedNodeId={
@@ -426,7 +463,7 @@ export function EditorPane(): React.JSX.Element {
             onReorder={(reordered) => void persistReorder(reordered, folderId)}
             menuVariant={isManuscriptFolder ? 'manuscript' : 'wiki'}
             onMoveTo={(node) => setMoveSceneNode(node)}
-            moveToFolders={getFoldersForScope(folderScope)}
+            moveToFolders={getFoldersWithRoot(folderScope, isManuscriptFolder ? 'Manuscript' : folderCategory?.name ?? 'Root')}
             onMoveToFolder={(node, folderId) => void handleMoveToFolder(node, folderId)}
             moveToChapters={isManuscriptFolder ? getSceneChaptersList() : undefined}
             onMoveToChapter={isManuscriptFolder ? (node, chapterId) => void handleMoveToChapter(node, chapterId) : undefined}
@@ -456,6 +493,10 @@ export function EditorPane(): React.JSX.Element {
         <ContainerView
           title={selectedNode.title}
           subtitle="Scenes in this chapter"
+          canGoBack={canGoBack}
+          canGoForward={canGoForward}
+          onGoBack={containerGoBack}
+          onGoForward={containerGoForward}
           items={scenes}
           emptyMessage="No scenes yet. Right-click to add a scene."
           selectedNodeId={selectedNodeId}

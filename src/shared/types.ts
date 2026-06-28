@@ -598,7 +598,6 @@ export interface BackupLocationStatus {
 }
 
 export interface PriamaPreferences {
-  autosaveIntervalSeconds: number
   maxBackupsPerLocation: number
   theme: 'light' | 'dark'
   defaultChapterStructure?: ChapterStructure
