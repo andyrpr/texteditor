@@ -4,6 +4,7 @@ import { Sidebar } from '@/components/Sidebar/Sidebar'
 import { EditorPane } from '@/components/Editor/EditorPane'
 import { EntityPanel } from '@/components/Wiki/EntityPanel'
 import { StatusBar } from '@/components/UI/StatusBar'
+import { ErrorBoundary } from '@/components/UI/ErrorBoundary'
 import { ExportDialog } from '@/components/Export/ExportDialog'
 import { BookSettingsModal } from '@/components/Settings/BookSettingsModal'
 import { RecentProjectsScreen } from '@/components/Project/RecentProjectsScreen'
@@ -169,11 +170,21 @@ export function AppLayout(): React.JSX.Element {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
       <div className="flex flex-1 overflow-hidden">
-        {!sidebarDetached && <Sidebar />}
+        {!sidebarDetached && (
+          <ErrorBoundary region="Sidebar">
+            <Sidebar />
+          </ErrorBoundary>
+        )}
         <main className="drag-region flex flex-1 flex-col overflow-hidden bg-background">
-          <EditorPane />
+          <ErrorBoundary region="Editor" fallbackClassName="flex-1">
+            <EditorPane />
+          </ErrorBoundary>
         </main>
-        {!entityDetached && <EntityPanel />}
+        {!entityDetached && (
+          <ErrorBoundary region="Details Panel">
+            <EntityPanel />
+          </ErrorBoundary>
+        )}
       </div>
       <StatusBar />
       <ExportDialog open={showExportDialog} onOpenChange={setShowExportDialog} />

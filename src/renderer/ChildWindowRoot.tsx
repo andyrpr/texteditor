@@ -13,6 +13,7 @@ import { useThemeSync } from '@/hooks/useThemeSync'
 import { useStructuralUndoShortcuts } from '@/hooks/useStructuralUndoShortcuts'
 import { useProjectUiPersistence } from '@/hooks/useProjectUiPersistence'
 import { PanelRightOpen } from 'lucide-react'
+import { ErrorBoundary } from '@/components/UI/ErrorBoundary'
 
 const PANEL_LABELS: Record<string, string> = {
   sidebar: 'Manuscript',
@@ -60,7 +61,9 @@ export function ChildWindowRoot(): React.JSX.Element {
             <PanelRightOpen className="h-4 w-4" />
           </Button>
         </div>
-        <Sidebar detached />
+        <ErrorBoundary region="Sidebar" fallbackClassName="flex-1">
+          <Sidebar detached />
+        </ErrorBoundary>
       </div>
     )
   }
@@ -74,7 +77,9 @@ export function ChildWindowRoot(): React.JSX.Element {
             <PanelRightOpen className="h-4 w-4" />
           </Button>
         </div>
-        <EntityPanel detached />
+        <ErrorBoundary region="Details Panel" fallbackClassName="flex-1">
+          <EntityPanel detached />
+        </ErrorBoundary>
       </div>
     )
   }
