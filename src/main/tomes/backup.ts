@@ -176,7 +176,9 @@ export async function createProjectBackup(
     try {
       await fse.ensureDir(destDir)
       const destZip = join(destDir, zipName)
-      await fse.copy(tempZip, destZip)
+      const destTmp = destZip + '.tmp'
+      await fse.copy(tempZip, destTmp)
+      await fse.rename(destTmp, destZip)
       await pruneOldBackups(destDir, maxBackups)
     } catch {
       unreachablePaths.push(dest)

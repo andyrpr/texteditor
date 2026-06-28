@@ -16,19 +16,33 @@ import {
   arrayMove
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Folder, GripVertical } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Folder, GripVertical } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { countNodeWords, isFolder, stripNodeContentPreview } from '@/lib/treeUtils'
+import { countNodeWords, isFolder, isChapterFolder, isSimpleChapter, stripNodeContentPreview } from '@/lib/treeUtils'
 import { useAppStore } from '@/store/appStore'
 import { useHistoryStore } from '@/store/historyStore'
 import { makeRenameCommand } from '@/lib/commands'
-import { TreeContextMenu, EmptyAreaContextMenu } from '@/components/Tree/TreeContextMenu'
+import { TreeContextMenu, EmptyAreaContextMenu, type MoveToFolder } from '@/components/Tree/TreeContextMenu'
 import { ConfirmDialog } from '@/components/UI/ConfirmDialog'
 import type { TreeNode } from '@shared/types'
+import {
+  parseMetadata,
+  DEFAULT_CHARACTER_META,
+  DEFAULT_LOCATION_META,
+  DEFAULT_LORE_META,
+  DEFAULT_BESTIARY_META
+} from '@shared/types'
+import type { CharacterMeta, LocationMeta, LoreMeta, BestiaryMeta } from '@shared/types'
+import { OPTIONAL_BESTIARY_CATEGORY_ID } from '@shared/categoryIds'
 
 interface ContainerViewProps {
   title: string
   subtitle?: string
+  breadcrumb?: string
+  canGoBack?: boolean
+  canGoForward?: boolean
+  onGoBack?: () => void
+  onGoForward?: () => void
   items: TreeNode[]
   emptyMessage: string
   selectedNodeId: string | null
@@ -38,6 +52,13 @@ interface ContainerViewProps {
   menuVariant?: 'manuscript' | 'wiki' | 'trash'
   onRename?: (node: TreeNode) => void
   onMoveTo?: (node: TreeNode) => void
+  moveToFolders?: MoveToFolder[]
+  onMoveToFolder?: (node: TreeNode, folderId: string) => void
+  moveToChapters?: MoveToFolder[]
+  onMoveToChapter?: (node: TreeNode, chapterId: string) => void
+  onConvertToSimpleChapter?: (node: TreeNode) => void
+  onConvertToSceneChapter?: (node: TreeNode) => void
+  onConvertSimpleToSceneChapter?: (node: TreeNode) => void
   onOpenNewWindow?: (node: TreeNode) => void
   onMoveToTrash?: (node: TreeNode) => void
   onRecover?: (node: TreeNode) => void
@@ -53,6 +74,88 @@ interface ConfirmState {
   onConfirm: () => void | Promise<void>
 }
 
+function MetaTag({ value }: { value: string }): React.JSX.Element | null {
+  if (!value) return null
+  return <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{value}</span>
+}
+
+function CardBody({
+  node,
+  allNodes,
+  sceneChapter
+}: {
+  node: TreeNode
+  allNodes: TreeNode[]
+  sceneChapter: boolean
+}): React.JSX.Element {
+  if (sceneChapter) {
+    const scenes = allNodes.filter((n) => !n.deletedAt && n.parentId === node.id && n.type === 'scene')
+    const totalWords = scenes.reduce((sum, s) => sum + countNodeWords(s), 0)
+    return (
+      <div className="mt-2 flex-1">
+        <p className="text-sm text-muted-foreground">
+          {scenes.length} {scenes.length === 1 ? 'scene' : 'scenes'} · {totalWords.toLocaleString()} {totalWords === 1 ? 'word' : 'words'}
+        </p>
+      </div>
+    )
+  }
+
+  if (node.type === 'character') {
+    const meta = parseMetadata<CharacterMeta>(node.metadata, DEFAULT_CHARACTER_META)
+    const tags = [meta.age, meta.race, meta.gender].filter(Boolean)
+    return (
+      <div className="mt-2 flex-1 space-y-2">
+        {tags.length > 0 && <div className="flex flex-wrap gap-1">{tags.map((t) => <MetaTag key={t} value={t} />)}</div>}
+        {meta.general && <p className="text-sm text-muted-foreground line-clamp-2">{meta.general}</p>}
+      </div>
+    )
+  }
+
+  if (node.type === 'location') {
+    const meta = parseMetadata<LocationMeta>(node.metadata, DEFAULT_LOCATION_META)
+    return (
+      <div className="mt-2 flex-1 space-y-2">
+        {meta.type && <div className="flex flex-wrap gap-1"><MetaTag value={meta.type} /></div>}
+        {meta.general && <p className="text-sm text-muted-foreground line-clamp-2">{meta.general}</p>}
+      </div>
+    )
+  }
+
+  if (node.type === 'lore') {
+    const meta = parseMetadata<LoreMeta>(node.metadata, DEFAULT_LORE_META)
+    return (
+      <div className="mt-2 flex-1 space-y-2">
+        {meta.category && <div className="flex flex-wrap gap-1"><MetaTag value={meta.category} /></div>}
+        {meta.general && <p className="text-sm text-muted-foreground line-clamp-2">{meta.general}</p>}
+      </div>
+    )
+  }
+
+  if (node.type === 'entry' && node.categoryId === OPTIONAL_BESTIARY_CATEGORY_ID) {
+    const meta = parseMetadata<BestiaryMeta>(node.metadata, DEFAULT_BESTIARY_META)
+    const tags = [meta.species, meta.type].filter(Boolean)
+    return (
+      <div className="mt-2 flex-1 space-y-2">
+        {tags.length > 0 && <div className="flex flex-wrap gap-1">{tags.map((t) => <MetaTag key={t} value={t} />)}</div>}
+        {meta.general && <p className="text-sm text-muted-foreground line-clamp-2">{meta.general}</p>}
+      </div>
+    )
+  }
+
+  const preview = stripNodeContentPreview(node)
+  const words = countNodeWords(node)
+  return (
+    <>
+      <p className="mt-2 flex-1 text-sm text-muted-foreground line-clamp-3">{preview}</p>
+      {words > 0 && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          {words.toLocaleString()} {words === 1 ? 'word' : 'words'}
+        </p>
+      )}
+    </>
+  )
+}
+
 function SortableCard({
   node,
   isSelected,
@@ -66,6 +169,13 @@ function SortableCard({
   onSelect,
   onRename,
   onMoveTo,
+  moveToFolders,
+  onMoveToFolder,
+  moveToChapters,
+  onMoveToChapter,
+  onConvertToSimpleChapter,
+  onConvertToSceneChapter,
+  onConvertSimpleToSceneChapter,
   onOpenNewWindow,
   onMoveToTrash,
   onRecover,
@@ -84,6 +194,13 @@ function SortableCard({
   onSelect: () => void
   onRename?: () => void
   onMoveTo?: () => void
+  moveToFolders?: MoveToFolder[]
+  onMoveToFolder?: (folderId: string) => void
+  moveToChapters?: MoveToFolder[]
+  onMoveToChapter?: (chapterId: string) => void
+  onConvertToSimpleChapter?: () => void
+  onConvertToSceneChapter?: () => void
+  onConvertSimpleToSceneChapter?: () => void
   onOpenNewWindow?: () => void
   onMoveToTrash?: () => void
   onRecover?: () => void
@@ -94,15 +211,15 @@ function SortableCard({
     id: node.id,
     disabled: readOnly
   })
+  const allNodes = useAppStore((s) => s.nodes)
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition
   }
 
-  const words = countNodeWords(node)
-  const preview = stripNodeContentPreview(node)
   const folderNode = isFolder(node)
+  const sceneChapter = isChapterFolder(node)
 
   const card = (
     <div
@@ -112,7 +229,8 @@ function SortableCard({
         'no-drag group relative flex flex-col rounded-lg border bg-card p-4 shadow-sm transition-colors',
         renaming ? 'cursor-default' : 'cursor-pointer',
         isSelected ? 'border-primary ring-1 ring-primary' : 'border-border hover:border-primary/50 hover:bg-accent/30',
-        isDragging && 'opacity-50 z-10'
+        isDragging && 'opacity-50 z-10',
+        sceneChapter && 'border-dashed'
       )}
       onClick={renaming ? undefined : onSelect}
     >
@@ -147,16 +265,7 @@ function SortableCard({
           <h3 className="font-medium leading-snug">{node.title}</h3>
         )}
       </div>
-      {!renaming && (
-        <>
-          <p className="mt-2 flex-1 text-sm text-muted-foreground line-clamp-3">{preview}</p>
-          {words > 0 && (
-            <p className="mt-3 text-xs text-muted-foreground">
-              {words.toLocaleString()} {words === 1 ? 'word' : 'words'}
-            </p>
-          )}
-        </>
-      )}
+      {!renaming && <CardBody node={node} allNodes={allNodes} sceneChapter={sceneChapter} />}
     </div>
   )
 
@@ -191,6 +300,13 @@ function SortableCard({
       node={node}
       onRename={onRename}
       onMoveTo={node.type === 'scene' ? onMoveTo : undefined}
+      moveToFolders={moveToFolders?.filter((f) => f.id !== node.id && (node.parentId ? f.id !== node.parentId : f.id !== '__root__'))}
+      onMoveToFolder={onMoveToFolder}
+      moveToChapters={node.type === 'scene' ? moveToChapters?.filter((c) => c.id !== node.parentId) : undefined}
+      onMoveToChapter={node.type === 'scene' ? onMoveToChapter : undefined}
+      onConvertToSimpleChapter={node.type === 'scene' ? onConvertToSimpleChapter : undefined}
+      onConvertToSceneChapter={node.type === 'scene' ? onConvertToSceneChapter : undefined}
+      onConvertSimpleToSceneChapter={node.type === 'chapter' && isSimpleChapter(node) ? onConvertSimpleToSceneChapter : undefined}
       onOpenNewWindow={folderNode ? undefined : onOpenNewWindow}
       onMoveToTrash={() =>
         onConfirm({
@@ -210,6 +326,11 @@ function SortableCard({
 export function ContainerView({
   title,
   subtitle,
+  breadcrumb,
+  canGoBack,
+  canGoForward,
+  onGoBack,
+  onGoForward,
   items,
   emptyMessage,
   selectedNodeId,
@@ -219,6 +340,13 @@ export function ContainerView({
   menuVariant = 'manuscript',
   onRename,
   onMoveTo,
+  moveToFolders,
+  onMoveToFolder,
+  moveToChapters,
+  onMoveToChapter,
+  onConvertToSimpleChapter,
+  onConvertToSceneChapter,
+  onConvertSimpleToSceneChapter,
   onOpenNewWindow,
   onMoveToTrash,
   onRecover,
@@ -307,6 +435,13 @@ export function ContainerView({
                       : () => startRename(node)
                   }
                   onMoveTo={onMoveTo ? () => onMoveTo(node) : undefined}
+                  moveToFolders={moveToFolders}
+                  onMoveToFolder={onMoveToFolder ? (folderId) => onMoveToFolder(node, folderId) : undefined}
+                  moveToChapters={moveToChapters}
+                  onMoveToChapter={onMoveToChapter ? (chapterId) => onMoveToChapter(node, chapterId) : undefined}
+                  onConvertToSimpleChapter={onConvertToSimpleChapter ? () => onConvertToSimpleChapter(node) : undefined}
+                  onConvertToSceneChapter={onConvertToSceneChapter ? () => onConvertToSceneChapter(node) : undefined}
+                  onConvertSimpleToSceneChapter={onConvertSimpleToSceneChapter ? () => onConvertSimpleToSceneChapter(node) : undefined}
                   onOpenNewWindow={onOpenNewWindow ? () => onOpenNewWindow(node) : undefined}
                   onMoveToTrash={onMoveToTrash ? () => onMoveToTrash(node) : undefined}
                   onRecover={onRecover ? () => onRecover(node) : undefined}
@@ -324,9 +459,38 @@ export function ContainerView({
   return (
     <div className="no-drag flex flex-1 flex-col overflow-hidden">
       <div className="shrink-0 border-b border-border px-8 py-4">
-        <div className="flex items-baseline justify-between gap-4">
-          <h1 className="text-lg font-semibold">{title}</h1>
-          {subtitle && <p className="shrink-0 text-sm text-muted-foreground">{subtitle}</p>}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <h1 className="shrink-0 text-lg font-semibold">{title}</h1>
+            {breadcrumb && (
+              <div className="min-w-0 max-w-[70%] overflow-x-auto scrollbar-none">
+                <p className="whitespace-nowrap text-sm text-muted-foreground">{breadcrumb}</p>
+              </div>
+            )}
+            {subtitle && <p className="shrink-0 text-sm text-muted-foreground">{subtitle}</p>}
+          </div>
+          {(canGoBack || canGoForward) && (
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                disabled={!canGoBack}
+                onClick={onGoBack}
+                className="rounded p-1 hover:bg-muted disabled:opacity-30 disabled:hover:bg-transparent"
+                aria-label="Go back"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                disabled={!canGoForward}
+                onClick={onGoForward}
+                className="rounded p-1 hover:bg-muted disabled:opacity-30 disabled:hover:bg-transparent"
+                aria-label="Go forward"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
       {emptyMenuItems && emptyMenuItems.length > 0 ? (

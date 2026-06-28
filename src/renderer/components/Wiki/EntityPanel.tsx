@@ -102,6 +102,9 @@ function LocationPanel({
           placeholder="city, forest, dungeon..."
         />
       </Field>
+      <Field label="General">
+        <SpellCheckedTextarea measureKey={`${nodeId}-general`} value={meta.general} onChange={(e) => setMeta({ ...meta, general: e.target.value })} onBlur={save} rows={3} />
+      </Field>
       <Field label="Description">
         <SpellCheckedTextarea measureKey={nodeId} value={meta.description} onChange={(e) => setMeta({ ...meta, description: e.target.value })} onBlur={save} rows={4} />
       </Field>
@@ -168,6 +171,9 @@ function LorePanel({
           onBlur={save}
           placeholder="magic, religion, history..."
         />
+      </Field>
+      <Field label="General">
+        <SpellCheckedTextarea measureKey={`${nodeId}-general`} value={meta.general} onChange={(e) => setMeta({ ...meta, general: e.target.value })} onBlur={save} rows={3} />
       </Field>
       <Field label="Description">
         <SpellCheckedTextarea measureKey={nodeId} value={meta.description} onChange={(e) => setMeta({ ...meta, description: e.target.value })} onBlur={save} rows={4} />

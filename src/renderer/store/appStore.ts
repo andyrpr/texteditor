@@ -36,6 +36,9 @@ interface AppState {
   showExportDialog: boolean
   showBookSettingsModal: boolean
 
+  containerHistory: string[]
+  containerHistoryIndex: number
+
   pendingRenameNodeId: string | null
   pendingRenameTarget: PendingRenameTarget | null
 
@@ -56,6 +59,8 @@ interface AppState {
   removeNode: (id: string) => void
   setSelectedNodeId: (id: string | null) => void
   selectContainer: (id: string | null) => void
+  containerGoBack: () => void
+  containerGoForward: () => void
   selectWikiEntity: (id: string | null, type: WikiEntityType | null) => void
   toggleSection: (section: string) => void
   setSectionOrder: (order: string[]) => void
@@ -104,6 +109,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   selectedEntryId: null,
   selectedEntryCategoryId: null,
 
+  containerHistory: [],
+  containerHistoryIndex: -1,
+
   theme: 'dark',
   sidebarWidth: SIDEBAR_MAX_WIDTH,
   rightPanelWidth: 320,
@@ -146,7 +154,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       lastSaved: null,
       backupWarningCount: 0,
       pendingRenameNodeId: null,
-      pendingRenameTarget: null
+      pendingRenameTarget: null,
+      containerHistory: [],
+      containerHistoryIndex: -1
     }),
 
   setProjectMeta: (meta) => set({ projectMeta: meta }),
@@ -211,11 +221,41 @@ export const useAppStore = create<AppState>((set, get) => ({
     })
   },
   /** Switch center container list — does not affect right panel selection. */
-  selectContainer: (id) =>
+  selectContainer: (id) => {
+    const { containerHistory, containerHistoryIndex } = get()
+    if (id && id !== containerHistory[containerHistoryIndex]) {
+      const truncated = containerHistory.slice(0, containerHistoryIndex + 1)
+      truncated.push(id)
+      set({
+        selectedContainerId: id,
+        selectedNodeId: null,
+        containerHistory: truncated,
+        containerHistoryIndex: truncated.length - 1
+      })
+    } else {
+      set({ selectedContainerId: id, selectedNodeId: null })
+    }
+  },
+  containerGoBack: () => {
+    const { containerHistory, containerHistoryIndex } = get()
+    if (containerHistoryIndex <= 0) return
+    const newIndex = containerHistoryIndex - 1
     set({
-      selectedContainerId: id,
-      selectedNodeId: null
-    }),
+      selectedContainerId: containerHistory[newIndex],
+      selectedNodeId: null,
+      containerHistoryIndex: newIndex
+    })
+  },
+  containerGoForward: () => {
+    const { containerHistory, containerHistoryIndex } = get()
+    if (containerHistoryIndex >= containerHistory.length - 1) return
+    const newIndex = containerHistoryIndex + 1
+    set({
+      selectedContainerId: containerHistory[newIndex],
+      selectedNodeId: null,
+      containerHistoryIndex: newIndex
+    })
+  },
   selectWikiEntity: (id, type) => get().setSelectedEntity(id, type),
   toggleSection: (section) => {
     const normalized = migrateExpandedSections([section])

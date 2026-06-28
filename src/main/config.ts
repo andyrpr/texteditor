@@ -13,7 +13,6 @@ function getConfigPath(): string {
 
 function defaultPreferences(): PriamaPreferences {
   return {
-    autosaveIntervalSeconds: 30,
     maxBackupsPerLocation: 10,
     theme: 'dark'
   }

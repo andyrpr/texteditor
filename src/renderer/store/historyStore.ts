@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { useToastStore } from '@/components/UI/toast'
 
 export interface StructuralCommand {
   description: string
@@ -46,16 +47,18 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     set({ isUndoing: true })
     try {
       await cmd.undo()
+      set((s) => ({
+        past: s.past.slice(0, -1),
+        future: [cmd, ...s.future],
+        isUndoing: false,
+        canUndo: s.past.length - 1 > 0,
+        canRedo: true
+      }))
     } catch (err) {
       console.error('Undo failed:', err)
+      set({ isUndoing: false })
+      useToastStore.getState().addToast('Undo failed', 'warning')
     }
-    set((s) => ({
-      past: s.past.slice(0, -1),
-      future: [cmd, ...s.future],
-      isUndoing: false,
-      canUndo: s.past.length - 1 > 0,
-      canRedo: true
-    }))
   },
 
   redo: async () => {
@@ -65,16 +68,18 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     set({ isUndoing: true })
     try {
       await cmd.execute()
+      set((s) => ({
+        past: [...s.past, cmd],
+        future: s.future.slice(1),
+        isUndoing: false,
+        canUndo: true,
+        canRedo: s.future.length - 1 > 0
+      }))
     } catch (err) {
       console.error('Redo failed:', err)
+      set({ isUndoing: false })
+      useToastStore.getState().addToast('Redo failed', 'warning')
     }
-    set((s) => ({
-      past: [...s.past, cmd],
-      future: s.future.slice(1),
-      isUndoing: false,
-      canUndo: true,
-      canRedo: s.future.length - 1 > 0
-    }))
   },
 
   clear: () => set({ past: [], future: [], canUndo: false, canRedo: false, isUndoing: false })

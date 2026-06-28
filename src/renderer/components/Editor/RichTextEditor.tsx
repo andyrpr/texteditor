@@ -16,6 +16,7 @@ import { useAppStore } from '@/store/appStore'
 import { markContentDirty, registerActiveEditor } from '@/lib/contentPersistence'
 import { countWords } from '@/lib/utils'
 import { isSimpleChapter } from '@/lib/treeUtils'
+import { findCategory, categoryOpensInMainEditor } from '@shared/categoryView'
 import type { TreeNode } from '@shared/types'
 
 import {
@@ -51,7 +52,7 @@ function buildEntityNames(nodes: TreeNode[]): Map<string, { id: string; type: st
 }
 
 export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element {
-  const { nodes, updateNodeInStore, setSelectedEntity } = useAppStore()
+  const { nodes, categories, updateNodeInStore, setSelectedEntity } = useAppStore()
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchOpenWithReplace, setSearchOpenWithReplace] = useState(false)
   const [searchFocusKey, setSearchFocusKey] = useState(0)
@@ -68,7 +69,10 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
   const entityMap = useMemo(() => buildEntityNames(nodes), [nodes])
   const isEditable =
     node &&
-    (node.type === 'scene' || (node.type === 'chapter' && isSimpleChapter(node)))
+    (node.type === 'scene' ||
+      (node.type === 'chapter' && isSimpleChapter(node)) ||
+      (node.type === 'entry' &&
+        categoryOpensInMainEditor(findCategory(categories, node.categoryId))))
 
   const editor = useEditor({
     extensions: [

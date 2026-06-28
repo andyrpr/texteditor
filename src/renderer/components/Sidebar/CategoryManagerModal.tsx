@@ -32,7 +32,7 @@ import { cn } from '@/lib/utils'
 import { useAppStore } from '@/store/appStore'
 import { captureProjectUiState } from '@/lib/projectUiState'
 import { CATEGORY_ICON_MAP } from '@/components/Sidebar/categoryIcons'
-import { cloneCategoryPreset, countCategoryEntries, getAddableCategoryPresets } from '@shared/categoryPresets'
+import { cloneCategoryPreset, countCategoryEntries, getAddableCategoryPresets, nodeKindForCategory } from '@shared/categoryPresets'
 import type { CategoryDefinition, CategoryMode } from '@shared/types'
 
 const ICON_NAMES = Object.keys(CATEGORY_ICON_MAP)
@@ -88,7 +88,7 @@ function SortableCategoryRow({
     if (entryCount > 0) {
       const confirmed = window.confirm(
         `"${category.name}" has ${entryCount} ${entryCount === 1 ? 'entry' : 'entries'}. ` +
-          'Removing this category will hide those entries from the sidebar. Continue?'
+          'Removing this category will move those entries to the trash. Continue?'
       )
       if (!confirmed) return
     }
@@ -243,7 +243,7 @@ export function CategoryManagerModal({
   open,
   onOpenChange
 }: CategoryManagerModalProps): React.JSX.Element {
-  const { categories, sectionOrder, setSectionOrder, updateCategories, nodes } = useAppStore()
+  const { categories, sectionOrder, setSectionOrder, updateCategories, nodes, setNodes } = useAppStore()
   const [showAddForm, setShowAddForm] = useState(false)
 
   const addablePresets = useMemo(
@@ -294,6 +294,21 @@ export function CategoryManagerModal({
   }
 
   const handleRemove = async (categoryId: string): Promise<void> => {
+    const cat = categories.find((c) => c.id === categoryId)
+    if (cat) {
+      const kind = nodeKindForCategory(cat)
+      const entriesToTrash = nodes.filter((n) => {
+        if (n.deletedAt) return false
+        if (kind === 'entry') return n.type === 'entry' && n.categoryId === categoryId
+        return n.type === kind
+      })
+      let updatedNodes = nodes
+      for (const entry of entriesToTrash) {
+        updatedNodes = await window.electronAPI.tree.moveToTrash(entry.id)
+      }
+      if (entriesToTrash.length > 0) setNodes(updatedNodes)
+    }
+
     const updated = categories.filter((c) => c.id !== categoryId)
     const nextOrder = sectionOrder.filter((id) => id !== categoryId)
     setSectionOrder(nextOrder)

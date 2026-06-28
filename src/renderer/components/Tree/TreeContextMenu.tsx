@@ -1,14 +1,26 @@
 import * as ContextMenu from '@radix-ui/react-context-menu'
-import { ExternalLink, FolderInput, Pencil, RotateCcw, Trash2 } from 'lucide-react'
+import { ArrowRightLeft, ExternalLink, FolderInput, Pencil, RotateCcw, Trash2 } from 'lucide-react'
 import type { TreeNode } from '@shared/types'
 
 export type TreeMenuVariant = 'manuscript' | 'wiki' | 'folder' | 'trash' | 'wikiRow'
+
+export interface MoveToFolder {
+  id: string
+  title: string
+}
 
 interface TreeContextMenuProps {
   variant: TreeMenuVariant
   node?: TreeNode
   onRename?: () => void
   onMoveTo?: () => void
+  moveToFolders?: MoveToFolder[]
+  onMoveToFolder?: (folderId: string) => void
+  moveToChapters?: MoveToFolder[]
+  onMoveToChapter?: (chapterId: string) => void
+  onConvertToSimpleChapter?: () => void
+  onConvertToSceneChapter?: () => void
+  onConvertSimpleToSceneChapter?: () => void
   onOpenNewWindow?: () => void
   onMoveToTrash?: () => void
   onRecover?: () => void
@@ -21,6 +33,13 @@ export function TreeContextMenu({
   node,
   onRename,
   onMoveTo,
+  moveToFolders,
+  onMoveToFolder,
+  moveToChapters,
+  onMoveToChapter,
+  onConvertToSimpleChapter,
+  onConvertToSceneChapter,
+  onConvertSimpleToSceneChapter,
   onOpenNewWindow,
   onMoveToTrash,
   onRecover,
@@ -29,6 +48,9 @@ export function TreeContextMenu({
 }: TreeContextMenuProps): React.JSX.Element {
   const isScene = node?.type === 'scene'
   const isTrash = variant === 'trash'
+  const hasFolderSubmenu = moveToFolders && moveToFolders.length > 0 && onMoveToFolder
+  const hasChapterSubmenu = moveToChapters && moveToChapters.length > 0 && onMoveToChapter
+  const hasConvertSubmenu = isScene && (onConvertToSimpleChapter || onConvertToSceneChapter)
 
   return (
     <ContextMenu.Root>
@@ -64,13 +86,98 @@ export function TreeContextMenu({
                   Rename
                 </ContextMenu.Item>
               )}
-              {isScene && onMoveTo && (
+              {hasFolderSubmenu && (
+                <ContextMenu.Sub>
+                  <ContextMenu.SubTrigger className="flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent data-[state=open]:bg-accent">
+                    <FolderInput className="mr-2 h-3.5 w-3.5" />
+                    Move to folder
+                  </ContextMenu.SubTrigger>
+                  <ContextMenu.Portal>
+                    <ContextMenu.SubContent className="z-50 min-w-[160px] rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md">
+                      {moveToFolders!.map((f, i) => {
+                        const isRoot = f.id === '__root__'
+                        const nextIsFolder = i + 1 < moveToFolders!.length && moveToFolders![i + 1].id !== '__root__'
+                        return (
+                          <span key={f.id}>
+                            <ContextMenu.Item
+                              className="flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent"
+                              onSelect={() => onMoveToFolder!(f.id)}
+                            >
+                              {f.title}
+                            </ContextMenu.Item>
+                            {isRoot && nextIsFolder && <ContextMenu.Separator className="my-1 h-px bg-border" />}
+                          </span>
+                        )
+                      })}
+                    </ContextMenu.SubContent>
+                  </ContextMenu.Portal>
+                </ContextMenu.Sub>
+              )}
+              {hasChapterSubmenu && (
+                <ContextMenu.Sub>
+                  <ContextMenu.SubTrigger className="flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent data-[state=open]:bg-accent">
+                    <FolderInput className="mr-2 h-3.5 w-3.5" />
+                    Move to chapter
+                  </ContextMenu.SubTrigger>
+                  <ContextMenu.Portal>
+                    <ContextMenu.SubContent className="z-50 min-w-[160px] rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md">
+                      {moveToChapters!.map((c) => (
+                        <ContextMenu.Item
+                          key={c.id}
+                          className="flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent"
+                          onSelect={() => onMoveToChapter!(c.id)}
+                        >
+                          {c.title}
+                        </ContextMenu.Item>
+                      ))}
+                    </ContextMenu.SubContent>
+                  </ContextMenu.Portal>
+                </ContextMenu.Sub>
+              )}
+              {isScene && onMoveTo && !hasChapterSubmenu && (
                 <ContextMenu.Item
                   className="flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent"
                   onSelect={onMoveTo}
                 >
                   <FolderInput className="mr-2 h-3.5 w-3.5" />
                   Move to…
+                </ContextMenu.Item>
+              )}
+              {hasConvertSubmenu && (
+                <ContextMenu.Sub>
+                  <ContextMenu.SubTrigger className="flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent data-[state=open]:bg-accent">
+                    <ArrowRightLeft className="mr-2 h-3.5 w-3.5" />
+                    Convert to chapter
+                  </ContextMenu.SubTrigger>
+                  <ContextMenu.Portal>
+                    <ContextMenu.SubContent className="z-50 min-w-[160px] rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md">
+                      {onConvertToSimpleChapter && (
+                        <ContextMenu.Item
+                          className="flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent"
+                          onSelect={onConvertToSimpleChapter}
+                        >
+                          Simple chapter
+                        </ContextMenu.Item>
+                      )}
+                      {onConvertToSceneChapter && (
+                        <ContextMenu.Item
+                          className="flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent"
+                          onSelect={onConvertToSceneChapter}
+                        >
+                          Chapter with scenes
+                        </ContextMenu.Item>
+                      )}
+                    </ContextMenu.SubContent>
+                  </ContextMenu.Portal>
+                </ContextMenu.Sub>
+              )}
+              {onConvertSimpleToSceneChapter && (
+                <ContextMenu.Item
+                  className="flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent"
+                  onSelect={onConvertSimpleToSceneChapter}
+                >
+                  <ArrowRightLeft className="mr-2 h-3.5 w-3.5" />
+                  Convert to chapter with scenes
                 </ContextMenu.Item>
               )}
               {onOpenNewWindow && variant !== 'folder' && (

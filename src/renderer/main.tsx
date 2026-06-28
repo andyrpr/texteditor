@@ -4,6 +4,7 @@ import { AppLayout } from './App'
 import { ChildWindowRoot } from './ChildWindowRoot'
 import { ImageViewerRoot } from './ImageViewerRoot'
 import { DevicePreviewWindow } from './components/DevicePreview/DevicePreviewWindow'
+import { ErrorBoundary } from './components/UI/ErrorBoundary'
 import { isDetachedPanelWindow, isDevicePreviewWindow, isImageViewerWindow } from './lib/hashParams'
 import './index.css'
 
@@ -16,6 +17,8 @@ function Root(): React.JSX.Element {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <Root />
+    <ErrorBoundary region="Application" fallbackClassName="h-screen">
+      <Root />
+    </ErrorBoundary>
   </StrictMode>
 )

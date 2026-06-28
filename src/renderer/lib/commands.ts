@@ -231,7 +231,7 @@ export function makeReorderCommand(params: {
 export function makeReparentCommand(params: {
   nodeId: string
   oldParentId: string | null
-  newParentId: string
+  newParentId: string | null
 }): StructuralCommand {
   return {
     description: 'Move into folder',
