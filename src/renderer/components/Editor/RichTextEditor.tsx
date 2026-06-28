@@ -11,7 +11,7 @@ import { SearchBar } from './SearchBar'
 import SearchAndReplace from './searchAndReplace'
 import { SpellCheckExtension } from '@/extensions/SpellCheckExtension'
 import { SpellSuggestions } from './SpellSuggestions'
-import { addCustomWord } from '@/lib/spellCheck'
+import { addCustomWord, removeCustomWord, isCustomWord } from '@/lib/spellCheck'
 import { useAppStore } from '@/store/appStore'
 import { markContentDirty, registerActiveEditor } from '@/lib/contentPersistence'
 import { countWords } from '@/lib/utils'
@@ -284,8 +284,10 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
           word={spellMenu.word}
           suggestions={spellMenu.suggestions}
           message={spellMenu.message}
+          isCustomWord={isCustomWord(spellMenu.word)}
           onSelect={(replacement) => {
             if (!editor) return
+            editor.commands.removeSpellDecoration(spellMenu.from, spellMenu.to)
             editor
               .chain()
               .focus()
@@ -296,6 +298,11 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
           }}
           onAddToDictionary={() => {
             addCustomWord(spellMenu.word)
+            editor?.commands.removeSpellDecoration(spellMenu.from, spellMenu.to)
+            setSpellMenu(null)
+          }}
+          onRemoveFromDictionary={() => {
+            removeCustomWord(spellMenu.word)
             setSpellMenu(null)
             editor?.commands.refreshSpellCheck()
           }}

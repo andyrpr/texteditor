@@ -1,58 +1,123 @@
 import { Extension } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
+import type { Transaction } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { check } from '@/lib/spellCheck'
 
-const DEBOUNCE_MS = 800
-const BLOCK_SEP = '\n'
-const LEAF_TEXT = '\u200b'
+const DEBOUNCE_MS = 400
+const LEAF_TEXT = '​'
 
-export const spellCheckPluginKey = new PluginKey<DecorationSet>('spellCheck')
+export const spellCheckPluginKey = new PluginKey<SpellPluginState>('spellCheck')
+
+interface BlockResult {
+  hash: string
+  decorations: Decoration[]
+}
+
+interface SpellPluginState {
+  decorations: DecorationSet
+  cache: Map<number, BlockResult>
+  dirtyPositions: Set<number>
+}
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     spellCheck: {
       refreshSpellCheck: () => ReturnType
+      removeSpellDecoration: (from: number, to: number) => ReturnType
     }
   }
 }
 
-function buildTextAndPosMap(doc: PMNode): { text: string; posMap: number[] } {
+function hashBlock(node: PMNode): string {
+  return node.textContent
+}
+
+function getBlockPositions(doc: PMNode): Map<number, PMNode> {
+  const blocks = new Map<number, PMNode>()
+  doc.forEach((child, offset) => {
+    blocks.set(offset + 1, child)
+  })
+  return blocks
+}
+
+function findChangedBlocks(oldDoc: PMNode, tr: Transaction): Set<number> {
+  const dirty = new Set<number>()
+  if (!tr.docChanged) return dirty
+
+  tr.mapping.maps.forEach((stepMap) => {
+    stepMap.forEach((oldStart, oldEnd, newStart, newEnd) => {
+      const newDoc = tr.doc
+      newDoc.nodesBetween(newStart, Math.min(newEnd, newDoc.content.size), (node, pos) => {
+        if (node.isBlock && !node.isTextblock) return true
+        if (node.isTextblock) {
+          dirty.add(pos)
+          return false
+        }
+        return true
+      })
+    })
+  })
+
+  return dirty
+}
+
+function buildBlockText(node: PMNode): { text: string; posMap: number[] } {
   const posMap: number[] = []
   let text = ''
-  let separated = true
 
-  doc.nodesBetween(0, doc.content.size, (node, pos) => {
-    if (node.isText) {
-      const nodeText = node.text!
-      const len = nodeText.length
+  node.descendants((child, pos) => {
+    if (child.isText) {
+      const nodeText = child.text!
       const start = text.length
-      for (let i = 0; i < len; i++) {
+      for (let i = 0; i < nodeText.length; i++) {
         posMap[start + i] = pos + i
       }
       text += nodeText
-      separated = false
-    } else if (node.isLeaf) {
+    } else if (child.isLeaf) {
       posMap[text.length] = pos
       text += LEAF_TEXT
-      separated = false
-    } else if (!separated && node.isBlock) {
-      posMap[text.length] = pos
-      text += BLOCK_SEP
-      separated = true
     }
   })
 
   return { text, posMap }
 }
 
-function requestIdle(callback: () => void): void {
-  if (typeof requestIdleCallback === 'function') {
-    requestIdleCallback(callback, { timeout: 500 })
-  } else {
-    setTimeout(callback, 0)
+async function checkBlock(
+  doc: PMNode,
+  blockPos: number,
+  blockNode: PMNode,
+  signal: AbortSignal
+): Promise<Decoration[]> {
+  const { text, posMap } = buildBlockText(blockNode)
+  if (!text.trim()) return []
+
+  const matches = await check(text, { signal })
+  if (signal.aborted) return []
+
+  const decorations: Decoration[] = []
+  for (const match of matches) {
+    const localFrom = posMap[match.from]
+    const localTo = posMap[match.to - 1]
+    if (localFrom === undefined || localTo === undefined) continue
+
+    const absFrom = blockPos + 1 + localFrom
+    const absTo = blockPos + 1 + localTo + 1
+
+    if (absFrom < 0 || absTo > doc.content.size) continue
+
+    decorations.push(
+      Decoration.inline(absFrom, absTo, {
+        class: 'spell-error',
+        'data-word': match.word,
+        'data-suggestions': JSON.stringify(match.suggestions),
+        'data-message': match.message ?? ''
+      })
+    )
   }
+
+  return decorations
 }
 
 export const SpellCheckExtension = Extension.create({
@@ -65,92 +130,151 @@ export const SpellCheckExtension = Extension.create({
         ({ tr, dispatch }) => {
           if (dispatch) dispatch(tr.setMeta(spellCheckPluginKey, 'recheck'))
           return true
+        },
+      removeSpellDecoration:
+        (from: number, to: number) =>
+        ({ state, dispatch }) => {
+          if (!dispatch) return true
+          const pluginState = spellCheckPluginKey.getState(state)
+          if (!pluginState) return true
+          const filtered = pluginState.decorations.remove(
+            pluginState.decorations.find(from, to, (spec) => spec.class === 'spell-error')
+          )
+          dispatch(
+            state.tr.setMeta(spellCheckPluginKey, {
+              ...pluginState,
+              decorations: filtered
+            })
+          )
+          return true
         }
     }
   },
 
   addProseMirrorPlugins() {
     let debounceTimer: ReturnType<typeof setTimeout> | null = null
-    let needsRecheck = false
-    let generation = 0
     let abortController: AbortController | null = null
+    let pendingFullRecheck = false
 
     return [
       new Plugin({
         key: spellCheckPluginKey,
 
         state: {
-          init() {
-            return DecorationSet.empty
+          init(): SpellPluginState {
+            return {
+              decorations: DecorationSet.empty,
+              cache: new Map(),
+              dirtyPositions: new Set()
+            }
           },
-          apply(tr, old) {
-            if (tr.getMeta(spellCheckPluginKey) === 'recheck') {
-              needsRecheck = true
-              return old
+          apply(tr, prev): SpellPluginState {
+            const meta = tr.getMeta(spellCheckPluginKey)
+
+            if (meta === 'recheck') {
+              pendingFullRecheck = true
+              return prev
             }
+
+            if (meta && typeof meta === 'object' && 'decorations' in meta) {
+              return meta as SpellPluginState
+            }
+
             if (tr.docChanged) {
-              return old.map(tr.mapping, tr.doc)
+              const changed = findChangedBlocks(prev.decorations ? tr.before : tr.doc, tr)
+              const mapped = prev.decorations.map(tr.mapping, tr.doc)
+              return {
+                decorations: mapped,
+                cache: prev.cache,
+                dirtyPositions: new Set([...prev.dirtyPositions, ...changed])
+              }
             }
-            const newDecs = tr.getMeta(spellCheckPluginKey)
-            if (newDecs !== undefined) return newDecs
-            return old
+
+            return prev
           }
         },
 
         props: {
           decorations(state) {
-            return spellCheckPluginKey.getState(state)
+            return spellCheckPluginKey.getState(state)?.decorations ?? DecorationSet.empty
           }
         },
 
         view(editorView) {
           const scheduleCheck = (): void => {
             if (debounceTimer) clearTimeout(debounceTimer)
-            generation++
-            const myGen = generation
             abortController?.abort()
             abortController = new AbortController()
             const signal = abortController.signal
 
             debounceTimer = setTimeout(async () => {
-              const { doc } = editorView.state
-              const { text, posMap } = buildTextAndPosMap(doc)
-              const matches = await check(text, { signal })
+              const state = editorView.state
+              const pluginState = spellCheckPluginKey.getState(state)
+              if (!pluginState || editorView.isDestroyed) return
 
-              if (myGen !== generation || editorView.isDestroyed || signal.aborted) return
+              const doc = state.doc
+              const blocks = getBlockPositions(doc)
+              const isFullRecheck = pendingFullRecheck
+              pendingFullRecheck = false
 
-              const decorations: Decoration[] = []
+              let positionsToCheck: Set<number>
 
-              for (const match of matches) {
-                const from = posMap[match.from]
-                const to = posMap[match.to - 1]
-                if (from === undefined || to === undefined) continue
-
-                decorations.push(
-                  Decoration.inline(from, to + 1, {
-                    class: 'spell-error',
-                    'data-word': match.word,
-                    'data-suggestions': JSON.stringify(match.suggestions),
-                    'data-message': match.message ?? ''
-                  })
-                )
+              if (isFullRecheck || pluginState.cache.size === 0) {
+                positionsToCheck = new Set(blocks.keys())
+              } else {
+                positionsToCheck = new Set(pluginState.dirtyPositions)
               }
 
-              if (myGen !== generation || editorView.isDestroyed) return
+              if (positionsToCheck.size === 0) return
 
-              const currentDoc = editorView.state.doc
-              const newDecorationSet = DecorationSet.create(currentDoc, decorations)
-              const tr = editorView.state.tr.setMeta(spellCheckPluginKey, newDecorationSet)
+              const newCache = new Map(pluginState.cache)
+              const allDecorations: Decoration[] = []
+
+              for (const [pos, blockNode] of blocks) {
+                if (signal.aborted || editorView.isDestroyed) return
+
+                const hash = hashBlock(blockNode)
+
+                if (!positionsToCheck.has(pos)) {
+                  const cached = newCache.get(pos)
+                  if (cached && cached.hash === hash) {
+                    allDecorations.push(...cached.decorations)
+                    continue
+                  }
+                }
+
+                const decorations = await checkBlock(doc, pos, blockNode, signal)
+                if (signal.aborted || editorView.isDestroyed) return
+
+                if (editorView.state.doc !== doc) return
+
+                newCache.set(pos, { hash, decorations })
+                allDecorations.push(...decorations)
+              }
+
+              for (const pos of newCache.keys()) {
+                if (!blocks.has(pos)) newCache.delete(pos)
+              }
+
+              if (signal.aborted || editorView.isDestroyed) return
+              if (editorView.state.doc !== doc) return
+
+              const newState: SpellPluginState = {
+                decorations: DecorationSet.create(doc, allDecorations),
+                cache: newCache,
+                dirtyPositions: new Set()
+              }
+
+              const tr = editorView.state.tr.setMeta(spellCheckPluginKey, newState)
               editorView.dispatch(tr)
             }, DEBOUNCE_MS)
           }
 
-          requestIdle(() => scheduleCheck())
+          requestIdleCallback(() => scheduleCheck(), { timeout: 500 })
 
           return {
             update(view, prevState) {
-              if (view.state.doc !== prevState.doc || needsRecheck) {
-                needsRecheck = false
+              if (view.state.doc !== prevState.doc || pendingFullRecheck) {
                 scheduleCheck()
               }
             },
