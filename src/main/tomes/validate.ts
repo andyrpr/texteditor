@@ -1,5 +1,5 @@
-import { existsSync } from 'fs'
 import { readFile } from 'fs/promises'
+import fse from 'fs-extra'
 import { join } from 'path'
 import type { TomesManifest } from '@shared/types'
 import { TOMES_MAGIC, PROJECT_FILENAME } from '@shared/types'
@@ -18,7 +18,7 @@ export async function validateTomesFile(tomesPath: string): Promise<ValidationRe
     return { valid: false, error: 'File must be a project.tomes file' }
   }
 
-  if (!existsSync(tomesPath)) {
+  if (!(await fse.pathExists(tomesPath))) {
     return { valid: false, error: 'Project file not found' }
   }
 
@@ -55,7 +55,7 @@ export async function validateTomesFile(tomesPath: string): Promise<ValidationRe
   ]
 
   for (const dir of requiredDirs) {
-    if (!existsSync(dir)) {
+    if (!(await fse.pathExists(dir))) {
       return { valid: false, error: 'Project folder structure is incomplete' }
     }
   }

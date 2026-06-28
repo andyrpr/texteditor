@@ -384,6 +384,7 @@ export function SidebarTree({
     <input
       autoFocus
       value={renameValue}
+      onFocus={(e) => e.currentTarget.select()}
       onChange={(e) => setRenameValue(e.target.value)}
       onBlur={() => void handleRename(id)}
       onKeyDown={(e) => {
@@ -591,6 +592,7 @@ function SceneList({
             key={scene.id}
             autoFocus
             value={renameValue}
+            onFocus={(e) => e.currentTarget.select()}
             onChange={(e) => setRenameValue(e.target.value)}
             onBlur={() => onRename(scene.id)}
             onKeyDown={(e) => {

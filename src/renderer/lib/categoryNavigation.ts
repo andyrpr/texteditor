@@ -134,13 +134,11 @@ export async function createCategoryItem(
   )
   if (!createdId) return null
 
-  const renameTarget =
-    source === 'sidebar'
-      ? 'sidebar'
-      : categoryOpensInRightPanel(category)
-        ? 'sidebar'
-        : 'container'
+  if (source === 'container') {
+    requestRenameAfterCreate(createdId, 'container')
+    return createdId
+  }
 
-  await openCategoryItem(createdId, { renameTarget })
+  await openCategoryItem(createdId, { renameTarget: 'sidebar' })
   return createdId
 }
