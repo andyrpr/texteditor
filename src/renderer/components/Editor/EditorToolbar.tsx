@@ -4,6 +4,8 @@ import {
   Italic,
   Underline as UnderlineIcon,
   Strikethrough,
+  Type,
+  Highlighter,
   List,
   ListOrdered,
   Search,
@@ -16,6 +18,8 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/comp
 import { useAppStore } from '@/store/appStore'
 import { SIDEBAR_MIN_WIDTH } from '@shared/types'
 import { StyleDropdown } from './StyleDropdown'
+import { FontDropdown } from './FontDropdown'
+import { ColorPickerButton, TEXT_COLORS, HIGHLIGHT_COLORS } from './ColorPicker'
 import { cn, countWords } from '@/lib/utils'
 import type { BlockStyleType } from './BlockStyle'
 
@@ -98,6 +102,7 @@ export function EditorToolbar({ editor, wordCount, onOpenSearch }: EditorToolbar
         )}
       >
         <StyleDropdown editor={editor} />
+        <FontDropdown editor={editor} />
 
         <Separator orientation="vertical" className="mx-1 h-6" />
 
@@ -129,6 +134,35 @@ export function EditorToolbar({ editor, wordCount, onOpenSearch }: EditorToolbar
         >
           <Strikethrough className="h-4 w-4" />
         </ToolbarButton>
+
+        <Separator orientation="vertical" className="mx-1 h-6" />
+
+        <ColorPickerButton
+          currentColor={editor.getAttributes('textStyle').color ?? ''}
+          colors={TEXT_COLORS}
+          tooltip="Text Color"
+          icon={<Type className="h-4 w-4" />}
+          onSelect={(color) => {
+            if (color) {
+              editor.chain().focus().setColor(color).run()
+            } else {
+              editor.chain().focus().unsetColor().run()
+            }
+          }}
+        />
+        <ColorPickerButton
+          currentColor={editor.getAttributes('highlight').color ?? ''}
+          colors={HIGHLIGHT_COLORS}
+          tooltip="Highlight"
+          icon={<Highlighter className="h-4 w-4" />}
+          onSelect={(color) => {
+            if (color) {
+              editor.chain().focus().setHighlight({ color }).run()
+            } else {
+              editor.chain().focus().unsetHighlight().run()
+            }
+          }}
+        />
 
         <Separator orientation="vertical" className="mx-1 h-6" />
 

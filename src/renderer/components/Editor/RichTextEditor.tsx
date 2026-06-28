@@ -2,8 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
+import TextStyle from '@tiptap/extension-text-style'
+import FontFamily from '@tiptap/extension-font-family'
+import Color from '@tiptap/extension-color'
+import Highlight from '@tiptap/extension-highlight'
 import Placeholder from '@tiptap/extension-placeholder'
 import CharacterCount from '@tiptap/extension-character-count'
+import { isSupportedFamily } from './FontDropdown'
 import { EntityMention } from './EntityMention'
 import { BlockStyle } from './BlockStyle'
 import { EditorToolbar } from './EditorToolbar'
@@ -11,6 +16,7 @@ import { SearchBar } from './SearchBar'
 import SearchAndReplace from './searchAndReplace'
 import { SpellCheckExtension } from '@/extensions/SpellCheckExtension'
 import { SpellSuggestions } from './SpellSuggestions'
+import { PasteMenu } from './PasteMenu'
 import { addCustomWord, removeCustomWord, isCustomWord } from '@/lib/spellCheck'
 import { useAppStore } from '@/store/appStore'
 import { markContentDirty, registerActiveEditor } from '@/lib/contentPersistence'
@@ -26,6 +32,19 @@ import {
   parseMetadata
 } from '@shared/types'
 import type { CharacterMeta, LocationMeta, LoreMeta } from '@shared/types'
+
+function sanitizePastedHtml(html: string): string {
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_ELEMENT)
+  let el = walker.currentNode as HTMLElement
+  while (el) {
+    if (el.style?.fontFamily && !isSupportedFamily(el.style.fontFamily)) {
+      el.style.removeProperty('font-family')
+    }
+    el = walker.nextNode() as HTMLElement
+  }
+  return doc.body.innerHTML
+}
 
 interface RichTextEditorProps {
   node: TreeNode | null
@@ -56,6 +75,12 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchOpenWithReplace, setSearchOpenWithReplace] = useState(false)
   const [searchFocusKey, setSearchFocusKey] = useState(0)
+  const [pasteMenu, setPasteMenu] = useState<{
+    x: number
+    y: number
+    html: string
+    text: string
+  } | null>(null)
   const [spellMenu, setSpellMenu] = useState<{
     x: number
     y: number
@@ -80,6 +105,10 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
         heading: { levels: [1, 2, 3, 4] }
       }),
       Underline,
+      TextStyle,
+      FontFamily,
+      Color,
+      Highlight.configure({ multicolor: true }),
       BlockStyle,
       EntityMention,
       Placeholder.configure({
@@ -106,6 +135,19 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
         'data-form-type': 'other',
         'data-lpignore': 'true',
         'data-1p-ignore': 'true'
+      },
+      handlePaste: (view, event) => {
+        const html = event.clipboardData?.getData('text/html') ?? ''
+        const text = event.clipboardData?.getData('text/plain') ?? ''
+        if (!html && !text) return false
+
+        const hasRichContent = html.includes('<') && html !== text
+        if (!hasRichContent) return false
+
+        event.preventDefault()
+        const coords = view.coordsAtPos(view.state.selection.from)
+        setPasteMenu({ x: coords.left, y: coords.bottom, html, text })
+        return true
       },
       handleClickOn: (_view, _pos, nodeEl) => {
         if (nodeEl.type.name === 'text') {
@@ -276,6 +318,25 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
           <EditorContent editor={editor} className="font-serif text-lg leading-relaxed" />
         </div>
       </div>
+
+      {pasteMenu && (
+        <PasteMenu
+          x={pasteMenu.x}
+          y={pasteMenu.y}
+          onPasteRich={() => {
+            if (!editor) return
+            const cleaned = sanitizePastedHtml(pasteMenu.html)
+            editor.commands.insertContent(cleaned)
+            setPasteMenu(null)
+          }}
+          onPasteClean={() => {
+            if (!editor) return
+            editor.commands.insertContent(pasteMenu.text)
+            setPasteMenu(null)
+          }}
+          onClose={() => setPasteMenu(null)}
+        />
+      )}
 
       {spellMenu && (
         <SpellSuggestions
