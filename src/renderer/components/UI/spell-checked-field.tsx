@@ -8,7 +8,7 @@ import type { SpellMatch } from '@/lib/spellCheck'
 import { cn } from '@/lib/utils'
 
 function buildMirrorContent(text: string, matches: SpellMatch[]): React.ReactNode {
-  if (!text) return '\u00a0'
+  if (!text) return ' '
 
   if (matches.length === 0) return text
 
@@ -40,6 +40,7 @@ interface SpellMirrorProps {
   matches: SpellMatch[]
   multiline?: boolean
   scrollLeft?: number
+  scrollTop?: number
   className?: string
 }
 
@@ -48,13 +49,14 @@ function SpellMirror({
   matches,
   multiline,
   scrollLeft = 0,
+  scrollTop = 0,
   className
 }: SpellMirrorProps): React.JSX.Element {
   return (
     <div
       className={cn(
-        'pointer-events-none absolute inset-0 overflow-hidden rounded-md border border-transparent px-3 py-1 text-sm shadow-sm',
-        multiline && 'py-2',
+        'pointer-events-none absolute inset-0 overflow-hidden rounded-md border border-transparent px-3 text-sm shadow-sm',
+        multiline ? 'py-2' : 'py-1',
         className
       )}
       aria-hidden
@@ -64,7 +66,18 @@ function SpellMirror({
           'text-transparent',
           multiline ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'
         )}
-        style={{ transform: scrollLeft ? `translateX(-${scrollLeft}px)` : undefined }}
+        style={{
+          transform:
+            scrollLeft || scrollTop
+              ? `translate(${scrollLeft ? -scrollLeft : 0}px, ${scrollTop ? -scrollTop : 0}px)`
+              : undefined,
+          lineHeight: 'inherit',
+          fontFamily: 'inherit',
+          fontSize: 'inherit',
+          fontWeight: 'inherit',
+          letterSpacing: 'inherit',
+          wordSpacing: 'inherit'
+        }}
       >
         {buildMirrorContent(text, matches)}
       </div>
@@ -224,6 +237,7 @@ export const SpellCheckedTextarea = React.forwardRef<
   ) => {
     const innerRef = useRef<HTMLTextAreaElement>(null)
     const text = String(value ?? '')
+    const [mirrorScrollTop, setMirrorScrollTop] = useState(0)
 
     const {
       matches,
@@ -245,6 +259,18 @@ export const SpellCheckedTextarea = React.forwardRef<
       },
       [ref]
     )
+
+    useLayoutEffect(() => {
+      const el = innerRef.current
+      if (!el || !spellCheckEnabled) return
+
+      const update = (): void => setMirrorScrollTop(el.scrollTop)
+      update()
+      el.addEventListener('scroll', update)
+      return () => {
+        el.removeEventListener('scroll', update)
+      }
+    }, [text, spellCheckEnabled])
 
     const handleFocus = (e: React.FocusEvent<HTMLTextAreaElement>): void => {
       spellFocus()
@@ -276,7 +302,9 @@ export const SpellCheckedTextarea = React.forwardRef<
     return (
       <>
         <div className="relative">
-          {spellCheckEnabled && <SpellMirror text={text} matches={matches} multiline />}
+          {spellCheckEnabled && (
+            <SpellMirror text={text} matches={matches} multiline scrollTop={mirrorScrollTop} />
+          )}
           <AutoGrowTextarea
             ref={setRefs}
             value={value}
