@@ -1,13 +1,30 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { addCustomWord, check, type SpellMatch } from '@/lib/spellCheck'
 
-const DEBOUNCE_MS = 300
+const DEBOUNCE_MS = 400
 const BLUR_MENU_DELAY_MS = 150
 
 export interface SpellCheckMenuState {
   x: number
   y: number
   match: SpellMatch
+}
+
+interface LineCache {
+  hash: string
+  matches: SpellMatch[]
+}
+
+function splitLines(text: string): string[] {
+  return text.split('\n')
+}
+
+function offsetMatches(matches: SpellMatch[], offset: number): SpellMatch[] {
+  return matches.map((m) => ({
+    ...m,
+    from: m.from + offset,
+    to: m.to + offset
+  }))
 }
 
 export function useSpellCheckField(
@@ -40,6 +57,7 @@ export function useSpellCheckField(
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const blurMenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const activeMenuRef = useRef<SpellCheckMenuState | null>(null)
+  const lineCacheRef = useRef<Map<number, LineCache>>(new Map())
 
   const runCheck = useCallback(
     async (text: string, gen: number) => {
@@ -47,9 +65,35 @@ export function useSpellCheckField(
       const controller = new AbortController()
       abortRef.current = controller
 
-      const result = await check(text, { signal: controller.signal })
-      if (gen !== generationRef.current || controller.signal.aborted) return
-      setMatches(result)
+      const lines = splitLines(text)
+      const cache = lineCacheRef.current
+      const newCache = new Map<number, LineCache>()
+      const allMatches: SpellMatch[] = []
+
+      let offset = 0
+      for (let i = 0; i < lines.length; i++) {
+        if (controller.signal.aborted || gen !== generationRef.current) return
+
+        const line = lines[i]
+        const hash = line
+        const cached = cache.get(i)
+
+        if (cached && cached.hash === hash) {
+          newCache.set(i, cached)
+          allMatches.push(...offsetMatches(cached.matches, offset))
+        } else {
+          const lineMatches = await check(line, { signal: controller.signal })
+          if (controller.signal.aborted || gen !== generationRef.current) return
+
+          newCache.set(i, { hash, matches: lineMatches })
+          allMatches.push(...offsetMatches(lineMatches, offset))
+        }
+
+        offset += line.length + 1
+      }
+
+      lineCacheRef.current = newCache
+      setMatches(allMatches)
     },
     []
   )
@@ -62,7 +106,9 @@ export function useSpellCheckField(
       const gen = generationRef.current
 
       debounceRef.current = setTimeout(() => {
-        void runCheck(text, gen)
+        requestIdleCallback(() => {
+          void runCheck(text, gen)
+        }, { timeout: 500 })
       }, debounceMs)
     },
     [enabled, debounceMs, runCheck]
@@ -80,6 +126,7 @@ export function useSpellCheckField(
   useEffect(() => {
     if (!enabled) {
       setMatches([])
+      lineCacheRef.current = new Map()
       return
     }
     if (!focused && !dirty) return
@@ -138,6 +185,7 @@ export function useSpellCheckField(
       const { from, to } = active.match
       const next = value.slice(0, from) + replacement + value.slice(to)
       closeMenu()
+      lineCacheRef.current = new Map()
       setDirty(true)
       return next
     },
@@ -149,6 +197,7 @@ export function useSpellCheckField(
     if (!active) return
     addCustomWord(active.match.word)
     closeMenu()
+    lineCacheRef.current = new Map()
     setDirty(true)
     if (enabled && (focused || dirty)) {
       scheduleCheck(value)
